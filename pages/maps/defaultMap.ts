@@ -8,70 +8,72 @@ export interface MapConfig {
 }
 
 export const defaultMap: MapConfig = {
-  name: "Downtown Metro",
-  width: 30,
-  height: 30,
+  name: "Mega Metro",
+  width: 50,
+  height: 50,
   tiles: [
-    // Row 0 - Northern suburbs
-    ['grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass'],
-    // Row 1 - Residential outskirts
-    ['grass', 'residential', 'residential', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'residential', 'residential', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass'],
-    // Row 2 - Residential with parks
-    ['grass', 'residential', 'residential', 'park', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'park', 'residential', 'residential', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass'],
-    // Row 3 - Connecting road
-    ['road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road'],
-    // Row 4 - Residential district
-    ['grass', 'residential', 'residential', 'residential', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'residential', 'residential', 'residential', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass'],
-    // Row 5 - Residential with parks
-    ['grass', 'residential', 'residential', 'park', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'park', 'residential', 'residential', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass'],
-    // Row 6 - Cross street
-    ['road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road'],
-    // Row 7 - Mixed residential
-    ['grass', 'residential', 'residential', 'residential', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'residential', 'residential', 'residential', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass'],
-    // Row 8 - Residential with parks
-    ['grass', 'residential', 'residential', 'park', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'park', 'residential', 'residential', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass'],
-    // Row 9 - Main arterial road
-    ['highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway'],
-    // Row 10 - Commercial district begins
-    ['grass', 'commercial', 'commercial', 'commercial', 'commercial', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'commercial', 'commercial', 'commercial', 'commercial', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass'],
-    // Row 11 - Commercial with power
-    ['grass', 'commercial', 'commercial', 'power_line', 'power_line', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'power_line', 'power_line', 'commercial', 'commercial', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass'],
-    // Row 12 - Cross street
-    ['main_road', 'main_road', 'main_road', 'main_road', 'main_road', 'main_road', 'main_road', 'main_road', 'main_road', 'main_road', 'main_road', 'main_road', 'main_road', 'main_road', 'main_road', 'main_road', 'main_road', 'main_road', 'main_road', 'main_road', 'main_road', 'main_road', 'main_road', 'main_road', 'main_road', 'main_road', 'main_road', 'main_road', 'main_road', 'main_road'],
-    // Row 13 - Downtown commercial
-    ['grass', 'commercial', 'commercial', 'commercial', 'commercial', 'commercial', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'commercial', 'commercial', 'commercial', 'commercial', 'commercial', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass'],
-    // Row 14 - Commercial with power
-    ['grass', 'commercial', 'commercial', 'power_line', 'power_line', 'power_line', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'power_line', 'power_line', 'power_line', 'commercial', 'commercial', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass'],
-    // Row 15 - Central business district
-    ['highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway', 'highway'],
-    // Row 16 - Downtown core
-    ['grass', 'commercial', 'commercial', 'commercial', 'commercial', 'commercial', 'commercial', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'commercial', 'commercial', 'commercial', 'commercial', 'commercial', 'commercial', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass'],
-    // Row 17 - Commercial with power
-    ['grass', 'commercial', 'commercial', 'power_line', 'power_line', 'power_line', 'power_line', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'power_line', 'power_line', 'power_line', 'power_line', 'commercial', 'commercial', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass'],
-    // Row 18 - Cross street
-    ['road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road'],
-    // Row 19 - Mixed commercial
-    ['grass', 'commercial', 'commercial', 'commercial', 'commercial', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'commercial', 'commercial', 'commercial', 'commercial', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass'],
-    // Row 20 - Commercial with power
-    ['grass', 'commercial', 'commercial', 'power_line', 'power_line', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'power_line', 'power_line', 'commercial', 'commercial', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass'],
-    // Row 21 - Main arterial road
-    ['road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road'],
-    // Row 22 - Industrial zone begins
-    ['grass', 'industrial', 'industrial', 'industrial', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'industrial', 'industrial', 'industrial', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass'],
-    // Row 23 - Industrial with power
-    ['grass', 'industrial', 'industrial', 'power_line', 'power_line', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'power_line', 'power_line', 'industrial', 'industrial', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass'],
-    // Row 24 - Cross street
-    ['road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road'],
-    // Row 25 - Industrial district
-    ['grass', 'industrial', 'industrial', 'industrial', 'industrial', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'industrial', 'industrial', 'industrial', 'industrial', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass'],
-    // Row 26 - Industrial with power
-    ['grass', 'industrial', 'industrial', 'power_line', 'power_line', 'power_line', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'power_line', 'power_line', 'power_line', 'industrial', 'industrial', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass'],
-    // Row 27 - Cross street
-    ['road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road', 'road'],
-    // Row 28 - Industrial outskirts
-    ['grass', 'industrial', 'industrial', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'industrial', 'industrial', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass'],
-    // Row 29 - Southern edge
-    ['grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass', 'grass']
+    // Row 0–4: Northern greenery buffer
+    ...Array.from({ length: 5 }, () => Array(50).fill('grass')),
+
+    // Row 5–10: Northern suburbs (residential + parks + roads)
+    ...Array.from({ length: 6 }, (_, r) => 
+      Array.from({ length: 50 }, (_, c) => {
+        if (c % 10 === 0) return 'road';
+        if (c % 7 === 0 && r % 2 === 0) return 'park';
+        return 'residential';
+      })
+    ),
+
+    // Row 11: Major north–south highway
+    Array(50).fill('highway'),
+
+    // Row 12–20: Downtown commercial core
+    ...Array.from({ length: 9 }, (_, r) => 
+      Array.from({ length: 50 }, (_, c) => {
+        if (r % 3 === 0 && c % 5 === 0) return 'park';
+        if (c % 8 === 0) return 'main_road';
+        return 'commercial';
+      })
+    ),
+
+    // Row 21: East–west cross highway
+    Array(50).fill('highway'),
+
+    // Row 22–30: Mixed midtown (residential + small commercial)
+    ...Array.from({ length: 9 }, (_, r) => 
+      Array.from({ length: 50 }, (_, c) => {
+        if (c % 12 === 0) return 'road';
+        if (r % 4 === 0 && c % 6 === 0) return 'park';
+        return (c % 5 < 3 ? 'residential' : 'commercial');
+      })
+    ),
+
+    // Row 31: South cross highway
+    Array(50).fill('highway'),
+
+    // Row 32–40: Industrial zone on west side
+    ...Array.from({ length: 9 }, (_, r) => 
+      Array.from({ length: 50 }, (_, c) => {
+        if (c < 15) return (c % 5 === 0 ? 'power_line' : 'industrial');
+        if (c % 10 === 0) return 'road';
+        return 'grass';
+      })
+    ),
+
+    // Row 41: Peripheral road
+    Array(50).fill('road'),
+
+    // Row 42–48: Southern residential neighborhoods
+    ...Array.from({ length: 7 }, (_, r) => 
+      Array.from({ length: 50 }, (_, c) => {
+        if (c % 9 === 0) return 'road';
+        if ((c + r) % 11 === 0) return 'park';
+        return 'residential';
+      })
+    ),
+
+    // Row 49: Southern edge
+    Array(50).fill('grass')
   ]
 };
 
