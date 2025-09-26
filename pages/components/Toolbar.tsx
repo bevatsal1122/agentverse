@@ -8,7 +8,7 @@ interface ToolbarProps {
   onToolSelect: (tool: Tool) => void;
 }
 
-const Toolbar: React.FC<ToolbarProps> = ({ selectedTool, onToolSelect }) => {
+const Toolbar: React.FC<ToolbarProps> = () => {
   const handleSave = () => {
     const success = saveGame();
     if (success) {
@@ -60,7 +60,7 @@ const Toolbar: React.FC<ToolbarProps> = ({ selectedTool, onToolSelect }) => {
             Load City
           </button>
           <button onClick={() => MapLoader.loadDefaultMap()} className="simcity-button text-xs">
-            Load Map
+            Load Metro City
           </button>
           <button onClick={() => MapLoader.createEmptyMap(30, 30)} className="simcity-button text-xs">
             New Map

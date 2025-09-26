@@ -48,8 +48,8 @@ class GameStateManager {
   private state: GameState = {
     selectedTool: Tool.SELECT,
     mapData: new Map(),
-    playerPosition: { x: 5, y: 5, pixelX: 16, pixelY: 16 },
-    cameraPosition: { x: 0, y: 0 },
+    playerPosition: { x: 5, y: 5, pixelX: 160, pixelY: 160 }, // Start at center of a 10x10 grid
+    cameraPosition: { x: 0, y: 0 }, // Will be updated when window is available
     gridSize: 32,
     tileSize: 32
   };
@@ -149,6 +149,20 @@ class GameStateManager {
   clearMap() {
     this.state.mapData.clear();
     this.notifyListeners();
+  }
+
+  initializeCamera() {
+    if (typeof window !== 'undefined') {
+      const playerPixelX = this.state.playerPosition.pixelX;
+      const playerPixelY = this.state.playerPosition.pixelY;
+      
+      // Center camera on player's exact pixel position
+      const cameraX = -playerPixelX + (window.innerWidth / 2) - 16; // 16 is half player size
+      const cameraY = -playerPixelY + (window.innerHeight / 2) - 16;
+      
+      this.state.cameraPosition = { x: cameraX, y: cameraY };
+      this.notifyListeners();
+    }
   }
 
   subscribe(listener: (state: GameState) => void) {

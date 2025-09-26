@@ -4,12 +4,12 @@ import GameCanvas from './components/GameCanvas';
 import { Tool, gameState } from './game/state';
 import { playerController } from './game/player';
 
-function App() {
+export default function Home() {
   const [selectedTool, setSelectedTool] = useState<Tool>(Tool.SELECT);
 
   useEffect(() => {
-    // Initialize player controller
-    playerController;
+    // Initialize player controller only on client side
+    playerController.initialize();
 
     const unsubscribe = gameState.subscribe((state) => {
       // Force re-render when game state changes
@@ -32,5 +32,3 @@ function App() {
     </div>
   );
 }
-
-export default App;

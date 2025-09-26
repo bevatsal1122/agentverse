@@ -47,10 +47,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     // Setup click handler for tile placement
     canvasRef.current.addEventListener('click', handleCanvasClick);
 
+    // Initialize camera to center on player
+    gameState.initializeCamera();
+
     // Auto-load default map if no map is loaded
     const state = gameState.getState();
+    console.log('Initial map data size:', state.mapData.size);
     if (state.mapData.size === 0) {
+      console.log('Loading default map...');
       MapLoader.loadDefaultMap();
+      console.log('Map loaded, new size:', gameState.getState().mapData.size);
     }
 
     // Subscribe to game state changes
@@ -892,6 +898,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       if (canvasRef.current) {
         canvasRef.current.width = window.innerWidth;
         canvasRef.current.height = window.innerHeight - 80;
+        // Re-initialize camera position after resize
+        gameState.initializeCamera();
         updateCanvas(gameState.getState());
       }
     };

@@ -1,28 +1,32 @@
 import { gameState, TileType } from '../game/state';
-import { MapConfig, stringToTileType } from './defaultMap';
+import { MapConfig, stringToTileType, defaultMap } from './defaultMap';
 
 export class MapLoader {
   static loadMap(mapConfig: MapConfig) {
+    console.log(`Starting to load map: ${mapConfig.name} (${mapConfig.width}x${mapConfig.height})`);
+    
     // Clear existing map
     gameState.clearMap();
+    console.log('Map cleared');
     
     // Load the new map
+    let tilesPlaced = 0;
     for (let y = 0; y < mapConfig.height; y++) {
       for (let x = 0; x < mapConfig.width; x++) {
         const tileString = mapConfig.tiles[y][x];
         const tileType = stringToTileType(tileString);
         gameState.placeTile(x, y, tileType);
+        tilesPlaced++;
       }
     }
     
-    console.log(`Loaded map: ${mapConfig.name} (${mapConfig.width}x${mapConfig.height})`);
+    console.log(`Loaded map: ${mapConfig.name} (${mapConfig.width}x${mapConfig.height}) - ${tilesPlaced} tiles placed`);
+    console.log('Final map data size:', gameState.getState().mapData.size);
   }
   
   static loadDefaultMap() {
-    // Import and load the default map
-    import('./defaultMap').then(({ defaultMap }) => {
-      this.loadMap(defaultMap);
-    });
+    // Load the default map directly
+    this.loadMap(defaultMap);
   }
   
   static createEmptyMap(width: number, height: number) {

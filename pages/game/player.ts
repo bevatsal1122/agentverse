@@ -3,12 +3,21 @@ import { gameState, Position } from './state';
 export class PlayerController {
   private keys: Set<string> = new Set();
   private moveSpeed = 8; // pixels per frame
+  private isInitialized = false;
 
   constructor() {
+    // Don't initialize immediately - wait for client-side
+  }
+
+  initialize() {
+    if (this.isInitialized || typeof window === 'undefined') return;
+    this.isInitialized = true;
     this.setupKeyboardListeners();
   }
 
   private setupKeyboardListeners() {
+    if (typeof window === 'undefined') return;
+    
     window.addEventListener('keydown', (e) => {
       this.keys.add(e.code);
     });
@@ -22,6 +31,7 @@ export class PlayerController {
   }
 
   private gameLoop() {
+    if (typeof window === 'undefined') return;
     this.handleMovement();
     requestAnimationFrame(() => this.gameLoop());
   }
@@ -69,6 +79,8 @@ export class PlayerController {
 
 
   private updateCamera(playerPixelX: number, playerPixelY: number) {
+    if (typeof window === 'undefined') return;
+    
     const state = gameState.getState();
     
     // Center camera on player's exact pixel position
