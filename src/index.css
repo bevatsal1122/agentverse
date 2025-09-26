@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    margin: 0;
+    font-family: 'MS Sans Serif', sans-serif;
+    font-size: 11px;
+    background-color: #c0c0c0;
+    color: #000000;
+  }
+}
+
+@layer components {
+  .simcity-button {
+    @apply border-2 border-solid bg-gray-200 text-black font-bold text-xs px-3 py-1 cursor-pointer;
+    border-color: #ffffff #808080 #808080 #ffffff;
+    box-shadow: inset 1px 1px 0px #dfdfdf, inset -1px -1px 0px #808080;
+  }
+  
+  .simcity-button:hover {
+    @apply bg-gray-300;
+  }
+  
+  .simcity-button:active {
+    border-color: #808080 #ffffff #ffffff #808080;
+    box-shadow: inset -1px -1px 0px #dfdfdf, inset 1px 1px 0px #808080;
+  }
+  
+  .simcity-button.selected {
+    border-color: #808080 #ffffff #ffffff #808080;
+    box-shadow: inset -1px -1px 0px #dfdfdf, inset 1px 1px 0px #808080;
+    @apply bg-gray-300;
+  }
+  
+  .simcity-toolbar {
+    @apply bg-gray-200 border-2 border-solid;
+    border-color: #ffffff #808080 #808080 #ffffff;
+    box-shadow: inset 1px 1px 0px #dfdfdf, inset -1px -1px 0px #808080;
+  }
+  
+  .simcity-panel {
+    @apply bg-gray-200 border-2 border-solid;
+    border-color: #808080 #ffffff #ffffff #808080;
+    box-shadow: inset -1px -1px 0px #dfdfdf, inset 1px 1px 0px #808080;
+  }
+}
+
+canvas {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+  border: 2px solid;
+  border-color: #808080 #ffffff #ffffff #808080;
+}
