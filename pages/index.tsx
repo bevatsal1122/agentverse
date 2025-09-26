@@ -1,33 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import Toolbar from './components/Toolbar';
-import GameCanvas from './components/GameCanvas';
-import { Tool, gameState } from './game/state';
-import { playerController } from './game/player';
+import React, { useEffect } from 'react';
+import { useRouter } from 'next/router';
 
 export default function Home() {
-  const [selectedTool, setSelectedTool] = useState<Tool>(Tool.SELECT);
+  const router = useRouter();
 
   useEffect(() => {
-    // Initialize player controller only on client side
-    playerController.initialize();
-
-    const unsubscribe = gameState.subscribe((state) => {
-      // Force re-render when game state changes
-    });
-
-    return unsubscribe;
-  }, []);
-
-  const handleToolSelect = (tool: Tool) => {
-    setSelectedTool(tool);
-    gameState.setTool(tool);
-  };
+    // Redirect to auth page on initial load
+    router.push('/auth');
+  }, [router]);
 
   return (
-    <div className="h-screen bg-gray-300 overflow-hidden">
-      <Toolbar selectedTool={selectedTool} onToolSelect={handleToolSelect} />
-      <div className="flex-1 p-2">
-        <GameCanvas selectedTool={selectedTool} />
+    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 flex items-center justify-center">
+      <div className="text-center">
+        <h1 className="text-4xl font-bold text-white mb-4">AgentVerse</h1>
+        <p className="text-blue-200">Redirecting to authentication...</p>
       </div>
     </div>
   );
