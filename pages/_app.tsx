@@ -85,14 +85,6 @@ export default function App({ Component, pageProps }: AppProps) {
               </div>
             </div>
 
-            <div className="text-center">
-              <a 
-                href="/game" 
-                className="simcity-button py-3 px-6 text-sm font-bold text-black hover:bg-yellow-300 focus:outline-none inline-block"
-              >
-                CONTINUE AS GUEST (DEMO)
-              </a>
-            </div>
           </div>
         </div>
       </div>

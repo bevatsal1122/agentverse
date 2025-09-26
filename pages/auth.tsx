@@ -16,10 +16,6 @@ export default function Auth() {
     await login();
   };
 
-  const handleGuestMode = () => {
-    router.push('/game');
-  };
-
   return (
     <div className="h-screen bg-gray-300 overflow-hidden relative">
       {/* Enhanced Background - City Skyline Pattern */}
@@ -205,16 +201,6 @@ export default function Auth() {
                       {isLoading ? 'CONNECTING...' : 'CONNECT WALLET'}
                     </button>
 
-                    <div className="text-center text-xs text-gray-500 my-4">
-                      OR
-                    </div>
-
-                    <button
-                      onClick={handleGuestMode}
-                      className="w-full bg-gray-200 border-2 border-gray-400 py-3 px-4 text-sm font-bold text-black hover:bg-gray-300 focus:outline-none"
-                    >
-                      CONTINUE AS GUEST (DEMO)
-                    </button>
                   </div>
                 )}
               </div>
