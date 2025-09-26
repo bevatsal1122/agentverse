@@ -1,26 +1,22 @@
-import React, { useState } from 'react';
+import React, { useEffect } from 'react';
 import { useRouter } from 'next/router';
+import { useAuth } from './contexts/AuthContext';
 
 export default function Auth() {
   const router = useRouter();
-  const [isLogin, setIsLogin] = useState(true);
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    confirmPassword: '',
-    username: ''
-  });
+  const { ready, authenticated, user, login, logout, isLoading } = useAuth();
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+  useEffect(() => {
+    if (ready && authenticated) {
+      router.push('/game');
+    }
+  }, [ready, authenticated, router]);
+
+  const handleLogin = async () => {
+    await login();
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // For now, just redirect to game - you can add actual auth logic later
+  const handleGuestMode = () => {
     router.push('/game');
   };
 
@@ -176,117 +172,51 @@ export default function Auth() {
               <div className="simcity-panel p-6">
                 <h3 className="text-lg font-bold text-black mb-4 text-center">GET STARTED</h3>
                 
-                {/* Toggle Buttons */}
-                <div className="flex mb-6 bg-gray-200 border-2 border-gray-400">
-                  <button
-                    onClick={() => setIsLogin(true)}
-                    className={`flex-1 py-3 px-4 text-sm font-bold border-r-2 border-gray-400 ${
-                      isLogin
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-300 text-black hover:bg-gray-400'
-                    }`}
-                  >
-                    SIGN IN
-                  </button>
-                  <button
-                    onClick={() => setIsLogin(false)}
-                    className={`flex-1 py-3 px-4 text-sm font-bold ${
-                      !isLogin
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-300 text-black hover:bg-gray-400'
-                    }`}
-                  >
-                    SIGN UP
-                  </button>
-                </div>
-
-                {/* Form */}
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  {!isLogin && (
-                    <div>
-                      <label htmlFor="username" className="block text-xs font-bold text-black mb-2">
-                        USERNAME:
-                      </label>
-                      <input
-                        type="text"
-                        id="username"
-                        name="username"
-                        value={formData.username}
-                        onChange={handleInputChange}
-                        className="w-full px-3 py-2 bg-white border-2 border-gray-400 text-black text-sm focus:outline-none focus:border-blue-500"
-                        placeholder="Enter username"
-                        required={!isLogin}
-                      />
-                    </div>
-                  )}
-
-                  <div>
-                    <label htmlFor="email" className="block text-xs font-bold text-black mb-2">
-                      EMAIL:
-                    </label>
-                    <input
-                      type="email"
-                      id="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 bg-white border-2 border-gray-400 text-black text-sm focus:outline-none focus:border-blue-500"
-                      placeholder="Enter email"
-                      required
-                    />
+                {!ready ? (
+                  <div className="text-center py-8">
+                    <div className="text-sm text-gray-600">Loading...</div>
                   </div>
-
-                  <div>
-                    <label htmlFor="password" className="block text-xs font-bold text-black mb-2">
-                      PASSWORD:
-                    </label>
-                    <input
-                      type="password"
-                      id="password"
-                      name="password"
-                      value={formData.password}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 bg-white border-2 border-gray-400 text-black text-sm focus:outline-none focus:border-blue-500"
-                      placeholder="Enter password"
-                      required
-                    />
-                  </div>
-
-                  {!isLogin && (
-                    <div>
-                      <label htmlFor="confirmPassword" className="block text-xs font-bold text-black mb-2">
-                        CONFIRM PASSWORD:
-                      </label>
-                      <input
-                        type="password"
-                        id="confirmPassword"
-                        name="confirmPassword"
-                        value={formData.confirmPassword}
-                        onChange={handleInputChange}
-                        className="w-full px-3 py-2 bg-white border-2 border-gray-400 text-black text-sm focus:outline-none focus:border-blue-500"
-                        placeholder="Confirm password"
-                        required={!isLogin}
-                      />
+                ) : authenticated ? (
+                  <div className="text-center py-8">
+                    <div className="text-sm text-green-600 mb-4">Welcome back!</div>
+                    <div className="text-xs text-gray-600 mb-4">
+                      {user?.email?.address || 'Connected'}
                     </div>
-                  )}
+                    <button
+                      onClick={logout}
+                      className="w-full simcity-button py-3 px-4 text-sm font-bold text-black hover:bg-yellow-300 focus:outline-none"
+                    >
+                      SIGN OUT
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="text-center mb-6">
+                      <div className="text-sm text-gray-700 mb-2">
+                        Connect with your wallet or social account
+                      </div>
+                    </div>
 
-                  <button
-                    type="submit"
-                    className="w-full simcity-button py-3 px-4 text-sm font-bold text-black hover:bg-yellow-300 focus:outline-none"
-                  >
-                    {isLogin ? 'SIGN IN' : 'CREATE ACCOUNT'}
-                  </button>
-                </form>
+                    <button
+                      onClick={handleLogin}
+                      disabled={isLoading}
+                      className="w-full simcity-button py-3 px-4 text-sm font-bold text-black hover:bg-yellow-300 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isLoading ? 'CONNECTING...' : 'CONNECT WALLET'}
+                    </button>
 
-                {/* Demo Button */}
-                <div className="mt-6 text-center">
-                  <button
-                    onClick={() => router.push('/game')}
-                    className="text-sm text-blue-600 hover:text-blue-800 font-bold underline"
-                  >
-                    CONTINUE AS GUEST (DEMO)
-                  </button>
-                </div>
+                    <div className="text-center text-xs text-gray-500 my-4">
+                      OR
+                    </div>
+
+                    <button
+                      onClick={handleGuestMode}
+                      className="w-full bg-gray-200 border-2 border-gray-400 py-3 px-4 text-sm font-bold text-black hover:bg-gray-300 focus:outline-none"
+                    >
+                      CONTINUE AS GUEST (DEMO)
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Why Play Panel */}
