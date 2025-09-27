@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "supabase-types": "supabase gen types typescript --project-id pgvgcudsrcxlxyqdrzlx > pages/types/database.types.ts"
+    "supabase-types": "supabase gen types typescript --project-id pgvgcudsrcxlxyqdrzlx > pages/types/database.types.ts",
+    "supabase-types:update": "npm run supabase-types && echo 'Supabase types updated successfully!'"
   },
   "dependencies": {
     "@pixi/react": "^7.1.2",

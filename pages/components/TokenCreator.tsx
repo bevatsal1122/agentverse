@@ -4,10 +4,6 @@ import {
   TokenConfig,
   TokenDeploymentResult,
 } from "../services/tokenService";
-import {
-  walletService,
-  WalletConnectionResult,
-} from "../services/walletService";
 
 interface TokenCreatorProps {
   onClose: () => void;
@@ -18,8 +14,6 @@ const TokenCreator: React.FC<TokenCreatorProps> = ({
   onClose,
   onTokenCreated,
 }) => {
-  const [isConnected, setIsConnected] = useState(false);
-  const [walletAddress, setWalletAddress] = useState<string>("");
   const [isDeploying, setIsDeploying] = useState(false);
   const [deploymentResult, setDeploymentResult] =
     useState<TokenDeploymentResult | null>(null);
@@ -33,22 +27,6 @@ const TokenCreator: React.FC<TokenCreatorProps> = ({
     image: "",
     privateKey: "", // Private key required for deployment
   });
-
-  const handleConnectWallet = async () => {
-    const result: WalletConnectionResult = await walletService.connectWallet();
-    if (result.success && result.address) {
-      setIsConnected(true);
-      setWalletAddress(result.address);
-    } else {
-      alert(`Failed to connect wallet: ${result.error}`);
-    }
-  };
-
-  const handleDisconnectWallet = async () => {
-    await walletService.disconnectWallet();
-    setIsConnected(false);
-    setWalletAddress("");
-  };
 
   const handleDeployToken = async () => {
     if (!tokenConfig.name || !tokenConfig.symbol) {
@@ -125,34 +103,6 @@ const TokenCreator: React.FC<TokenCreatorProps> = ({
             <div className="text-xs text-blue-600 mt-1">
               Enter the private key below for deployment
             </div>
-          </div>
-
-          {/* Optional Wallet Connection */}
-          <div className="mt-3">
-            <h4 className="text-sm font-medium text-gray-700 mb-2">
-              Optional: Connect Wallet
-            </h4>
-            {!isConnected ? (
-              <button
-                onClick={handleConnectWallet}
-                className="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 text-sm"
-              >
-                Connect Wallet (Optional)
-              </button>
-            ) : (
-              <div className="space-y-2">
-                <div className="text-sm text-gray-600">
-                  Connected: {walletAddress.slice(0, 6)}...
-                  {walletAddress.slice(-4)}
-                </div>
-                <button
-                  onClick={handleDisconnectWallet}
-                  className="w-full bg-red-500 text-white py-2 px-4 rounded hover:bg-red-600 text-sm"
-                >
-                  Disconnect Wallet
-                </button>
-              </div>
-            )}
           </div>
         </div>
 
