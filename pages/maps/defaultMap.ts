@@ -13,16 +13,16 @@ function createCityMap(): string[][] {
   const height = 25;
   const map: string[][] = Array.from({ length: height }, () => Array(width).fill('space'));
   
-  // Create major highway grid
+  // Create major road grid - all using single corridor type
   for (let x = 0; x < width; x++) {
-    map[6][x] = 'highway';   // North highway
-    map[12][x] = 'highway';  // Central highway
-    map[18][x] = 'highway';  // South highway
+    map[6][x] = 'corridor';   // North main road
+    map[12][x] = 'corridor';  // Central main road
+    map[18][x] = 'corridor';  // South main road
   }
   
   for (let y = 0; y < height; y++) {
-    map[y][8] = 'main_corridor';   // West corridor
-    map[y][16] = 'main_corridor';  // East corridor
+    map[y][8] = 'corridor';   // West main road
+    map[y][16] = 'corridor';  // East main road
   }
   
   // Local street grid
@@ -132,18 +132,18 @@ export function stringToTileType(str: string): TileType {
   switch (str.toLowerCase()) {
     case 'space': return TileType.SPACE;
     case 'corridor': return TileType.CORRIDOR;
-    case 'main_corridor': return TileType.MAIN_CORRIDOR;
-    case 'highway': return TileType.HIGHWAY;
     case 'living_quarters': return TileType.LIVING_QUARTERS;
     case 'research_lab': return TileType.RESEARCH_LAB;
     case 'engineering_bay': return TileType.ENGINEERING_BAY;
     case 'recreation': return TileType.RECREATION;
     case 'power_line': return TileType.POWER_LINE;
     case 'water': return TileType.WATER;
-    // Legacy support for old tile types
+    // Legacy support for old tile types - all roads map to single corridor type
     case 'grass': return TileType.SPACE;
     case 'road': return TileType.CORRIDOR;
-    case 'main_road': return TileType.MAIN_CORRIDOR;
+    case 'main_road': return TileType.CORRIDOR;
+    case 'main_corridor': return TileType.CORRIDOR;
+    case 'highway': return TileType.CORRIDOR;
     case 'residential': return TileType.LIVING_QUARTERS;
     case 'commercial': return TileType.RESEARCH_LAB;
     case 'industrial': return TileType.ENGINEERING_BAY;

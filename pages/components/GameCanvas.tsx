@@ -164,10 +164,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
         return '#228B22'; // SimCity grass green
       case TileType.CORRIDOR:
         return '#404040'; // Dark asphalt
-      case TileType.MAIN_CORRIDOR:
-        return '#505050'; // Medium asphalt
-      case TileType.HIGHWAY:
-        return '#606060'; // Light asphalt
       case TileType.LIVING_QUARTERS:
         return '#8B4513'; // Brown residential
       case TileType.RESEARCH_LAB:
@@ -217,7 +213,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
   };
 
   const isCorridorType = (type: TileType | undefined): boolean => {
-    return type === TileType.CORRIDOR || type === TileType.MAIN_CORRIDOR || type === TileType.HIGHWAY;
+    return type === TileType.CORRIDOR;
   };
 
   const lightenColor = (color: string, percent: number): string => {
@@ -376,40 +372,32 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
   };
 
   const drawRoadTile = (ctx: CanvasRenderingContext2D, x: number, y: number, size: number, state: GameState, tileX: number, tileY: number, roadType: TileType) => {
-    // SimCity-style road colors
-    let baseColor = '#404040'; // Dark asphalt
-    let lineColor = '#FFFF00'; // Yellow lines
-    let edgeColor = '#2F2F2F'; // Darker edge
+    // Enhanced retro bitmap road colors - single road type
+    const baseColor = '#2A2A2A'; // Dark asphalt
+    const lineColor = '#FFD700'; // Gold lines
+    const edgeColor = '#1A1A1A'; // Darker edge
+    const highlightColor = '#404040'; // Lighter highlight
     
-    if (roadType === TileType.MAIN_CORRIDOR) {
-      baseColor = '#505050'; // Medium asphalt
-      lineColor = '#FFFFFF'; // White lines
-      edgeColor = '#3F3F3F';
-    } else if (roadType === TileType.HIGHWAY) {
-      baseColor = '#606060'; // Light asphalt
-      lineColor = '#FFFFFF'; // White lines
-      edgeColor = '#4F4F4F';
-    }
-    
-    // Draw base asphalt texture
+    // Draw base asphalt with retro bitmap texture
     ctx.fillStyle = baseColor;
     ctx.fillRect(x, y, size, size);
     
-    // Add chunky asphalt texture for Minecraft style
-    ctx.fillStyle = lightenColor(baseColor, 10);
-    for (let ax = 0; ax < size; ax += 6) {
-      for (let ay = 0; ay < size; ay += 6) {
-        if ((ax + ay + x + y) % 12 === 0) {
-          ctx.fillRect(x + ax, y + ay, 2, 2);
+    // Add retro bitmap asphalt texture pattern
+    ctx.fillStyle = lightenColor(baseColor, 20);
+    for (let ax = 0; ax < size; ax += 2) {
+      for (let ay = 0; ay < size; ay += 2) {
+        if ((ax + ay + x + y) % 4 === 0) {
+          ctx.fillRect(x + ax, y + ay, 1, 1);
         }
       }
     }
     
-    ctx.fillStyle = lightenColor(baseColor, -10);
-    for (let ax = 3; ax < size; ax += 8) {
-      for (let ay = 3; ay < size; ay += 8) {
-        if ((ax + ay + x + y) % 16 === 0) {
-          ctx.fillRect(x + ax, y + ay, 2, 2);
+    // Add darker texture spots for more detail
+    ctx.fillStyle = lightenColor(baseColor, -20);
+    for (let ax = 1; ax < size; ax += 3) {
+      for (let ay = 1; ay < size; ay += 3) {
+        if ((ax + ay + x + y) % 6 === 0) {
+          ctx.fillRect(x + ax, y + ay, 1, 1);
         }
       }
     }
@@ -420,69 +408,87 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     const hasRoadEast = isCorridorType(state.mapData.get(`${tileX + 1},${tileY}`)?.type);
     const hasRoadWest = isCorridorType(state.mapData.get(`${tileX - 1},${tileY}`)?.type);
     
-    // Draw SimCity-style road markings
-    if (roadType === TileType.HIGHWAY) {
-      // Highway with multiple lanes
-      ctx.fillStyle = lineColor;
-      if (hasRoadNorth || hasRoadSouth) {
-        // Double lane dividers (thicker)
-        ctx.fillRect(x + size/3, y, 2, size);
-        ctx.fillRect(x + 2*size/3, y, 2, size);
-      }
-      if (hasRoadEast || hasRoadWest) {
-        // Double lane dividers (thicker)
-        ctx.fillRect(x, y + size/3, size, 2);
-        ctx.fillRect(x, y + 2*size/3, size, 2);
-      }
-      
-      // Road edges
-      ctx.fillStyle = edgeColor;
-      if (!hasRoadNorth) ctx.fillRect(x, y, size, 2);
-      if (!hasRoadSouth) ctx.fillRect(x, y + size - 2, size, 2);
-      if (!hasRoadEast) ctx.fillRect(x + size - 2, y, 2, size);
-      if (!hasRoadWest) ctx.fillRect(x, y, 2, size);
-      
-    } else if (roadType === TileType.MAIN_CORRIDOR) {
-      // Main road with center line
-      ctx.fillStyle = lineColor;
-      if (hasRoadNorth || hasRoadSouth) {
-        // Dashed center line (thicker)
-        for (let i = 0; i < size; i += 12) {
-          ctx.fillRect(x + size/2 - 1, y + i, 2, 6);
+    // Count road connections to determine intersection type
+    const connectionCount = [hasRoadNorth, hasRoadSouth, hasRoadEast, hasRoadWest].filter(Boolean).length;
+    
+    // Draw road markings based on connection pattern (avoiding plus signs)
+    ctx.fillStyle = lineColor;
+    
+    if (connectionCount === 2) {
+      // Straight road
+      if (hasRoadNorth && hasRoadSouth) {
+        // Dashed center line for vertical road
+        for (let i = 0; i < size; i += 8) {
+          ctx.fillRect(x + size/2 - 1, y + i, 2, 5);
+        }
+      } else if (hasRoadEast && hasRoadWest) {
+        // Dashed center line for horizontal road
+        for (let i = 0; i < size; i += 8) {
+          ctx.fillRect(x + i, y + size/2 - 1, 5, 2);
         }
       }
-      if (hasRoadEast || hasRoadWest) {
-        // Dashed center line (thicker)
-        for (let i = 0; i < size; i += 12) {
-          ctx.fillRect(x + i, y + size/2 - 1, 6, 2);
+    } else if (connectionCount >= 3) {
+      // Intersection - draw dashed lines but avoid center
+      if (hasRoadNorth && hasRoadSouth) {
+        // Vertical dashed lines (avoid center)
+        for (let i = 0; i < size/2 - 6; i += 8) {
+          ctx.fillRect(x + size/2 - 1, y + i, 2, 5);
+        }
+        for (let i = size/2 + 6; i < size; i += 8) {
+          ctx.fillRect(x + size/2 - 1, y + i, 2, 5);
         }
       }
-      
-      // Road edges
-      ctx.fillStyle = edgeColor;
-      if (!hasRoadNorth) ctx.fillRect(x, y, size, 2);
-      if (!hasRoadSouth) ctx.fillRect(x, y + size - 2, size, 2);
-      if (!hasRoadEast) ctx.fillRect(x + size - 2, y, 2, size);
-      if (!hasRoadWest) ctx.fillRect(x, y, 2, size);
-      
-    } else {
-      // Regular road
-      ctx.fillStyle = lineColor;
-      if (hasRoadNorth || hasRoadSouth) {
-        // Simple center line (thicker)
-        ctx.fillRect(x + size/2 - 1, y, 2, size);
+      if (hasRoadEast && hasRoadWest) {
+        // Horizontal dashed lines (avoid center)
+        for (let i = 0; i < size/2 - 6; i += 8) {
+          ctx.fillRect(x + i, y + size/2 - 1, 5, 2);
+        }
+        for (let i = size/2 + 6; i < size; i += 8) {
+          ctx.fillRect(x + i, y + size/2 - 1, 5, 2);
+        }
       }
-      if (hasRoadEast || hasRoadWest) {
-        // Simple center line (thicker)
-        ctx.fillRect(x, y + size/2 - 1, size, 2);
-      }
-      
-      // Road edges
+    }
+    
+    // Enhanced road edges
+    ctx.fillStyle = edgeColor;
+    if (!hasRoadNorth) {
+      ctx.fillRect(x, y, size, 2);
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(x, y + 2, size, 1);
+    }
+    if (!hasRoadSouth) {
       ctx.fillStyle = edgeColor;
-      if (!hasRoadNorth) ctx.fillRect(x, y, size, 1);
-      if (!hasRoadSouth) ctx.fillRect(x, y + size - 1, size, 1);
-      if (!hasRoadEast) ctx.fillRect(x + size - 1, y, 1, size);
-      if (!hasRoadWest) ctx.fillRect(x, y, 1, size);
+      ctx.fillRect(x, y + size - 2, size, 2);
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(x, y + size - 3, size, 1);
+    }
+    if (!hasRoadEast) {
+      ctx.fillStyle = edgeColor;
+      ctx.fillRect(x + size - 2, y, 2, size);
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(x + size - 3, y, 1, size);
+    }
+    if (!hasRoadWest) {
+      ctx.fillStyle = edgeColor;
+      ctx.fillRect(x, y, 2, size);
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(x + 2, y, 1, size);
+    }
+    
+    // Add intersection center marking (only for 4-way intersections)
+    if (connectionCount === 4) {
+      // Retro bitmap intersection center - small diamond pattern
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(x + size/2 - 2, y + size/2 - 2, 4, 4);
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(x + size/2 - 1, y + size/2 - 1, 2, 2);
+      
+      // Add corner markings for better intersection visibility
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(x + 2, y + 2, 2, 2);
+      ctx.fillRect(x + size - 4, y + 2, 2, 2);
+      ctx.fillRect(x + 2, y + size - 4, 2, 2);
+      ctx.fillRect(x + size - 4, y + size - 4, 2, 2);
     }
   };
 
@@ -1052,29 +1058,131 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
           }
           
         } else if (tile.type === TileType.POWER_LINE) {
-          // Power lines with poles (scaled for 64px)
-          ctx.fillStyle = '#FFFF00'; // Base yellow
+          // Enhanced retro bitmap power lines with better styling
+          ctx.fillStyle = '#2A2A2A'; // Dark base
           ctx.fillRect(x, y, state.tileSize, state.tileSize);
           
-          // Power pole (bigger)
-          ctx.fillStyle = '#8B4513';
+          // Add retro bitmap ground texture
+          ctx.fillStyle = '#1A1A1A';
+          for (let px = 0; px < state.tileSize; px += 2) {
+            for (let py = 0; py < state.tileSize; py += 2) {
+              if ((px + py + x + y) % 4 === 0) {
+                ctx.fillRect(x + px, y + py, 1, 1);
+              }
+            }
+          }
+          
+          // Check adjacent tiles for power line connections
+          const hasPowerNorth = state.mapData.get(`${tile.x},${tile.y - 1}`)?.type === TileType.POWER_LINE;
+          const hasPowerSouth = state.mapData.get(`${tile.x},${tile.y + 1}`)?.type === TileType.POWER_LINE;
+          const hasPowerEast = state.mapData.get(`${tile.x + 1},${tile.y}`)?.type === TileType.POWER_LINE;
+          const hasPowerWest = state.mapData.get(`${tile.x - 1},${tile.y}`)?.type === TileType.POWER_LINE;
+          
+          // Power pole (retro bitmap style)
+          ctx.fillStyle = '#8B4513'; // Brown pole
           ctx.fillRect(x + 28, y + 8, 8, 48);
           
-          // Cross beam (bigger)
+          // Add pole texture
+          ctx.fillStyle = '#654321';
+          ctx.fillRect(x + 30, y + 10, 4, 44);
+          ctx.fillStyle = '#A0522D';
+          ctx.fillRect(x + 29, y + 12, 6, 2);
+          ctx.fillRect(x + 29, y + 20, 6, 2);
+          ctx.fillRect(x + 29, y + 28, 6, 2);
+          ctx.fillRect(x + 29, y + 36, 6, 2);
+          ctx.fillRect(x + 29, y + 44, 6, 2);
+          
+          // Cross beam (retro bitmap style)
+          ctx.fillStyle = '#8B4513';
           ctx.fillRect(x + 16, y + 16, 32, 4);
           
-          // Power lines (thicker)
+          // Add cross beam texture
+          ctx.fillStyle = '#654321';
+          ctx.fillRect(x + 18, y + 17, 28, 2);
+          ctx.fillStyle = '#A0522D';
+          ctx.fillRect(x + 20, y + 18, 2, 1);
+          ctx.fillRect(x + 24, y + 18, 2, 1);
+          ctx.fillRect(x + 28, y + 18, 2, 1);
+          ctx.fillRect(x + 32, y + 18, 2, 1);
+          ctx.fillRect(x + 36, y + 18, 2, 1);
+          ctx.fillRect(x + 40, y + 18, 2, 1);
+          
+          // Power lines with retro bitmap styling
           ctx.fillStyle = '#000000';
           ctx.fillRect(x + 0, y + 24, state.tileSize, 2);
           ctx.fillRect(x + 0, y + 32, state.tileSize, 2);
           ctx.fillRect(x + 0, y + 40, state.tileSize, 2);
           
-          // Power insulators
+          // Add power line texture (dashed effect)
+          ctx.fillStyle = '#333333';
+          for (let i = 0; i < state.tileSize; i += 4) {
+            ctx.fillRect(x + i, y + 25, 2, 1);
+            ctx.fillRect(x + i, y + 33, 2, 1);
+            ctx.fillRect(x + i, y + 41, 2, 1);
+          }
+          
+          // Power insulators (retro bitmap style)
           ctx.fillStyle = '#FFFFFF';
           ctx.fillRect(x + 20, y + 22, 4, 6);
           ctx.fillRect(x + 40, y + 22, 4, 6);
           ctx.fillRect(x + 20, y + 30, 4, 6);
           ctx.fillRect(x + 40, y + 30, 4, 6);
+          ctx.fillRect(x + 20, y + 38, 4, 6);
+          ctx.fillRect(x + 40, y + 38, 4, 6);
+          
+          // Add insulator details
+          ctx.fillStyle = '#CCCCCC';
+          ctx.fillRect(x + 21, y + 23, 2, 4);
+          ctx.fillRect(x + 41, y + 23, 2, 4);
+          ctx.fillRect(x + 21, y + 31, 2, 4);
+          ctx.fillRect(x + 41, y + 31, 2, 4);
+          ctx.fillRect(x + 21, y + 39, 2, 4);
+          ctx.fillRect(x + 41, y + 39, 2, 4);
+          
+          // Add connection lines to adjacent power lines
+          if (hasPowerNorth) {
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(x + 20, y, 2, 8);
+            ctx.fillRect(x + 40, y, 2, 8);
+            ctx.fillStyle = '#333333';
+            ctx.fillRect(x + 20, y + 2, 2, 2);
+            ctx.fillRect(x + 40, y + 2, 2, 2);
+          }
+          if (hasPowerSouth) {
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(x + 20, y + 56, 2, 8);
+            ctx.fillRect(x + 40, y + 56, 2, 8);
+            ctx.fillStyle = '#333333';
+            ctx.fillRect(x + 20, y + 60, 2, 2);
+            ctx.fillRect(x + 40, y + 60, 2, 2);
+          }
+          if (hasPowerEast) {
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(x + 56, y + 24, 8, 2);
+            ctx.fillRect(x + 56, y + 32, 8, 2);
+            ctx.fillRect(x + 56, y + 40, 8, 2);
+            ctx.fillStyle = '#333333';
+            ctx.fillRect(x + 60, y + 24, 2, 2);
+            ctx.fillRect(x + 60, y + 32, 2, 2);
+            ctx.fillRect(x + 60, y + 40, 2, 2);
+          }
+          if (hasPowerWest) {
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(x, y + 24, 8, 2);
+            ctx.fillRect(x, y + 32, 8, 2);
+            ctx.fillRect(x, y + 40, 8, 2);
+            ctx.fillStyle = '#333333';
+            ctx.fillRect(x + 2, y + 24, 2, 2);
+            ctx.fillRect(x + 2, y + 32, 2, 2);
+            ctx.fillRect(x + 2, y + 40, 2, 2);
+          }
+          
+          // Add warning stripes on pole
+          ctx.fillStyle = '#FF0000';
+          ctx.fillRect(x + 26, y + 50, 12, 2);
+          ctx.fillRect(x + 26, y + 52, 12, 2);
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(x + 26, y + 51, 12, 1);
         }
       }
 

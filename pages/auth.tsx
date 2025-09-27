@@ -136,28 +136,6 @@ export default function Auth() {
                 </div>
               </div>
 
-              {/* Game Features Panel */}
-              <div className="amongus-panel p-4">
-                <h3 className="text-lg font-bold text-white mb-4 text-center">KEY FEATURES</h3>
-                <div className="grid grid-cols-2 gap-4 text-sm text-gray-300">
-                  <div className="flex items-center">
-                    <div className="w-4 h-4 bg-green-500 border border-gray-400 rounded-sm mr-3"></div>
-                    PIXEL PERFECT
-                  </div>
-                  <div className="flex items-center">
-                    <div className="w-4 h-4 bg-blue-500 border border-gray-400 rounded-sm mr-3"></div>
-                    REAL-TIME SIM
-                  </div>
-                  <div className="flex items-center">
-                    <div className="w-4 h-4 bg-yellow-500 border border-gray-400 rounded-sm mr-3"></div>
-                    SAVE/LOAD
-                  </div>
-                  <div className="flex items-center">
-                    <div className="w-4 h-4 bg-purple-500 border border-gray-400 rounded-sm mr-3"></div>
-                    CREW AI
-                  </div>
-                </div>
-              </div>
             </div>
 
             {/* Right Column - Auth */}
@@ -237,11 +215,6 @@ export default function Auth() {
                     <div className="text-sm text-blue-300">ONLINE</div>
                   </div>
                 </div>
-              </div>
-
-              {/* Footer Panel */}
-              <div className="amongus-panel p-3 text-center">
-                <p className="text-sm text-gray-400">© 2024 AGENTVERSE. BUILD YOUR DREAM SPACE STATION.</p>
               </div>
             </div>
           </div>

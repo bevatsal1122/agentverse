@@ -12,8 +12,6 @@ export enum Tool {
 export enum TileType {
   SPACE = 'space',
   CORRIDOR = 'corridor',
-  MAIN_CORRIDOR = 'main_corridor',
-  HIGHWAY = 'highway',
   LIVING_QUARTERS = 'living_quarters',
   RESEARCH_LAB = 'research_lab',
   ENGINEERING_BAY = 'engineering_bay',
@@ -694,8 +692,6 @@ class GameStateManager {
       { type: TileType.RESEARCH_LAB, weight: agent.type === CrewmateType.SCIENTIST ? 5 : 2 },
       { type: TileType.ENGINEERING_BAY, weight: agent.type === CrewmateType.ENGINEER ? 5 : 2 },
       { type: TileType.CORRIDOR, weight: 6 }, // More corridor exploration
-      { type: TileType.MAIN_CORRIDOR, weight: 4 },
-      { type: TileType.HIGHWAY, weight: 3 },
       { type: TileType.SPACE, weight: 2 } // Only explore space tiles that exist in the map
     ];
     
@@ -856,7 +852,7 @@ class GameStateManager {
     const corridors: Array<{x: number, y: number}> = [];
     
     for (const [key, tile] of Array.from(this.state.mapData.entries())) {
-      if (tile.type === TileType.CORRIDOR || tile.type === TileType.MAIN_CORRIDOR) {
+      if (tile.type === TileType.CORRIDOR) {
         corridors.push({ x: tile.x, y: tile.y });
       }
     }
