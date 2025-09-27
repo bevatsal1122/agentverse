@@ -1,23 +1,23 @@
+@import url("https://fonts.googleapis.com/css2?family=Zalando+Sans+SemiExpanded:ital,wght@0,200..900;1,200..900&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@font-face {
-  font-family: "SupremeSpike";
-  src: url("/SupremeSpike-KVO8D.otf") format("opentype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-}
-
 @layer base {
   * {
-    font-family: "SupremeSpike", "Arial", sans-serif;
+    font-family: "Zalando Sans SemiExpanded", sans-serif;
+    font-optical-sizing: auto;
+    font-weight: 400;
+    font-style: normal;
   }
 
   body {
     margin: 0;
-    font-family: "SupremeSpike", "Arial", sans-serif;
+    font-family: "Zalando Sans SemiExpanded", sans-serif;
+    font-optical-sizing: auto;
+    font-weight: 400;
+    font-style: normal;
     font-size: 14px;
     background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
     color: #ffffff;
@@ -161,8 +161,12 @@
     border-color: #0088FF #003366 #003366 #0088FF;
   }
 
-  .chat-screen {
-    font-family: "Arial", sans-serif;
+  .chat-screen,
+  .chat-screen * {
+    font-family: "Arial", sans-serif !important;
+    font-optical-sizing: auto;
+    font-weight: 400;
+    font-style: normal;
   }
 }
 
