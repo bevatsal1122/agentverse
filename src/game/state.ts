@@ -1052,18 +1052,22 @@ class GameStateManager {
 
   updateCameraToFollowPlayer() {
     if (typeof window !== 'undefined') {
-      const playerPixelX = this.state.playerPosition.pixelX;
-      const playerPixelY = this.state.playerPosition.pixelY;
+      const playerPos = this.state.playerPosition;
+      const playerTileX = playerPos.pixelX / this.state.tileSize;
+      const playerTileY = playerPos.pixelY / this.state.tileSize;
       
-      // Center camera on player's exact pixel position
-      const cameraX = -playerPixelX + (window.innerWidth / 2) - 16; // 16 is half player size
-      const cameraY = -playerPixelY + (window.innerHeight / 2) - 16;
+      // Center the camera on the player
+      const screenCenterX = window.innerWidth / 2;
+      const screenCenterY = window.innerHeight / 2;
+      
+      const cameraX = playerTileX - (screenCenterX / this.state.tileSize);
+      const cameraY = playerTileY - (screenCenterY / this.state.tileSize);
       
       // Constrain camera to map boundaries
       const constrainedCamera = this.constrainCameraToMapBounds(cameraX, cameraY);
       
       // Only update camera if position changed significantly (reduces unnecessary renders)
-      const threshold = 0.5; // 0.5 pixel threshold for smoother camera
+      const threshold = 0.1; // 0.1 tile threshold for smoother camera
       if (Math.abs(this.state.cameraPosition.x - constrainedCamera.x) > threshold || 
           Math.abs(this.state.cameraPosition.y - constrainedCamera.y) > threshold) {
         this.state.cameraPosition = constrainedCamera;
