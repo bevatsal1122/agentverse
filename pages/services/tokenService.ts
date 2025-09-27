@@ -1,5 +1,5 @@
 import { createThirdwebClient } from "thirdweb";
-import { defineChain } from "thirdweb/chains";
+import { arbitrumSepolia, defineChain } from "thirdweb/chains";
 import { getContract } from "thirdweb";
 import { deployERC20Contract } from "thirdweb/deploys";
 import { privateKeyToAccount } from "thirdweb/wallets/private-key";
@@ -13,7 +13,7 @@ const client = createThirdwebClient({
 
 // Define supported chains
 export const supportedChains = {
-  sepolia: defineChain(11155111),
+  arbitrumSepolia: defineChain(421614),
 };
 
 export interface TokenConfig {
@@ -39,7 +39,7 @@ export class TokenService {
   constructor(chainId: number = 8453) {
     this.chain =
       Object.values(supportedChains).find((chain) => chain.id === chainId) ||
-      supportedChains.sepolia;
+      supportedChains.arbitrumSepolia;
   }
 
   /**
@@ -147,7 +147,7 @@ export class TokenService {
   switchChain(chainId: number) {
     this.chain =
       Object.values(supportedChains).find((chain) => chain.id === chainId) ||
-      supportedChains.sepolia;
+      supportedChains.arbitrumSepolia;
   }
 
   /**

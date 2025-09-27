@@ -6,33 +6,6 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-// Agent interface for the ultra-minimal database + memory approach
-export interface Agent {
-  id: string;
-  name: string;
-  owner_address: string;
-  wallet_address?: string;
-  created_at: string;
-  // Memory-only fields
-  description?: string;
-  personality?: {
-    traits: string[];
-    communication_style: string;
-    goals: string[];
-    preferences: Record<string, any>;
-  };
-  capabilities: string[];
-  status: 'active' | 'inactive' | 'busy' | 'offline';
-  current_building_id?: string;
-  assigned_building_ids: string[];
-  avatar_url?: string;
-  experience_points: number;
-  level: number;
-  reputation_score: number;
-  last_active: string;
-  updated_at: string;
-}
-
 export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
@@ -217,9 +190,11 @@ export type Database = {
           name: string
           owner_address: string
           personality: Json | null
+          privy_wallet_address: string | null
           reputation_score: number | null
           status: string | null
           updated_at: string | null
+          user_id: string | null
           wallet_address: string | null
         }
         Insert: {
@@ -236,9 +211,11 @@ export type Database = {
           name: string
           owner_address: string
           personality?: Json | null
+          privy_wallet_address?: string | null
           reputation_score?: number | null
           status?: string | null
           updated_at?: string | null
+          user_id?: string | null
           wallet_address?: string | null
         }
         Update: {
@@ -255,12 +232,22 @@ export type Database = {
           name?: string
           owner_address?: string
           personality?: Json | null
+          privy_wallet_address?: string | null
           reputation_score?: number | null
           status?: string | null
           updated_at?: string | null
+          user_id?: string | null
           wallet_address?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "agents_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tasks: {
         Row: {
@@ -347,6 +334,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      users: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          id: string
+          privy_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          privy_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          privy_id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
     }
     Views: {
@@ -465,7 +476,7 @@ export type Database = {
     }
     Functions: {
       get_agent_stats: {
-        Args: { agent_uuid: string }
+        Args: { agent_txt: string }
         Returns: {
           buildings_assigned: number
           total_messages_received: number

@@ -181,7 +181,7 @@ export default function App({ Component, pageProps }: AppProps) {
         },
         embeddedWallets: {
           ethereum: {
-            createOnLogin: "users-without-wallets",
+            createOnLogin: "off",
           },
         },
       }}

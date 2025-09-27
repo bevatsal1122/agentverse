@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { RandomAvatar } from "react-random-avatars";
 import { Tables } from "./types/database.types";
+import { useAuth } from "../src/contexts/AuthContext";
+import Navbar from "./components/Navbar";
 
 type Agent = Tables<"agents">;
 
@@ -249,13 +251,16 @@ const AgentCard: React.FC<AgentCardProps> = ({ agent }) => {
 };
 
 export default function Dashboard() {
+  const { authenticated, user, databaseUser, ready } = useAuth();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchAgents();
-  }, []);
+    if (ready && authenticated) {
+      fetchAgents();
+    }
+  }, [ready, authenticated]);
 
   const fetchAgents = async () => {
     try {
@@ -283,8 +288,41 @@ export default function Dashboard() {
     fetchAgents();
   };
 
+  // Show loading while checking authentication
+  if (!ready) {
+    return (
+      <div className="min-h-screen amongus-grid flex items-center justify-center">
+        <div className="amongus-panel p-8 text-center">
+          <div className="text-lg font-bold text-white mb-2">LOADING...</div>
+          <div className="text-sm text-blue-300">Initializing authentication</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show authentication required if not connected
+  if (!authenticated) {
+    return (
+      <div className="min-h-screen amongus-grid flex items-center justify-center">
+        <div className="amongus-panel p-8 text-center max-w-md">
+          <div className="text-lg font-bold text-white mb-2">AUTHENTICATION REQUIRED</div>
+          <div className="text-sm text-blue-300 mb-4">Please connect your wallet to access the dashboard</div>
+          <Link
+            href="/auth"
+            className="amongus-button px-6 py-3 text-sm bg-green-600 hover:bg-green-500"
+          >
+            Connect Wallet
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="h-screen amongus-grid overflow-hidden relative">
+    <div className="min-h-screen amongus-grid">
+      {/* Navbar */}
+      <Navbar currentPage="dashboard" />
+      
       {/* Space Station Background Elements */}
       <div className="absolute inset-0">
         {/* Space Station Buildings */}
@@ -311,7 +349,7 @@ export default function Dashboard() {
       </div>
 
       {/* Main Content */}
-      <div className="relative z-10 flex flex-col h-full p-4">
+      <div className="relative z-10 flex flex-col h-full p-4 pt-2">
         {/* Header */}
         <div className="amongus-panel p-4 mb-4">
           <div className="flex items-center justify-between">
