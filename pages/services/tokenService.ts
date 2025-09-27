@@ -4,6 +4,7 @@ import { getContract } from "thirdweb";
 import { deployERC20Contract } from "thirdweb/deploys";
 import { privateKeyToAccount } from "thirdweb/wallets/private-key";
 import { THIRDWEB_CONFIG } from "../config/thirdweb";
+import { supabaseService } from "./supabaseService";
 
 // Define the client for Thirdweb
 const client = createThirdwebClient({
@@ -85,6 +86,24 @@ export class TokenService {
 
       console.log("Token deployed successfully:", contractAddress);
 
+      // Save token to Supabase
+      const tokenData = {
+        name: tokenConfig.name,
+        symbol: tokenConfig.symbol,
+        contract_address: contractAddress,
+        decimals: tokenConfig.decimals,
+        initial_supply: tokenConfig.initialSupply,
+        description: tokenConfig.description || null,
+        image_url: tokenConfig.image || null,
+        deployer_address: "0xe309b3e0d2bf2df0115ad942368e1766c7e1f53f",
+        transaction_hash: contractAddress, // Using contract address as transaction hash for now
+      };
+
+      const saveResult = await supabaseService.createToken(tokenData);
+      if (!saveResult.success) {
+        console.warn("Failed to save token to database:", saveResult.error);
+      }
+
       return {
         success: true,
         contractAddress: contractAddress,
@@ -150,6 +169,49 @@ export class TokenService {
    */
   getSupportedChains() {
     return supportedChains;
+  }
+
+  /**
+   * Get all deployed tokens from database
+   */
+  async getDeployedTokens() {
+    try {
+      const result = await supabaseService.getTokens();
+      return result;
+    } catch (error) {
+      console.error("Error fetching deployed tokens:", error);
+      return {
+        success: false,
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
+      };
+    }
+  }
+
+  /**
+   * Get token by contract address
+   */
+  async getTokenByAddress(contractAddress: string) {
+    try {
+      const result = await supabaseService.getTokens();
+      if (result.success && result.data) {
+        const token = result.data.find(
+          (t) => t.contract_address === contractAddress
+        );
+        return {
+          success: true,
+          data: token || null,
+        };
+      }
+      return result;
+    } catch (error) {
+      console.error("Error fetching token by address:", error);
+      return {
+        success: false,
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
+      };
+    }
   }
 }
 

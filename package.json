@@ -10,20 +10,17 @@
   },
   "dependencies": {
     "@pixi/react": "^7.1.2",
-    "next": "^14.0.0",
-    "pixi.js": "^7.3.2",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "thirdweb": "^5.108.3",
     "@privy-io/react-auth": "^3.0.1",
     "@privy-io/wagmi": "^2.0.0",
     "@selfxyz/common": "^0.0.7",
     "@selfxyz/contracts": "^1.2.0",
     "@selfxyz/core": "^1.0.8",
+    "@supabase/supabase-js": "^2.58.0",
     "next": "^14.0.0",
     "pixi.js": "^7.3.2",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "thirdweb": "^5.108.3"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
