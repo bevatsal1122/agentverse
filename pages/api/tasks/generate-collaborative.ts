@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { taskOrchestratorService } from '../../services/taskOrchestratorService';
 import { memoryStorageService } from '../../services/memoryStorageService';
 import { agentService } from '../../services/agentService';
+import { taskQueueService } from '../../services/taskQueueService';
 import { gameState, CrewmateType, CrewmateActivity } from '../../../src/game/state';
 import { getBuildingById } from '../../../src/maps/defaultMap';
 import { Pathfinder } from '../../../src/game/pathfinding';
@@ -281,6 +282,13 @@ export default async function handler(
                   task_id: task.masterTask.id,
                   success: true,
                 });
+                
+                // Wait for player to complete this path before moving to next agent
+                // Check if player is still following path every 100ms
+                while (gameState.getState().isPlayerFollowingPath) {
+                  await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                console.log(`✅ Player completed path to ${childAgent?.name || childAgentId}`);
               } else {
                 console.warn(`Failed to calculate path from player to child agent ${childAgentId} location`);
                 // The pathfinding system now handles fallbacks internally, so we don't need to create a direct path here
@@ -293,9 +301,9 @@ export default async function handler(
             console.warn(`Child agent ${childAgentId} not found or has no assigned building`);
           }
           
-          // Add delay between movements (3 seconds per movement)
+          // Add delay between movements (1 second per movement)
           if (i < task.subtasks.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 3000));
+            await new Promise(resolve => setTimeout(resolve, 1000));
           }
         }
         
@@ -303,8 +311,53 @@ export default async function handler(
           activeAgents.find(agent => agent.id === subtask.agent_address)?.name || subtask.agent_address
         );
         console.log(`👥 Player avatar will visit: ${subtaskAgents.join(', ')}`);
-      }, 2000); // Initial 2-second delay before starting movement
+      }, 1000); // Reduced initial delay to 1 second
     }
+
+    // Add generated tasks to the queue in the specified format
+    const queuedTasks = [];
+    for (const task of storedTasks) {
+      // Create the main task entry
+      const mainTask = {
+        id: parseInt(task.masterTask.id),
+        user_id: 2, // Default user ID
+        agent_address: task.masterTask.agent_address,
+        prompt: task.masterTask.prompt,
+        media_b64: null, // No media for now
+        created_at: task.masterTask.created_at,
+        agentic_tasks: []
+      };
+
+      // Add each subtask as an agentic_task
+      for (const subtask of task.subtasks) {
+        const agenticTask = {
+          id: parseInt(subtask.id),
+          task_id: parseInt(task.masterTask.id),
+          prompt: subtask.prompt,
+          media_b64: null as string | null, // No media for now
+          agent_address: subtask.agent_address,
+          created_at: subtask.created_at
+        };
+        (mainTask.agentic_tasks as any[]).push(agenticTask);
+
+        // Add to hierarchical queue for processing
+        const queueTaskId = taskQueueService.addHierarchicalTask(
+          subtask.agent_address,
+          {
+            prompt: subtask.prompt,
+            media_b64: undefined
+          },
+          'subtask',
+          task.masterTask.id,
+          'medium'
+        );
+        console.log(`📋 Added hierarchical task ${queueTaskId} to queue for agent ${subtask.agent_address}`);
+      }
+
+      queuedTasks.push(mainTask);
+    }
+
+    console.log(`📋 Added ${queuedTasks.length} tasks to queue with ${queuedTasks.reduce((sum, task) => sum + task.agentic_tasks.length, 0)} subtasks`);
 
     res.status(200).json({ 
       success: true,
@@ -325,6 +378,7 @@ export default async function handler(
           created_at: subtask.created_at
         }))
       })),
+      queuedTasks: queuedTasks, // Added to queue in the specified format
       totalTasks: storedTasks.length,
       totalSubtasks: storedTasks.reduce((sum, task) => sum + task.subtasks.length, 0)
     });

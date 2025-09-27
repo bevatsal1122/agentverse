@@ -14,12 +14,20 @@ export default async function handler(
     const { agentId, all } = req.query;
 
     if (all === 'true') {
-      // Return status for all agents with queues
+      // Return status for all agents with queues (both regular and hierarchical)
       const allQueues = taskQueueService.getAllQueues();
+      const allHierarchicalQueues = taskQueueService.getAllHierarchicalQueues();
+      
+      console.log(`🔍 Queue status check - Regular queues:`, Object.keys(allQueues));
+      console.log(`🔍 Queue status check - Hierarchical queues:`, Object.keys(allHierarchicalQueues));
+      console.log(`🔍 Hierarchical queue details:`, allHierarchicalQueues);
       
       return res.status(200).json({ 
         success: true,
-        queues: allQueues
+        queues: allQueues,
+        hierarchicalQueues: allHierarchicalQueues,
+        totalQueues: Object.keys(allQueues).length,
+        totalHierarchicalQueues: Object.keys(allHierarchicalQueues).length
       });
     }
 
@@ -37,14 +45,19 @@ export default async function handler(
       });
     }
 
-    // Get queue status for specific agent
-    const queueStatus = taskQueueService.getQueueStatus(agentId);
+    // Get full queue contents for specific agent (both regular and hierarchical)
+    const allQueues = taskQueueService.getAllQueues();
+    const allHierarchicalQueues = taskQueueService.getAllHierarchicalQueues();
+    
+    const agentQueue = allQueues[agentId] || { queueLength: 0, processing: false, tasks: [] };
+    const agentHierarchicalQueue = allHierarchicalQueues[agentId] || { queueLength: 0, processing: false, tasks: [] };
     
     res.status(200).json({ 
       success: true,
       agentId,
       agentName: agentResult.data?.name,
-      queueStatus
+      queueStatus: agentQueue,
+      hierarchicalQueueStatus: agentHierarchicalQueue
     });
 
   } catch (error) {

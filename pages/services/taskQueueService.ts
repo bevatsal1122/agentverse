@@ -147,7 +147,7 @@ class TaskQueueService {
   getQueueStatus(agentId: string): { 
     queueLength: number; 
     processing: boolean; 
-    tasks: Omit<QueuedTask, 'taskData'>[] 
+    tasks: QueuedTask[] 
   } {
     const agentQueue = this.queues.get(agentId) || [];
     const isProcessing = this.processing.get(agentId) || false;
@@ -155,15 +155,29 @@ class TaskQueueService {
     return {
       queueLength: agentQueue.filter(task => task.status === 'queued').length,
       processing: isProcessing,
-      tasks: agentQueue.map(({ taskData, ...task }) => task)
+      tasks: agentQueue
     };
   }
 
-  getAllQueues(): Record<string, { queueLength: number; processing: boolean; tasks: Omit<QueuedTask, 'taskData'>[] }> {
+  getAllQueues(): Record<string, { queueLength: number; processing: boolean; tasks: QueuedTask[] }> {
     const result: Record<string, any> = {};
     
     this.queues.forEach((_, agentId) => {
       result[agentId] = this.getQueueStatus(agentId);
+    });
+    
+    return result;
+  }
+
+  getAllHierarchicalQueues(): Record<string, { queueLength: number; processing: boolean; tasks: HierarchicalTask[] }> {
+    const result: Record<string, any> = {};
+    
+    console.log(`🔍 getAllHierarchicalQueues called - hierarchicalQueues size:`, this.hierarchicalQueues.size);
+    console.log(`🔍 hierarchicalQueues keys:`, Array.from(this.hierarchicalQueues.keys()));
+    
+    this.hierarchicalQueues.forEach((queue, agentId) => {
+      console.log(`🔍 Agent ${agentId} queue length:`, queue.length);
+      result[agentId] = this.getHierarchicalQueueStatus(agentId);
     });
     
     return result;
@@ -222,6 +236,7 @@ class TaskQueueService {
 
     if (!this.hierarchicalQueues.has(targetAgentId)) {
       this.hierarchicalQueues.set(targetAgentId, []);
+      console.log(`🔍 Created new hierarchical queue for agent ${targetAgentId}`);
     }
 
     const agentQueue = this.hierarchicalQueues.get(targetAgentId)!;
@@ -229,7 +244,8 @@ class TaskQueueService {
     // Add task to queue with priority ordering
     this.insertTaskByPriority(agentQueue, hierarchicalTask);
     
-    console.log(`Hierarchical task ${taskId} (${type}) added to queue for agent ${targetAgentId}. Queue length: ${agentQueue.length}`);
+    console.log(`🔍 Hierarchical task ${taskId} (${type}) added to queue for agent ${targetAgentId}. Queue length: ${agentQueue.length}`);
+    console.log(`🔍 Total hierarchical queues now:`, this.hierarchicalQueues.size);
     return taskId;
   }
 
@@ -330,7 +346,7 @@ class TaskQueueService {
   getHierarchicalQueueStatus(agentId: string): { 
     queueLength: number; 
     processing: boolean; 
-    tasks: Omit<HierarchicalTask, 'taskData'>[] 
+    tasks: HierarchicalTask[] 
   } {
     const agentQueue = this.hierarchicalQueues.get(agentId) || [];
     const isProcessing = this.hierarchicalProcessing.get(agentId) || false;
@@ -338,7 +354,7 @@ class TaskQueueService {
     return {
       queueLength: agentQueue.filter(task => task.status === 'queued').length,
       processing: isProcessing,
-      tasks: agentQueue.map(({ taskData, ...task }) => task)
+      tasks: agentQueue
     };
   }
 

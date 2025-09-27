@@ -132,6 +132,7 @@ export interface GameState {
   playerPath?: Array<{x: number, y: number}>;
   playerPathIndex: number;
   isPlayerFollowingPath: boolean;
+  playerLastMoveTime?: number;
 }
 
 class GameStateManager {
@@ -156,7 +157,8 @@ class GameStateManager {
     maxChatMessages: 100,
     playerPath: undefined,
     playerPathIndex: 0,
-    isPlayerFollowingPath: false
+    isPlayerFollowingPath: false,
+    playerLastMoveTime: undefined
   };
 
   private listeners: Array<(state: GameState) => void> = [];
@@ -829,17 +831,42 @@ class GameStateManager {
   }
 
   setPlayerPath(path: Array<{x: number, y: number}>) {
-    this.state.playerPath = path;
+    // Remove the starting position from the path if it matches the player's current position
+    const currentPos = this.state.playerPosition;
+    const currentTileX = Math.round(currentPos.pixelX / this.state.tileSize);
+    const currentTileY = Math.round(currentPos.pixelY / this.state.tileSize);
+    
+    let filteredPath = path;
+    if (path.length > 0 && path[0].x === currentTileX && path[0].y === currentTileY) {
+      filteredPath = path.slice(1); // Remove the first node if it's the current position
+      console.log(`🎯 Removed starting position (${currentTileX}, ${currentTileY}) from path, ${filteredPath.length} nodes remaining`);
+    }
+    
+    this.state.playerPath = filteredPath;
     this.state.playerPathIndex = 0;
     this.state.isPlayerFollowingPath = true;
+    
+    console.log(`🎯 Player path set: ${filteredPath.length} nodes, starting at (${currentTileX}, ${currentTileY}) pixel(${currentPos.pixelX}, ${currentPos.pixelY})`);
+    if (filteredPath.length > 0) {
+      console.log(`🎯 First target: (${filteredPath[0].x}, ${filteredPath[0].y}) pixel(${filteredPath[0].x * this.state.tileSize}, ${filteredPath[0].y * this.state.tileSize})`);
+      
+      // Add path start to activity logs
+      this.addChatMessage({
+        id: `player_path_start_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        agentId: 'player',
+        message: `Player started following path with ${filteredPath.length} waypoints`,
+        timestamp: Date.now(),
+        type: 'action'
+      });
+    }
+    
     this.notifyListeners();
   }
 
   // Hardcoded test path for immediate testing
   setHardcodedTestPath() {
     const testPath = [
-      { x: 12, y: 12 }, // Start at player position
-      { x: 13, y: 12 }, // Move right
+      { x: 13, y: 12 }, // Move right from current position
       { x: 14, y: 12 }, // Move right
       { x: 14, y: 13 }, // Move down
       { x: 14, y: 14 }, // Move down
@@ -865,58 +892,108 @@ class GameStateManager {
       return;
     }
 
-    console.log(`🔄 Player path following: deltaTime=${deltaTime.toFixed(3)}s, pathIndex=${this.state.playerPathIndex}/${this.state.playerPath.length}`);
-
     const currentPos = this.state.playerPosition;
+    const currentTileX = Math.round(currentPos.pixelX / this.state.tileSize);
+    const currentTileY = Math.round(currentPos.pixelY / this.state.tileSize);
     const pathIndex = this.state.playerPathIndex;
     
     if (pathIndex >= this.state.playerPath.length) {
       // Reached end of path
-      console.log(`🏁 Player reached end of path at (${Math.round(currentPos.pixelX / this.state.tileSize)}, ${Math.round(currentPos.pixelY / this.state.tileSize)})`);
+      console.log(`🏁 Player reached end of path at (${currentTileX}, ${currentTileY})`);
+      
+      // Add path completion to activity logs
+      this.addChatMessage({
+        id: `player_path_complete_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        agentId: 'player',
+        message: `Player completed path at (${currentTileX}, ${currentTileY})`,
+        timestamp: Date.now(),
+        type: 'action'
+      });
+      
       this.clearPlayerPath();
       return;
     }
 
     const targetNode = this.state.playerPath[pathIndex];
-    const targetPixelX = targetNode.x * this.state.tileSize;
-    const targetPixelY = targetNode.y * this.state.tileSize;
     
-    const dx = targetPixelX - currentPos.pixelX;
-    const dy = targetPixelY - currentPos.pixelY;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    
-    // If close enough to current target, move to next node
-    if (distance < 8) { // 8 pixel threshold for smoother movement
+    // Check if we've reached the current target node (grid-based)
+    if (currentTileX === targetNode.x && currentTileY === targetNode.y) {
+      // Move to next path node
       this.state.playerPathIndex++;
       console.log(`📍 Player reached path node ${pathIndex + 1}/${this.state.playerPath.length} at (${targetNode.x}, ${targetNode.y})`);
+      
+      // Add path node reached to activity logs
+      this.addChatMessage({
+        id: `player_node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        agentId: 'player',
+        message: `Player reached waypoint ${pathIndex + 1}/${this.state.playerPath.length} at (${targetNode.x}, ${targetNode.y})`,
+        timestamp: Date.now(),
+        type: 'action'
+      });
+      
+      // If we've reached the end of the path, clear it
+      if (this.state.playerPathIndex >= this.state.playerPath.length) {
+        this.clearPlayerPath();
+      }
       return;
     }
     
-    // Move towards target with faster speed for more responsive movement
-    const moveSpeed = 300; // pixels per second (increased from 200)
-    const moveDistance = moveSpeed * deltaTime; // deltaTime is already in seconds
+    // Check if enough time has passed for the next movement step (grid-based movement timing)
+    const now = Date.now();
+    const moveInterval = 500; // 500ms between each grid movement (adjustable for speed)
     
-    if (distance > 0) {
-      const moveX = (dx / distance) * moveDistance;
-      const moveY = (dy / distance) * moveDistance;
-      
-      const newPixelX = currentPos.pixelX + moveX;
-      const newPixelY = currentPos.pixelY + moveY;
-      
-      console.log(`🚶 Player moving: from (${currentPos.pixelX.toFixed(1)}, ${currentPos.pixelY.toFixed(1)}) to (${newPixelX.toFixed(1)}, ${newPixelY.toFixed(1)}) - distance: ${distance.toFixed(1)}px, moveDistance: ${moveDistance.toFixed(1)}px`);
-      
-      // Update player position and animation
-      this.setPlayerPixelPosition(newPixelX, newPixelY);
-      
-      // Update animation direction based on movement
-      let direction: 'left' | 'right' | 'up' | 'down' = 'right';
-      if (Math.abs(dx) > Math.abs(dy)) {
-        direction = dx > 0 ? 'right' : 'left';
-      } else {
-        direction = dy > 0 ? 'down' : 'up';
-      }
-      this.updatePlayerAnimation(true, direction);
+    if (!this.state.playerLastMoveTime) {
+      this.state.playerLastMoveTime = now;
     }
+    
+    if (now - this.state.playerLastMoveTime < moveInterval) {
+      return; // Wait for next movement step
+    }
+    
+    // Move one grid square at a time towards the target
+    const dx = targetNode.x - currentTileX;
+    const dy = targetNode.y - currentTileY;
+    
+    // Move one step at a time in a single direction (no diagonal movement)
+    let newTileX = currentTileX;
+    let newTileY = currentTileY;
+    let direction: 'left' | 'right' | 'up' | 'down' = 'right';
+    
+    if (Math.abs(dx) > Math.abs(dy)) {
+      // Move horizontally
+      newTileX = currentTileX + (dx > 0 ? 1 : -1);
+      direction = dx > 0 ? 'right' : 'left';
+    } else if (dy !== 0) {
+      // Move vertically
+      newTileY = currentTileY + (dy > 0 ? 1 : -1);
+      direction = dy > 0 ? 'down' : 'up';
+    }
+    
+    // Ensure we stay within map boundaries
+    newTileX = Math.max(0, Math.min(this.state.mapWidth - 1, newTileX));
+    newTileY = Math.max(0, Math.min(this.state.mapHeight - 1, newTileY));
+    
+    // Convert back to pixel coordinates and update position
+    const newPixelX = newTileX * this.state.tileSize;
+    const newPixelY = newTileY * this.state.tileSize;
+    
+    console.log(`🚶 Player moving: from (${currentTileX}, ${currentTileY}) to (${newTileX}, ${newTileY}) - direction: ${direction}`);
+    
+    // Add movement to activity logs
+    this.addChatMessage({
+      id: `player_move_${now}_${Math.random().toString(36).substr(2, 9)}`,
+      agentId: 'player',
+      message: `Player moved ${direction} to (${newTileX}, ${newTileY})`,
+      timestamp: now,
+      type: 'action'
+    });
+    
+    // Update player position and animation
+    this.setPlayerPixelPosition(newPixelX, newPixelY);
+    this.updatePlayerAnimation(true, direction);
+    
+    // Update last move time
+    this.state.playerLastMoveTime = now;
   }
 
   setPlayerPixelPosition(pixelX: number, pixelY: number) {

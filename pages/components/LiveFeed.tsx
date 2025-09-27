@@ -78,11 +78,17 @@ const LiveFeed: React.FC<LiveFeedProps> = ({ className = '' }) => {
   };
 
   const getAgentName = (agentId: string) => {
+    if (agentId === 'player') {
+      return 'Player';
+    }
     const agent = aiAgents.get(agentId);
     return agent?.name || 'Unknown Agent';
   };
 
   const getAgentColor = (agentId: string) => {
+    if (agentId === 'player') {
+      return '#0066CC'; // Blue color for player
+    }
     const agent = aiAgents.get(agentId);
     return agent?.color || '#ffffff';
   };
