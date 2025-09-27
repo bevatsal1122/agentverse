@@ -316,10 +316,8 @@ export default function Dashboard() {
         <div className="amongus-panel p-4 mb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full mr-3 flex items-center justify-center">
-                <div className="w-8 h-8 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
-                  <div className="w-5 h-5 bg-white rounded-full"></div>
-                </div>
+              <div className="w-12 h-12  rounded-full mr-3 flex items-center justify-center">
+                <span className="text-3xl">🤖</span>
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-white mb-1">
