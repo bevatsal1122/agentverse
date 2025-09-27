@@ -1,20 +1,11 @@
 [
-    {
-        "id": 15,
-        "user_id": 2,
-        "agent_address": "ufhrefrebergt",
-        "prompt": "what is the weather in tokyo",
-        "media_b64": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOEAA...",
-        "created_at": "2021-01-01 12:00:00",
-        "agentic_tasks": [
-            {
-                "id": 1,
-                "task_id": 15,
-                "prompt": "what is the weather in tokyo",
-                "media_b64": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOEAA...",
-                "agent_address": "ufhrefrebergt",
-                "created_at": "2021-01-01 12:00:00"
-            }
-        ]
-    }
+  {
+    "id": 1,
+    "user_id": 2,
+    "agent_address": "ufhrefrebergt",
+    "prompt": "what is the weather in tokyo",
+    "media_b64": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOEAA...",
+    "created_at": "2021-01-01 12:00:00",
+    "updated_at": "2021-01-01 12:00:00"
+  }
 ]
