@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { gameState, Tool, TileType, GameState, Crewmate, CrewmateType, CrewmateActivity, AIAgent } from '../../src/game/state';
 import { MapLoader } from '../../src/maps/mapLoader';
+import { playerController } from '../../src/game/player';
 import LiveFeed from './LiveFeed';
 
 
@@ -24,6 +25,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
   const [trafficElements, setTrafficElements] = useState<TrafficElement[]>([]);
   const [backgroundCanvas, setBackgroundCanvas] = useState<HTMLCanvasElement | null>(null);
   const animationFrameRef = useRef<number>();
+  const lastRenderTime = useRef<number>(0);
+  const lastGameUpdateTime = useRef<number>(0);
+  const lastTrafficUpdateTime = useRef<number>(0);
+  const targetFPS = 60;
+  const targetGameUpdateFPS = 30;
+  const targetTrafficUpdateFPS = 10; // Even slower for traffic
 
   const initializeTilesetBackground = async () => {
     if (!canvasRef.current) return;
@@ -42,9 +49,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
 
     ctxRef.current = ctx;
 
-    // Set up canvas
+    // Set up canvas to cover full screen
     canvasRef.current.width = window.innerWidth;
-    canvasRef.current.height = window.innerHeight - 80;
+    canvasRef.current.height = window.innerHeight;
 
     // Disable image smoothing for pixel-perfect rendering
     ctx.imageSmoothingEnabled = false;
@@ -82,8 +89,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     // Spawn initial AI agents
     const currentState = gameState.getState();
     if (currentState.aiAgents.size === 0) {
-      // Spawn 3-5 AI agents initially for compact city
-      const numAgents = 3 + Math.floor(Math.random() * 3);
+      // Spawn 2-3 AI agents initially for better performance
+      const numAgents = 2 + Math.floor(Math.random() * 2);
       for (let i = 0; i < numAgents; i++) {
         const newAgent = gameState.spawnRandomAIAgent();
         if (!newAgent) {
@@ -93,15 +100,32 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       }
     }
     
-    // Animation loop for traffic and AI agents (throttled for performance)
-    let lastTime = 0;
+    // Optimized animation loop with separate rendering and game logic updates
     const animate = (currentTime: number) => {
-      if (currentTime - lastTime > 100) { // Update every 100ms instead of every frame
+      const deltaTime = currentTime - lastRenderTime.current;
+      const gameDeltaTime = currentTime - lastGameUpdateTime.current;
+      const trafficDeltaTime = currentTime - lastTrafficUpdateTime.current;
+      
+      // Update traffic at 10 FPS for better performance
+      if (trafficDeltaTime >= 1000 / targetTrafficUpdateFPS) {
         updateTraffic();
-        gameState.updateAIAgents(); // Update AI agent behavior and movement
-        updateCanvas(gameState.getState());
-        lastTime = currentTime;
+        lastTrafficUpdateTime.current = currentTime;
       }
+      
+      // Update game logic at 30 FPS for better performance
+      if (gameDeltaTime >= 1000 / targetGameUpdateFPS) {
+        // Update player movement
+        playerController.update(gameDeltaTime / 1000);
+        gameState.updateAIAgents();
+        lastGameUpdateTime.current = currentTime;
+      }
+      
+      // Render at 60 FPS for smooth visuals
+      if (deltaTime >= 1000 / targetFPS) {
+        updateCanvas(gameState.getState());
+        lastRenderTime.current = currentTime;
+      }
+      
       animationFrameRef.current = requestAnimationFrame(animate);
     };
     animationFrameRef.current = requestAnimationFrame(animate);
@@ -503,8 +527,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       }
     });
     
-    // Generate random traffic on roads (reduced for performance)
-    for (let i = 0; i < Math.min(5, roadTiles.length / 8); i++) {
+    // Generate random traffic on roads (further reduced for performance)
+    for (let i = 0; i < Math.min(3, roadTiles.length / 12); i++) {
       const randomRoad = roadTiles[Math.floor(Math.random() * roadTiles.length)];
       if (randomRoad) {
         const directions: Array<'north' | 'south' | 'east' | 'west'> = ['north', 'south', 'east', 'west'];
@@ -1310,7 +1334,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     const handleResize = () => {
       if (canvasRef.current) {
         canvasRef.current.width = window.innerWidth;
-        canvasRef.current.height = window.innerHeight - 80;
+        canvasRef.current.height = window.innerHeight;
         // Re-initialize camera position after resize
         gameState.initializeCamera();
         updateCanvas(gameState.getState());
@@ -1322,10 +1346,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
   }, []);
 
   return (
-    <div className="relative">
+    <div className="relative w-full h-full">
       <canvas
         ref={canvasRef}
-        className="block"
+        className="block w-full h-full"
         style={{ imageRendering: 'pixelated' }}
       />
       <LiveFeed />

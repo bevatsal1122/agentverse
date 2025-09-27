@@ -1,7 +1,7 @@
 import { gameState, Position } from './state';
 // Collision system temporarily disabled for new city map
 
-const X_VELOCITY = 200;
+const X_VELOCITY = 300; // Increased for smoother movement
 const JUMP_POWER = 250;
 const GRAVITY = 580;
 
@@ -40,18 +40,13 @@ export class PlayerController {
       this.keys.delete(e.code);
     });
 
-    // Start game loop
-    this.gameLoop();
+    // Don't start separate game loop - let main game loop handle updates
   }
 
-  private gameLoop() {
-    if (typeof window === 'undefined') return;
-    const currentTime = performance.now();
-    const deltaTime = this.lastTime ? (currentTime - this.lastTime) / 1000 : 0;
-    this.lastTime = currentTime;
-    
+  // Public method to update player movement (called from main game loop)
+  update(deltaTime: number) {
+    if (!deltaTime || !this.isInitialized) return;
     this.handlePhysicsMovement(deltaTime);
-    requestAnimationFrame(() => this.gameLoop());
   }
 
   private handlePhysicsMovement(deltaTime: number) {
@@ -63,13 +58,17 @@ export class PlayerController {
     // Handle input
     this.handleInput();
     
-    // Simple direct movement (no physics for city map)
-    const newPixelX = currentPos.pixelX + this.velocity.x * deltaTime;
-    const newPixelY = currentPos.pixelY + this.velocity.y * deltaTime;
-    gameState.setPlayerPixelPosition(newPixelX, newPixelY);
-    
-    // Update camera
-    this.updateCamera(newPixelX, newPixelY);
+    // Only update position if there's actual movement
+    if (this.velocity.x !== 0 || this.velocity.y !== 0) {
+      // Simple direct movement (no physics for city map)
+      const newPixelX = currentPos.pixelX + this.velocity.x * deltaTime;
+      const newPixelY = currentPos.pixelY + this.velocity.y * deltaTime;
+      
+      // Only update state if position actually changed (reduces unnecessary updates)
+      if (Math.abs(newPixelX - currentPos.pixelX) > 0.5 || Math.abs(newPixelY - currentPos.pixelY) > 0.5) {
+        gameState.setPlayerPixelPosition(newPixelX, newPixelY);
+      }
+    }
   }
 
   private handleInput() {
@@ -107,17 +106,6 @@ export class PlayerController {
 
 
 
-  private updateCamera(playerPixelX: number, playerPixelY: number) {
-    if (typeof window === 'undefined') return;
-    
-    const state = gameState.getState();
-    
-    // Center camera on player's exact pixel position
-    const cameraX = -playerPixelX + (window.innerWidth / 2) - 16; // 16 is half player size
-    const cameraY = -playerPixelY + (window.innerHeight / 2) - 16;
-    
-    gameState.setCameraPosition(cameraX, cameraY);
-  }
 
   destroy() {
     // Cleanup if needed

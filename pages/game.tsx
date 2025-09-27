@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useAuth } from '../src/contexts/AuthContext';
-import Toolbar from './components/Toolbar';
 import GameCanvas from './components/GameCanvas';
 import { Tool, gameState } from '../src/game/state';
 import { playerController } from '../src/game/player';
@@ -197,15 +196,8 @@ export default function Game() {
   }
 
   return (
-    <div className="h-screen bg-gray-300 overflow-hidden relative">
-
-      {/* Game Content */}
-      <div className="pt-12">
-        <Toolbar selectedTool={selectedTool} onToolSelect={handleToolSelect} />
-        <div className="flex-1 p-2">
-          <GameCanvas selectedTool={selectedTool} />
-        </div>
-      </div>
+    <div className="h-screen w-screen bg-gray-300 overflow-hidden relative">
+      <GameCanvas selectedTool={selectedTool} />
     </div>
   );
 }

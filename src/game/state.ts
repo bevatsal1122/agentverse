@@ -1009,7 +1009,12 @@ class GameStateManager {
       const cameraX = -playerPixelX + (window.innerWidth / 2) - 16; // 16 is half player size
       const cameraY = -playerPixelY + (window.innerHeight / 2) - 16;
       
-      this.state.cameraPosition = { x: cameraX, y: cameraY };
+      // Only update camera if position changed significantly (reduces unnecessary renders)
+      const threshold = 0.5; // 0.5 pixel threshold for smoother camera
+      if (Math.abs(this.state.cameraPosition.x - cameraX) > threshold || 
+          Math.abs(this.state.cameraPosition.y - cameraY) > threshold) {
+        this.state.cameraPosition = { x: cameraX, y: cameraY };
+      }
     }
   }
 
@@ -1024,7 +1029,12 @@ class GameStateManager {
         const cameraX = -agentPixelX + (window.innerWidth / 2) - 16; // 16 is half agent size
         const cameraY = -agentPixelY + (window.innerHeight / 2) - 16;
         
-        this.state.cameraPosition = { x: cameraX, y: cameraY };
+        // Only update camera if position changed significantly (reduces unnecessary renders)
+        const threshold = 0.5; // 0.5 pixel threshold for smoother camera
+        if (Math.abs(this.state.cameraPosition.x - cameraX) > threshold || 
+            Math.abs(this.state.cameraPosition.y - cameraY) > threshold) {
+          this.state.cameraPosition = { x: cameraX, y: cameraY };
+        }
       }
     }
   }
