@@ -1,3 +1,5 @@
+import { Pathfinder } from './pathfinding';
+
 export enum Tool {
   SELECT = 'select',
   BULLDOZER = 'bulldozer',
@@ -90,6 +92,19 @@ export interface AIAgent {
   autonomyLevel: number; // 0-1, how autonomous this agent is
   goals: string[];
   currentGoal?: string;
+  // New pathfinding properties
+  currentPath?: Array<{x: number, y: number}>;
+  pathIndex: number;
+  isFollowingPath: boolean;
+  targetBuilding?: {
+    x: number;
+    y: number;
+    type: TileType;
+    reason: string;
+  };
+  lastBuildingVisitTime: number;
+  visitCooldown: number; // Time between building visits
+  moveInterval: number; // Time between movement steps (ms)
 }
 
 // Keep Crewmate interface for backward compatibility
@@ -129,6 +144,11 @@ class GameStateManager {
   };
 
   private listeners: Array<(state: GameState) => void> = [];
+  private pathfinder: Pathfinder;
+
+  constructor() {
+    this.pathfinder = new Pathfinder(this.state);
+  }
 
   getState(): GameState {
     return { ...this.state };
@@ -257,7 +277,13 @@ class GameStateManager {
       currentThought: 'Ready to work',
       lastInteractionTime: 0,
       autonomyLevel: 0.5,
-      goals: ['Complete tasks', 'Help others']
+      goals: ['Complete tasks', 'Help others'],
+      // Initialize pathfinding properties for backward compatibility
+      pathIndex: 0,
+      isFollowingPath: false,
+      lastBuildingVisitTime: 0,
+      visitCooldown: 15000 + Math.random() * 30000,
+      moveInterval: 500 + Math.random() * 300
     };
     
     this.addCrewmate(crewmate);
@@ -292,17 +318,29 @@ class GameStateManager {
     
     // Find a random living quarters tile for home
     let homeX = 0, homeY = 0;
-    const livingQuarters = allTiles.filter(([key, tile]) => tile.type === TileType.LIVING_QUARTERS);
+    const livingQuarters = allTiles.filter(([key, tile]) => 
+      tile.type === TileType.LIVING_QUARTERS && 
+      tile.x >= 0 && tile.x < 25 && tile.y >= 0 && tile.y < 25 // Ensure within boundaries
+    );
     if (livingQuarters.length > 0) {
       const randomHome = livingQuarters[Math.floor(Math.random() * livingQuarters.length)];
       homeX = randomHome[1].x;
       homeY = randomHome[1].y;
     } else {
-      // If no living quarters, pick any random tile from the map
-      const randomTile = allTiles[Math.floor(Math.random() * allTiles.length)];
-      homeX = randomTile[1].x;
-      homeY = randomTile[1].y;
+      // If no living quarters, pick any random tile from the map within boundaries
+      const validTiles = allTiles.filter(([key, tile]) => 
+        tile.x >= 0 && tile.x < 25 && tile.y >= 0 && tile.y < 25
+      );
+      if (validTiles.length > 0) {
+        const randomTile = validTiles[Math.floor(Math.random() * validTiles.length)];
+        homeX = randomTile[1].x;
+        homeY = randomTile[1].y;
+      }
     }
+    
+    // Ensure home position is within boundaries
+    homeX = Math.max(0, Math.min(24, homeX));
+    homeY = Math.max(0, Math.min(24, homeY));
     
     // Find a random work location based on type
     let workX = homeX, workY = homeY;
@@ -311,17 +349,29 @@ class GameStateManager {
     else if (type === CrewmateType.ENGINEER) workTileType = TileType.ENGINEERING_BAY;
     else if (type === CrewmateType.CAPTAIN) workTileType = TileType.RESEARCH_LAB;
     
-    const workTiles = allTiles.filter(([key, tile]) => tile.type === workTileType);
+    const workTiles = allTiles.filter(([key, tile]) => 
+      tile.type === workTileType && 
+      tile.x >= 0 && tile.x < 25 && tile.y >= 0 && tile.y < 25 // Ensure within boundaries
+    );
     if (workTiles.length > 0) {
       const randomWork = workTiles[Math.floor(Math.random() * workTiles.length)];
       workX = randomWork[1].x;
       workY = randomWork[1].y;
     } else {
-      // If no work tiles of preferred type, pick any random tile from the map
-      const randomTile = allTiles[Math.floor(Math.random() * allTiles.length)];
-      workX = randomTile[1].x;
-      workY = randomTile[1].y;
+      // If no work tiles of preferred type, pick any random tile from the map within boundaries
+      const validTiles = allTiles.filter(([key, tile]) => 
+        tile.x >= 0 && tile.x < 25 && tile.y >= 0 && tile.y < 25
+      );
+      if (validTiles.length > 0) {
+        const randomTile = validTiles[Math.floor(Math.random() * validTiles.length)];
+        workX = randomTile[1].x;
+        workY = randomTile[1].y;
+      }
     }
+    
+    // Ensure work position is within boundaries
+    workX = Math.max(0, Math.min(24, workX));
+    workY = Math.max(0, Math.min(24, workY));
     
     const goals = this.generateGoalsForAgent(type);
     
@@ -348,7 +398,13 @@ class GameStateManager {
       lastInteractionTime: 0,
       autonomyLevel: 0.7 + Math.random() * 0.3, // High autonomy
       goals,
-      currentGoal: goals[0]
+      currentGoal: goals[0],
+      // Initialize pathfinding properties
+      pathIndex: 0,
+      isFollowingPath: false,
+      lastBuildingVisitTime: 0,
+      visitCooldown: 15000 + Math.random() * 30000, // 15-45 seconds between visits
+      moveInterval: 500 + Math.random() * 300 // 0.5-0.8 seconds between steps
     };
     
     this.addAIAgent(agent);
@@ -463,38 +519,60 @@ class GameStateManager {
       agent.lastInteractionTime = now;
     }
     
-    // Random roaming - change destination more frequently for more dynamic movement
-    if (Math.random() < 0.001) { // 0.1% chance per frame to change destination
-      this.findRandomDestination(agent);
+    // Building visit decision logic
+    if (now - agent.lastBuildingVisitTime > agent.visitCooldown && !agent.isFollowingPath) {
+      this.decideToVisitBuilding(agent, now);
     }
     
-    // Movement logic
-    const dx = agent.targetX - agent.x;
-    const dy = agent.targetY - agent.y;
-    
-    if (Math.abs(dx) < 0.1 && Math.abs(dy) < 0.1) {
-      // Reached target, choose new activity
-      this.chooseNewAIActivity(agent);
+    // Movement logic with pathfinding
+    if (agent.isFollowingPath && agent.currentPath) {
+      this.followPath(agent, deltaTime, now);
     } else {
-      // Move towards target
-      const moveSpeed = agent.speed * agent.autonomyLevel * (deltaTime / 1000);
+      // Fallback to old random roaming if no path
+      if (Math.random() < 0.001) { // 0.1% chance per frame to change destination
+        this.findRandomDestination(agent);
+      }
       
-      if (Math.abs(dx) > Math.abs(dy)) {
-        // Move horizontally
-        agent.x += dx > 0 ? moveSpeed : -moveSpeed;
-        agent.direction = dx > 0 ? 'east' : 'west';
+      // Grid-based movement towards target (road-only)
+      const currentX = Math.round(agent.x);
+      const currentY = Math.round(agent.y);
+      const targetX = Math.round(agent.targetX);
+      const targetY = Math.round(agent.targetY);
+      
+      if (currentX === targetX && currentY === targetY) {
+        // Reached target, choose new activity
+        this.chooseNewAIActivity(agent);
       } else {
-        // Move vertically
-        agent.y += dy > 0 ? moveSpeed : -moveSpeed;
-        agent.direction = dy > 0 ? 'south' : 'north';
-      }
-      
-      // Snap to grid when close
-      if (Math.abs(agent.x - Math.round(agent.x)) < 0.1) {
-        agent.x = Math.round(agent.x);
-      }
-      if (Math.abs(agent.y - Math.round(agent.y)) < 0.1) {
-        agent.y = Math.round(agent.y);
+        // Check if enough time has passed for the next movement step
+        if (now - agent.lastMoveTime >= agent.moveInterval) {
+          // Calculate movement direction (only horizontal or vertical, no diagonals)
+          const dx = targetX - currentX;
+          const dy = targetY - currentY;
+          
+          // Move one step at a time in a single direction (no diagonal movement)
+          if (Math.abs(dx) > Math.abs(dy)) {
+            // Move horizontally
+            const newX = agent.x + (dx > 0 ? 1 : -1);
+            if (newX >= 0 && newX < 25) { // Keep within map boundaries
+              agent.x = newX;
+              agent.direction = dx > 0 ? 'east' : 'west';
+            }
+          } else if (dy !== 0) {
+            // Move vertically
+            const newY = agent.y + (dy > 0 ? 1 : -1);
+            if (newY >= 0 && newY < 25) { // Keep within map boundaries
+              agent.y = newY;
+              agent.direction = dy > 0 ? 'south' : 'north';
+            }
+          }
+          
+          // Ensure agent stays on grid and within boundaries
+          agent.x = Math.max(0, Math.min(24, Math.round(agent.x)));
+          agent.y = Math.max(0, Math.min(24, Math.round(agent.y)));
+          
+          // Update last move time
+          agent.lastMoveTime = now;
+        }
       }
     }
     
@@ -686,6 +764,232 @@ class GameStateManager {
     }
   }
 
+  private decideToVisitBuilding(agent: AIAgent, now: number): void {
+    // Decide which type of building to visit based on agent type and randomness
+    const buildingTypes = [
+      TileType.RECREATION,
+      TileType.LIVING_QUARTERS,
+      TileType.RESEARCH_LAB,
+      TileType.ENGINEERING_BAY
+    ];
+    
+    // Weight building types based on agent type
+    const weights = buildingTypes.map(type => {
+      let weight = 1;
+      if (type === TileType.RESEARCH_LAB && agent.type === CrewmateType.SCIENTIST) weight = 3;
+      if (type === TileType.ENGINEERING_BAY && agent.type === CrewmateType.ENGINEER) weight = 3;
+      if (type === TileType.RECREATION) weight = 2; // Everyone likes recreation
+      return weight;
+    });
+    
+    // Select building type based on weights
+    const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+    let random = Math.random() * totalWeight;
+    let selectedType = TileType.RECREATION;
+    
+    for (let i = 0; i < buildingTypes.length; i++) {
+      random -= weights[i];
+      if (random <= 0) {
+        selectedType = buildingTypes[i];
+        break;
+      }
+    }
+    
+    // Find path to the selected building type
+    const path = this.pathfinder.findPathToRandomBuilding(
+      Math.round(agent.x), 
+      Math.round(agent.y), 
+      selectedType
+    );
+    
+    console.log(`${agent.name} decided to visit ${this.getBuildingTypeName(selectedType)} - path found: ${path ? path.nodes.length : 0} nodes`);
+    
+    if (path && path.nodes.length > 0) {
+      const targetBuilding = path.nodes[path.nodes.length - 1];
+      
+      agent.currentPath = path.nodes;
+      agent.pathIndex = 0;
+      agent.isFollowingPath = true;
+      agent.targetBuilding = {
+        x: targetBuilding.x,
+        y: targetBuilding.y,
+        type: selectedType,
+        reason: this.getBuildingVisitReason(selectedType, agent.type)
+      };
+      agent.activity = CrewmateActivity.WALKING;
+      agent.lastBuildingVisitTime = now;
+      
+      // Add chat message about the decision
+      agent.chatBubble = {
+        message: `${agent.name} decides to visit ${this.getBuildingTypeName(selectedType)}`,
+        timestamp: now,
+        duration: 3000
+      };
+      
+      this.addChatMessage({
+        id: `visit_${now}_${Math.random().toString(36).substr(2, 9)}`,
+        agentId: agent.id,
+        message: `${agent.name} decides to visit ${this.getBuildingTypeName(selectedType)} - ${agent.targetBuilding.reason}`,
+        timestamp: now,
+        type: 'action'
+      });
+    }
+  }
+
+  private followPath(agent: AIAgent, deltaTime: number, now: number): void {
+    if (!agent.currentPath || agent.pathIndex >= agent.currentPath.length) {
+      // Path completed
+      agent.isFollowingPath = false;
+      agent.currentPath = undefined;
+      agent.pathIndex = 0;
+      
+      if (agent.targetBuilding) {
+        this.arriveAtBuilding(agent, now);
+      }
+      return;
+    }
+    
+    // Check if enough time has passed for the next movement step
+    if (now - agent.lastMoveTime < agent.moveInterval) {
+      return; // Wait for next movement step
+    }
+    
+    // Debug: Log agent movement
+    if (agent.isFollowingPath) {
+      console.log(`${agent.name} moving along path (step ${agent.pathIndex}/${agent.currentPath?.length})`);
+    }
+    
+    const currentTarget = agent.currentPath[agent.pathIndex];
+    const currentX = Math.round(agent.x);
+    const currentY = Math.round(agent.y);
+    
+    // Check if we've reached the current target node
+    if (currentX === currentTarget.x && currentY === currentTarget.y) {
+      // Move to next path node
+      agent.pathIndex++;
+      agent.lastMoveTime = now;
+      return;
+    }
+    
+    // Calculate movement direction (only horizontal or vertical, no diagonals)
+    const dx = currentTarget.x - currentX;
+    const dy = currentTarget.y - currentY;
+    
+    // Move one step at a time in a single direction (no diagonal movement)
+    if (Math.abs(dx) > Math.abs(dy)) {
+      // Move horizontally
+      const newX = agent.x + (dx > 0 ? 1 : -1);
+      if (newX >= 0 && newX < 25) { // Keep within map boundaries
+        agent.x = newX;
+        agent.direction = dx > 0 ? 'east' : 'west';
+      }
+    } else if (dy !== 0) {
+      // Move vertically
+      const newY = agent.y + (dy > 0 ? 1 : -1);
+      if (newY >= 0 && newY < 25) { // Keep within map boundaries
+        agent.y = newY;
+        agent.direction = dy > 0 ? 'south' : 'north';
+      }
+    }
+    
+    // Ensure agent stays on grid and within boundaries
+    agent.x = Math.max(0, Math.min(24, Math.round(agent.x)));
+    agent.y = Math.max(0, Math.min(24, Math.round(agent.y)));
+    
+    // Update last move time
+    agent.lastMoveTime = now;
+  }
+
+  private arriveAtBuilding(agent: AIAgent, now: number): void {
+    if (!agent.targetBuilding) return;
+    
+    const buildingName = this.getBuildingTypeName(agent.targetBuilding.type);
+    
+    // Set appropriate activity based on building type
+    switch (agent.targetBuilding.type) {
+      case TileType.RESEARCH_LAB:
+        agent.activity = CrewmateActivity.RESEARCHING;
+        break;
+      case TileType.ENGINEERING_BAY:
+        agent.activity = CrewmateActivity.MAINTAINING;
+        break;
+      case TileType.LIVING_QUARTERS:
+        agent.activity = CrewmateActivity.RESTING;
+        break;
+      case TileType.RECREATION:
+        agent.activity = CrewmateActivity.EATING;
+        break;
+      default:
+        agent.activity = CrewmateActivity.WORKING;
+    }
+    
+    // Add arrival message
+    agent.chatBubble = {
+      message: `${agent.name} arrives at ${buildingName}`,
+      timestamp: now,
+      duration: 3000
+    };
+    
+    this.addChatMessage({
+      id: `arrive_${now}_${Math.random().toString(36).substr(2, 9)}`,
+      agentId: agent.id,
+      message: `${agent.name} arrives at ${buildingName} and starts ${agent.activity}`,
+      timestamp: now,
+      type: 'action'
+    });
+    
+    // Schedule departure after some time
+    const stayDuration = 5000 + Math.random() * 10000; // 5-15 seconds
+    setTimeout(() => {
+      agent.activity = CrewmateActivity.WALKING;
+      agent.targetBuilding = undefined;
+      // Reset visit cooldown
+      agent.visitCooldown = 15000 + Math.random() * 30000;
+    }, stayDuration);
+  }
+
+  private getBuildingTypeName(type: TileType): string {
+    switch (type) {
+      case TileType.RESEARCH_LAB: return 'Research Lab';
+      case TileType.ENGINEERING_BAY: return 'Engineering Bay';
+      case TileType.LIVING_QUARTERS: return 'Living Quarters';
+      case TileType.RECREATION: return 'Recreation Center';
+      default: return 'Building';
+    }
+  }
+
+  private getBuildingVisitReason(buildingType: TileType, agentType: CrewmateType): string {
+    const reasons: Record<string, string[]> = {
+      [TileType.RESEARCH_LAB]: [
+        'to conduct research',
+        'to analyze data',
+        'to make discoveries',
+        'to study samples'
+      ],
+      [TileType.ENGINEERING_BAY]: [
+        'to maintain systems',
+        'to fix equipment',
+        'to upgrade technology',
+        'to build improvements'
+      ],
+      [TileType.LIVING_QUARTERS]: [
+        'to rest and recharge',
+        'to meet residents',
+        'to check facilities',
+        'to socialize'
+      ],
+      [TileType.RECREATION]: [
+        'to relax and unwind',
+        'to have fun',
+        'to meet other agents',
+        'to enjoy activities'
+      ]
+    };
+    
+    const buildingReasons = reasons[buildingType] || ['to explore'];
+    return buildingReasons[Math.floor(Math.random() * buildingReasons.length)];
+  }
+
   private findRandomDestination(agent: AIAgent): void {
     // Get all available tiles from the loaded map
     const allTiles = Array.from(this.state.mapData.entries());
@@ -717,55 +1021,76 @@ class GameStateManager {
       }
     }
     
-    const tilesOfType = allTiles.filter(([key, tile]) => tile.type === selectedType);
+    const tilesOfType = allTiles.filter(([key, tile]) => 
+      tile.type === selectedType && 
+      tile.x >= 0 && tile.x < 25 && tile.y >= 0 && tile.y < 25 // Ensure within boundaries
+    );
     
     if (tilesOfType.length > 0) {
       const randomTile = tilesOfType[Math.floor(Math.random() * tilesOfType.length)];
-      agent.targetX = randomTile[1].x;
-      agent.targetY = randomTile[1].y;
+      agent.targetX = Math.max(0, Math.min(24, randomTile[1].x));
+      agent.targetY = Math.max(0, Math.min(24, randomTile[1].y));
       agent.activity = CrewmateActivity.WALKING;
     } else {
-      // If no tiles of selected type, pick any random tile from the loaded map
-      const randomTile = allTiles[Math.floor(Math.random() * allTiles.length)];
-      agent.targetX = randomTile[1].x;
-      agent.targetY = randomTile[1].y;
-      agent.activity = CrewmateActivity.WALKING;
+      // If no tiles of selected type, pick any random tile from the loaded map within boundaries
+      const validTiles = allTiles.filter(([key, tile]) => 
+        tile.x >= 0 && tile.x < 25 && tile.y >= 0 && tile.y < 25
+      );
+      if (validTiles.length > 0) {
+        const randomTile = validTiles[Math.floor(Math.random() * validTiles.length)];
+        agent.targetX = Math.max(0, Math.min(24, randomTile[1].x));
+        agent.targetY = Math.max(0, Math.min(24, randomTile[1].y));
+        agent.activity = CrewmateActivity.WALKING;
+      }
     }
   }
 
   private updateCrewmateAI(crewmate: Crewmate, deltaTime: number): void {
     const currentTile = this.state.mapData.get(`${crewmate.x},${crewmate.y}`);
+    const now = Date.now();
     
     // Update animation frame
     crewmate.animationFrame = (crewmate.animationFrame + 1) % 8;
     
-    // Simple pathfinding - move towards target
-    const dx = crewmate.targetX - crewmate.x;
-    const dy = crewmate.targetY - crewmate.y;
+    // Grid-based movement towards target (road-only)
+    const currentX = Math.round(crewmate.x);
+    const currentY = Math.round(crewmate.y);
+    const targetX = Math.round(crewmate.targetX);
+    const targetY = Math.round(crewmate.targetY);
     
-    if (Math.abs(dx) < 0.1 && Math.abs(dy) < 0.1) {
+    if (currentX === targetX && currentY === targetY) {
       // Reached target, choose new activity
       this.chooseNewActivity(crewmate);
     } else {
-      // Move towards target
-      const moveSpeed = crewmate.speed * (deltaTime / 1000);
-      
-      if (Math.abs(dx) > Math.abs(dy)) {
-        // Move horizontally
-        crewmate.x += dx > 0 ? moveSpeed : -moveSpeed;
-        crewmate.direction = dx > 0 ? 'east' : 'west';
-      } else {
-        // Move vertically
-        crewmate.y += dy > 0 ? moveSpeed : -moveSpeed;
-        crewmate.direction = dy > 0 ? 'south' : 'north';
-      }
-      
-      // Snap to grid when close
-      if (Math.abs(crewmate.x - Math.round(crewmate.x)) < 0.1) {
-        crewmate.x = Math.round(crewmate.x);
-      }
-      if (Math.abs(crewmate.y - Math.round(crewmate.y)) < 0.1) {
-        crewmate.y = Math.round(crewmate.y);
+      // Check if enough time has passed for the next movement step
+      if (now - crewmate.lastMoveTime >= crewmate.moveInterval) {
+        // Calculate movement direction (only horizontal or vertical, no diagonals)
+        const dx = targetX - currentX;
+        const dy = targetY - currentY;
+        
+        // Move one step at a time in a single direction (no diagonal movement)
+        if (Math.abs(dx) > Math.abs(dy)) {
+          // Move horizontally
+          const newX = crewmate.x + (dx > 0 ? 1 : -1);
+          if (newX >= 0 && newX < 25) { // Keep within map boundaries
+            crewmate.x = newX;
+            crewmate.direction = dx > 0 ? 'east' : 'west';
+          }
+        } else if (dy !== 0) {
+          // Move vertically
+          const newY = crewmate.y + (dy > 0 ? 1 : -1);
+          if (newY >= 0 && newY < 25) { // Keep within map boundaries
+            crewmate.y = newY;
+            crewmate.direction = dy > 0 ? 'south' : 'north';
+          }
+        }
+        
+        // Ensure crewmate stays on grid and within boundaries
+        crewmate.x = Math.max(0, Math.min(24, Math.round(crewmate.x)));
+        crewmate.y = Math.max(0, Math.min(24, Math.round(crewmate.y)));
+        
+        // Update last move time
+        crewmate.lastMoveTime = now;
       }
     }
     
@@ -912,14 +1237,24 @@ class GameStateManager {
 
   setPlayerPixelPosition(pixelX: number, pixelY: number) {
     const tileSize = this.state.tileSize;
-    const tileX = Math.floor(pixelX / tileSize);
-    const tileY = Math.floor(pixelY / tileSize);
+    
+    // Apply map boundary constraints (25x25 grid)
+    const mapWidth = 25;
+    const mapHeight = 25;
+    const maxPixelX = (mapWidth - 1) * tileSize;
+    const maxPixelY = (mapHeight - 1) * tileSize;
+    
+    const constrainedPixelX = Math.max(0, Math.min(maxPixelX, pixelX));
+    const constrainedPixelY = Math.max(0, Math.min(maxPixelY, pixelY));
+    
+    const tileX = Math.floor(constrainedPixelX / tileSize);
+    const tileY = Math.floor(constrainedPixelY / tileSize);
     
     this.state.playerPosition = { 
       x: tileX, 
       y: tileY, 
-      pixelX, 
-      pixelY,
+      pixelX: constrainedPixelX, 
+      pixelY: constrainedPixelY,
       isMoving: this.state.playerPosition.isMoving,
       animationFrame: this.state.playerPosition.animationFrame,
       direction: this.state.playerPosition.direction
@@ -931,7 +1266,8 @@ class GameStateManager {
   }
 
   setCameraPosition(x: number, y: number) {
-    this.state.cameraPosition = { x, y };
+    const constrainedCamera = this.constrainCameraToMapBounds(x, y);
+    this.state.cameraPosition = constrainedCamera;
     this.notifyListeners();
   }
 
@@ -986,6 +1322,37 @@ class GameStateManager {
     this.notifyListeners();
   }
 
+  private constrainCameraToMapBounds(cameraX: number, cameraY: number): { x: number, y: number } {
+    if (typeof window === 'undefined') {
+      return { x: cameraX, y: cameraY };
+    }
+    
+    // Map boundaries (25x25 tiles)
+    const mapWidth = 25;
+    const mapHeight = 25;
+    const mapPixelWidth = mapWidth * this.state.tileSize;
+    const mapPixelHeight = mapHeight * this.state.tileSize;
+    
+    // Screen dimensions
+    const screenWidth = window.innerWidth;
+    const screenHeight = window.innerHeight;
+    
+    // Calculate camera bounds
+    // Camera X: left edge should not go beyond 0, right edge should not show past map
+    const minCameraX = Math.min(0, screenWidth - mapPixelWidth);
+    const maxCameraX = 0;
+    
+    // Camera Y: top edge should not go beyond 0, bottom edge should not show past map
+    const minCameraY = Math.min(0, screenHeight - mapPixelHeight);
+    const maxCameraY = 0;
+    
+    // Constrain camera position
+    const constrainedX = Math.max(minCameraX, Math.min(maxCameraX, cameraX));
+    const constrainedY = Math.max(minCameraY, Math.min(maxCameraY, cameraY));
+    
+    return { x: constrainedX, y: constrainedY };
+  }
+
   initializeCamera() {
     if (typeof window !== 'undefined') {
       const playerPixelX = this.state.playerPosition.pixelX;
@@ -995,7 +1362,10 @@ class GameStateManager {
       const cameraX = -playerPixelX + (window.innerWidth / 2) - 16; // 16 is half player size
       const cameraY = -playerPixelY + (window.innerHeight / 2) - 16;
       
-      this.state.cameraPosition = { x: cameraX, y: cameraY };
+      // Constrain camera to map boundaries
+      const constrainedCamera = this.constrainCameraToMapBounds(cameraX, cameraY);
+      
+      this.state.cameraPosition = constrainedCamera;
       this.notifyListeners();
     }
   }
@@ -1009,11 +1379,14 @@ class GameStateManager {
       const cameraX = -playerPixelX + (window.innerWidth / 2) - 16; // 16 is half player size
       const cameraY = -playerPixelY + (window.innerHeight / 2) - 16;
       
+      // Constrain camera to map boundaries
+      const constrainedCamera = this.constrainCameraToMapBounds(cameraX, cameraY);
+      
       // Only update camera if position changed significantly (reduces unnecessary renders)
       const threshold = 0.5; // 0.5 pixel threshold for smoother camera
-      if (Math.abs(this.state.cameraPosition.x - cameraX) > threshold || 
-          Math.abs(this.state.cameraPosition.y - cameraY) > threshold) {
-        this.state.cameraPosition = { x: cameraX, y: cameraY };
+      if (Math.abs(this.state.cameraPosition.x - constrainedCamera.x) > threshold || 
+          Math.abs(this.state.cameraPosition.y - constrainedCamera.y) > threshold) {
+        this.state.cameraPosition = constrainedCamera;
       }
     }
   }
@@ -1029,11 +1402,14 @@ class GameStateManager {
         const cameraX = -agentPixelX + (window.innerWidth / 2) - 16; // 16 is half agent size
         const cameraY = -agentPixelY + (window.innerHeight / 2) - 16;
         
+        // Constrain camera to map boundaries
+        const constrainedCamera = this.constrainCameraToMapBounds(cameraX, cameraY);
+        
         // Only update camera if position changed significantly (reduces unnecessary renders)
         const threshold = 0.5; // 0.5 pixel threshold for smoother camera
-        if (Math.abs(this.state.cameraPosition.x - cameraX) > threshold || 
-            Math.abs(this.state.cameraPosition.y - cameraY) > threshold) {
-          this.state.cameraPosition = { x: cameraX, y: cameraY };
+        if (Math.abs(this.state.cameraPosition.x - constrainedCamera.x) > threshold || 
+            Math.abs(this.state.cameraPosition.y - constrainedCamera.y) > threshold) {
+          this.state.cameraPosition = constrainedCamera;
         }
       }
     }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { gameState, ChatMessage, AIAgent } from '../../src/game/state';
 
 interface LiveFeedProps {
@@ -9,6 +9,8 @@ const LiveFeed: React.FC<LiveFeedProps> = ({ className = '' }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [aiAgents, setAIAgents] = useState<Map<string, AIAgent>>(new Map());
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const agentsEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const unsubscribe = gameState.subscribe((state) => {
@@ -18,6 +20,26 @@ const LiveFeed: React.FC<LiveFeedProps> = ({ className = '' }) => {
 
     return unsubscribe;
   }, []);
+
+  // Auto-scroll to bottom when new messages are added
+  useEffect(() => {
+    if (messagesEndRef.current && !isCollapsed) {
+      // Small delay to ensure DOM has updated
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 10);
+    }
+  }, [chatMessages, isCollapsed]);
+
+  // Auto-scroll agents panel if needed
+  useEffect(() => {
+    if (agentsEndRef.current && !isCollapsed) {
+      // Small delay to ensure DOM has updated
+      setTimeout(() => {
+        agentsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 10);
+    }
+  }, [aiAgents, isCollapsed]);
 
   const getMessageTypeColor = (type: string) => {
     switch (type) {
@@ -102,6 +124,8 @@ const LiveFeed: React.FC<LiveFeedProps> = ({ className = '' }) => {
                   </span>
                 </div>
               ))}
+              {/* Invisible element to scroll to for agents */}
+              <div ref={agentsEndRef} />
             </div>
           </div>
 
@@ -132,6 +156,8 @@ const LiveFeed: React.FC<LiveFeedProps> = ({ className = '' }) => {
                 </div>
               ))
             )}
+            {/* Invisible element to scroll to */}
+            <div ref={messagesEndRef} />
           </div>
 
           {/* Footer */}
