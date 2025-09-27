@@ -93,7 +93,7 @@
     border-color: #d4d4d4 #808080 #808080 #d4d4d4;
     box-shadow: inset 2px 2px 0 #ffffff, inset -2px -2px 0 #808080;
     background: #c0c0c0;
-    font-family: 'MS Sans Serif', sans-serif;
+    font-family: "MS Sans Serif", sans-serif;
     image-rendering: pixelated;
   }
 
@@ -102,7 +102,7 @@
     border-color: #d4d4d4 #808080 #808080 #d4d4d4;
     box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #808080;
     background: #c0c0c0;
-    font-family: 'MS Sans Serif', sans-serif;
+    font-family: "MS Sans Serif", sans-serif;
     image-rendering: pixelated;
     transition: none;
   }
@@ -117,9 +117,11 @@
   }
 
   .retro-grid {
-    background: #2A2A2A;
-    background-image: 
-      linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    background: #2a2a2a;
+    background-image: linear-gradient(
+        rgba(255, 255, 255, 0.05) 1px,
+        transparent 1px
+      ),
       linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
     background-size: 16px 16px;
     image-rendering: pixelated;
@@ -127,38 +129,70 @@
 
   .retro-panel {
     @apply bg-gray-800 border-2 border-solid;
-    border-color: #404040 #1A1A1A #1A1A1A #404040;
-    box-shadow: 
-      0 0 0 1px #2A2A2A,
-      inset 1px 1px 0 rgba(255, 255, 255, 0.1),
+    border-color: #404040 #1a1a1a #1a1a1a #404040;
+    box-shadow: 0 0 0 1px #2a2a2a, inset 1px 1px 0 rgba(255, 255, 255, 0.1),
       0 4px 8px rgba(0, 0, 0, 0.5);
-    background: linear-gradient(145deg, #2A2A2A, #1A1A1A);
+    background: linear-gradient(145deg, #2a2a2a, #1a1a1a);
     image-rendering: pixelated;
   }
 
   .retro-button {
     @apply bg-gray-700 border-2 border-solid text-white font-bold text-xs px-3 py-2 cursor-pointer;
-    border-color: #404040 #1A1A1A #1A1A1A #404040;
+    border-color: #404040 #1a1a1a #1a1a1a #404040;
     box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.2);
-    background: linear-gradient(145deg, #404040, #2A2A2A);
-    font-family: 'Courier New', monospace;
+    background: linear-gradient(145deg, #404040, #2a2a2a);
+    font-family: "Courier New", monospace;
     letter-spacing: 1px;
     image-rendering: pixelated;
     transition: none;
   }
 
   .retro-button:hover {
-    background: linear-gradient(145deg, #4A4A4A, #303030);
+    background: linear-gradient(145deg, #4a4a4a, #303030);
   }
 
   .retro-button:active {
-    border-color: #1A1A1A #404040 #404040 #1A1A1A;
+    border-color: #1a1a1a #404040 #404040 #1a1a1a;
     box-shadow: inset -1px -1px 0 rgba(255, 255, 255, 0.1);
   }
 
   .retro-button.selected {
-    background: linear-gradient(145deg, #0066CC, #004499);
-    border-color: #0088FF #003366 #003366 #0088FF;
+    background: linear-gradient(145deg, #0066cc, #004499);
+    border-color: #0088ff #003366 #003366 #0088ff;
+  }
+
+  .retro-panel {
+    @apply bg-gray-800 border-2 border-solid;
+    border-color: #404040 #1a1a1a #1a1a1a #404040;
+    box-shadow: 0 0 0 1px #2a2a2a, inset 1px 1px 0 rgba(255, 255, 255, 0.1),
+      0 4px 8px rgba(0, 0, 0, 0.5);
+    background: linear-gradient(145deg, #2a2a2a, #1a1a1a);
+    image-rendering: pixelated;
+  }
+
+  .retro-button {
+    @apply bg-gray-700 border-2 border-solid text-white font-bold text-xs px-3 py-2 cursor-pointer;
+    border-color: #404040 #1a1a1a #1a1a1a #404040;
+    box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.2);
+    background: linear-gradient(145deg, #404040, #2a2a2a);
+    font-family: "Courier New", monospace;
+    letter-spacing: 1px;
+    image-rendering: pixelated;
+    transition: none;
+  }
+
+  .retro-button:hover {
+    background: linear-gradient(145deg, #4a4a4a, #303030);
+  }
+
+  .retro-button:active {
+    border-color: #1a1a1a #404040 #404040 #1a1a1a;
+    box-shadow: inset -1px -1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  .retro-button.selected {
+    background: linear-gradient(145deg, #0066cc, #004499);
+    border-color: #0088ff #003366 #003366 #0088ff;
   }
 
   .chat-screen,

@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS agents (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+
 -- Master tasks table (for ChatGPT-generated collaborative tasks)
 CREATE TABLE IF NOT EXISTS master_tasks (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -52,6 +53,7 @@ CREATE TABLE IF NOT EXISTS subtasks (
 -- Create indexes for better performance (minimal)
 CREATE INDEX IF NOT EXISTS idx_agents_owner_address ON agents(owner_address);
 CREATE INDEX IF NOT EXISTS idx_agents_created_at ON agents(created_at);
+
 CREATE INDEX IF NOT EXISTS idx_master_tasks_agent_address ON master_tasks(agent_address);
 CREATE INDEX IF NOT EXISTS idx_master_tasks_status ON master_tasks(status);
 CREATE INDEX IF NOT EXISTS idx_subtasks_task_id ON subtasks(task_id);
@@ -61,6 +63,7 @@ CREATE INDEX IF NOT EXISTS idx_subtasks_status ON subtasks(status);
 -- Row Level Security (RLS) policies
 ALTER TABLE agents ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow all operations on agents" ON agents FOR ALL USING (true) WITH CHECK (true);
+
 
 ALTER TABLE master_tasks ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow all operations on master_tasks" ON master_tasks FOR ALL USING (true) WITH CHECK (true);

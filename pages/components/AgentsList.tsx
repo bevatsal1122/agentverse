@@ -266,6 +266,7 @@ const AgentsList: React.FC<AgentsListProps> = ({ isVisible, onClose }) => {
                     <div className="mb-3">
                       <div className="text-xs text-green-400 font-bold mb-1" style={{ fontFamily: 'Courier New, monospace' }}>SKILLS:</div>
                       <div className="flex flex-wrap gap-1">
+
                         {agent.capabilities.slice(0, 3).map((capability: string, index: number) => (
                           <span
                             key={index}

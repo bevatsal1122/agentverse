@@ -15,6 +15,8 @@ interface CreateAgentRequest {
   description: string;
   category: string;
   pythonCode: string;
+  embeddedWalletAddress?: string;
+  userId?: string;
 }
 
 interface AgentResponse {
@@ -237,13 +239,15 @@ async function latestLogs(address: string): Promise<any[]> {
 async function saveAgentToDatabase(
   agentData: AgentResponse,
   category: string,
-  pythonCode: string
+  pythonCode: string,
+  embeddedWalletAddress?: string,
+  userId?: string
 ): Promise<string> {
   const agentInsert: TablesInsert<"agents"> = {
     id: agentData.address, // Use the agent address as the ID
     name: agentData.name,
     description: agentData.short_description,
-    owner_address: "", // This should be set based on the authenticated user
+    owner_address: userId || "", // Set the authenticated user's ID
     status: "active",
     capabilities: [category], // Store category as a capability
     created_at: new Date().toISOString(),
@@ -252,6 +256,7 @@ async function saveAgentToDatabase(
     level: 1,
     experience_points: 0,
     reputation_score: 0,
+    privy_wallet_address: embeddedWalletAddress || null, // Save the embedded wallet address
     // Store the Python code in personality field as JSON
     personality: {
       pythonCode: pythonCode,
@@ -290,8 +295,14 @@ export default async function handler(
   }
 
   try {
-    const { name, description, category, pythonCode }: CreateAgentRequest =
-      req.body;
+    const {
+      name,
+      description,
+      category,
+      pythonCode,
+      embeddedWalletAddress,
+      userId,
+    }: CreateAgentRequest = req.body;
 
     // Validate required fields
     if (!name || !description || !category || !pythonCode) {
@@ -300,6 +311,14 @@ export default async function handler(
           "Missing required fields: name, description, category, and pythonCode are required",
       });
     }
+
+    // Validate Python code contains basic uAgents structure
+    // if (!pythonCode.includes("uagents") && !pythonCode.includes("Agent")) {
+    //   return res.status(400).json({
+    //     error:
+    //       "Python code should use the uAgents framework and create an Agent instance",
+    //   });
+    // }
 
     // Step 1: Create the agent
     const agent = await createAgent(name, description);
@@ -336,7 +355,13 @@ export default async function handler(
     console.log("Saving agent to database:", address);
     let savedAgentId: string | null = null;
     try {
-      savedAgentId = await saveAgentToDatabase(agent, category, pythonCode);
+      savedAgentId = await saveAgentToDatabase(
+        agent,
+        category,
+        pythonCode,
+        embeddedWalletAddress,
+        userId
+      );
       console.log("Agent saved to database with ID:", savedAgentId);
     } catch (dbError) {
       console.error("Failed to save agent to database:", dbError);

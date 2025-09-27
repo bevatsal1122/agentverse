@@ -5,6 +5,7 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+
   // DISABLED: Old task system - only ChatGPT collaborative tasks are allowed
   return res.status(410).json({ 
     error: 'This endpoint is disabled. Use collaborative task endpoints for ChatGPT-generated tasks.',

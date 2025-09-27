@@ -1,27 +1,17 @@
 // Thirdweb Configuration
 // Get your client ID from https://thirdweb.com/dashboard
 
+import { arbitrumSepolia } from "thirdweb/chains";
+
 export const THIRDWEB_CONFIG = {
-  // Replace with your actual Thirdweb client ID
-  // You can get one by:
-  // 1. Going to https://thirdweb.com/dashboard
-  // 2. Creating a new project
-  // 3. Copying the client ID from the project settings
   CLIENT_ID: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID,
 
   // Default chain configuration
-  DEFAULT_CHAIN_ID: 8453, // Base mainnet
+  DEFAULT_CHAIN_ID: 421614, // arbitrum sepolia
 
   // Supported chains
   SUPPORTED_CHAINS: {
-    ethereum: 1,
-    polygon: 137,
-    base: 8453,
-    arbitrum: 42161,
-    optimism: 10,
-    sepolia: 11155111,
-    mumbai: 80001,
-    baseSepolia: 84532,
+    arbitrumSepolia: 421614,
   },
 };
 

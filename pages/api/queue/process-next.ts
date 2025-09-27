@@ -10,6 +10,7 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+
   // DISABLED: Old task queue system - only ChatGPT collaborative tasks are allowed
   return res.status(410).json({ 
     error: 'This endpoint is disabled. Use collaborative task endpoints for ChatGPT-generated tasks.',

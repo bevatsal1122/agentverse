@@ -2,9 +2,8 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { RandomAvatar } from "react-random-avatars";
 import { Tables } from "./types/database.types";
-import { useNotifications } from "./hooks/useNotifications";
-import NotificationSystem from "./components/NotificationSystem";
-import { collaborativeTaskService } from "./services/collaborativeTaskService";
+import { useAuth } from "../src/contexts/AuthContext";
+import Navbar from "./components/Navbar";
 
 type Agent = Tables<"agents">;
 
@@ -252,18 +251,16 @@ const AgentCard: React.FC<AgentCardProps> = ({ agent }) => {
 };
 
 export default function Dashboard() {
+  const { authenticated, user, databaseUser, ready } = useAuth();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  // Notification system
-  const { notifications, addNotification, removeNotification } = useNotifications();
 
   useEffect(() => {
-    fetchAgents();
-    // Set up notification callback for collaborative task service
-    collaborativeTaskService.setNotificationCallback(addNotification);
-  }, [addNotification]);
+    if (ready && authenticated) {
+      fetchAgents();
+    }
+  }, [ready, authenticated]);
 
   const fetchAgents = async () => {
     try {
@@ -291,23 +288,41 @@ export default function Dashboard() {
     fetchAgents();
   };
 
-  const generateCollaborativeTask = async () => {
-    try {
-      const result = await collaborativeTaskService.generateCollaborativeTask({
-        userId: 'dashboard_user' // You might want to get this from auth context
-      });
-      
-      if (result.success) {
-        // Refresh agents to show new tasks
-        await fetchAgents();
-      }
-    } catch (error) {
-      console.error('Error generating collaborative task:', error);
-    }
-  };
+  // Show loading while checking authentication
+  if (!ready) {
+    return (
+      <div className="min-h-screen amongus-grid flex items-center justify-center">
+        <div className="amongus-panel p-8 text-center">
+          <div className="text-lg font-bold text-white mb-2">LOADING...</div>
+          <div className="text-sm text-blue-300">Initializing authentication</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show authentication required if not connected
+  if (!authenticated) {
+    return (
+      <div className="min-h-screen amongus-grid flex items-center justify-center">
+        <div className="amongus-panel p-8 text-center max-w-md">
+          <div className="text-lg font-bold text-white mb-2">AUTHENTICATION REQUIRED</div>
+          <div className="text-sm text-blue-300 mb-4">Please connect your wallet to access the dashboard</div>
+          <Link
+            href="/auth"
+            className="amongus-button px-6 py-3 text-sm bg-green-600 hover:bg-green-500"
+          >
+            Connect Wallet
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="h-screen amongus-grid overflow-hidden relative">
+    <div className="min-h-screen amongus-grid">
+      {/* Navbar */}
+      <Navbar currentPage="dashboard" />
+      
       {/* Space Station Background Elements */}
       <div className="absolute inset-0">
         {/* Space Station Buildings */}
@@ -334,7 +349,7 @@ export default function Dashboard() {
       </div>
 
       {/* Main Content */}
-      <div className="relative z-10 flex flex-col h-full p-4">
+      <div className="relative z-10 flex flex-col h-full p-4 pt-2">
         {/* Header */}
         <div className="amongus-panel p-4 mb-4">
           <div className="flex items-center justify-between">
@@ -350,12 +365,6 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="flex items-center space-x-2">
-              <button
-                onClick={generateCollaborativeTask}
-                className="amongus-button px-4 py-2 text-sm bg-purple-600 hover:bg-purple-500"
-              >
-                ASK CHATGPT
-              </button>
               <button
                 onClick={refreshAgents}
                 className="amongus-button px-4 py-2 text-sm"
@@ -459,12 +468,6 @@ export default function Dashboard() {
           )}
         </div>
       </div>
-      
-      {/* Notification System */}
-      <NotificationSystem 
-        notifications={notifications}
-        onRemove={removeNotification}
-      />
     </div>
   );
 }
