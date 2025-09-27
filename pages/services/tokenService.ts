@@ -13,14 +13,7 @@ const client = createThirdwebClient({
 
 // Define supported chains
 export const supportedChains = {
-  ethereum: defineChain(1),
-  polygon: defineChain(137),
-  base: defineChain(8453),
-  arbitrum: defineChain(42161),
-  optimism: defineChain(10),
   sepolia: defineChain(11155111),
-  mumbai: defineChain(80001),
-  baseSepolia: defineChain(84532),
 };
 
 export interface TokenConfig {
@@ -46,7 +39,7 @@ export class TokenService {
   constructor(chainId: number = 8453) {
     this.chain =
       Object.values(supportedChains).find((chain) => chain.id === chainId) ||
-      supportedChains.base;
+      supportedChains.sepolia;
   }
 
   /**
@@ -154,7 +147,7 @@ export class TokenService {
   switchChain(chainId: number) {
     this.chain =
       Object.values(supportedChains).find((chain) => chain.id === chainId) ||
-      supportedChains.ethereum;
+      supportedChains.sepolia;
   }
 
   /**

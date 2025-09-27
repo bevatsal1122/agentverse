@@ -18,6 +18,8 @@
     "@selfxyz/contracts": "^1.2.0",
     "@selfxyz/core": "^1.0.8",
     "@supabase/supabase-js": "^2.58.0",
+    "@zerodev/ecdsa-validator": "^5.4.9",
+    "@zerodev/sdk": "^5.5.2",
     "next": "^14.0.0",
     "pixi.js": "^7.3.2",
     "react": "^18.2.0",

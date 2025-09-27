@@ -10,18 +10,11 @@ export const THIRDWEB_CONFIG = {
   CLIENT_ID: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID,
 
   // Default chain configuration
-  DEFAULT_CHAIN_ID: 8453, // Base mainnet
+  DEFAULT_CHAIN_ID: 11155111, // sepolia
 
   // Supported chains
   SUPPORTED_CHAINS: {
-    ethereum: 1,
-    polygon: 137,
-    base: 8453,
-    arbitrum: 42161,
-    optimism: 10,
     sepolia: 11155111,
-    mumbai: 80001,
-    baseSepolia: 84532,
   },
 };
 
