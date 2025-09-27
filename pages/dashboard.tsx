@@ -322,31 +322,6 @@ export default function Dashboard() {
     <div className="min-h-screen amongus-grid">
       {/* Navbar */}
       <Navbar currentPage="dashboard" />
-      
-      {/* Space Station Background Elements */}
-      <div className="absolute inset-0">
-        {/* Space Station Buildings */}
-        <div className="absolute top-20 left-20 w-40 h-32 amongus-building rounded-lg">
-          <div className="w-full h-full bg-gradient-to-b from-gray-600 to-gray-700 rounded-lg"></div>
-          <div className="absolute top-2 left-2 w-3 h-3 amongus-window rounded-sm"></div>
-          <div className="absolute top-2 right-2 w-3 h-3 amongus-window rounded-sm"></div>
-          <div className="absolute bottom-2 left-2 w-3 h-3 amongus-window rounded-sm"></div>
-          <div className="absolute bottom-2 right-2 w-3 h-3 amongus-window rounded-sm"></div>
-        </div>
-
-        <div className="absolute top-32 right-24 w-32 h-24 amongus-building rounded-lg">
-          <div className="w-full h-full bg-gradient-to-b from-gray-600 to-gray-700 rounded-lg"></div>
-          <div className="absolute top-2 left-2 w-3 h-3 amongus-window rounded-sm"></div>
-          <div className="absolute top-2 right-2 w-3 h-3 amongus-window rounded-sm"></div>
-        </div>
-
-        <div className="absolute bottom-32 left-32 w-36 h-28 amongus-building rounded-lg">
-          <div className="w-full h-full bg-gradient-to-b from-gray-600 to-gray-700 rounded-lg"></div>
-          <div className="absolute top-2 left-2 w-3 h-3 amongus-window rounded-sm"></div>
-          <div className="absolute top-2 right-2 w-3 h-3 amongus-window rounded-sm"></div>
-          <div className="absolute bottom-2 left-2 w-3 h-3 amongus-window rounded-sm"></div>
-        </div>
-      </div>
 
       {/* Main Content */}
       <div className="relative z-10 flex flex-col h-full p-4 pt-2">
