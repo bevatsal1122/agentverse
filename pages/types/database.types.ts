@@ -1,349 +1,581 @@
-// Database types
-export interface Database {
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "13.0.5"
+  }
   public: {
     Tables: {
-      tokens: {
-        Row: {
-          id: string;
-          name: string;
-          symbol: string;
-          contract_address: string;
-          decimals: number;
-          initial_supply: string;
-          description: string | null;
-          image_url: string | null;
-          deployer_address: string;
-          transaction_hash: string | null;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          name: string;
-          symbol: string;
-          contract_address: string;
-          decimals?: number;
-          initial_supply?: string;
-          description?: string | null;
-          image_url?: string | null;
-          deployer_address: string;
-          transaction_hash?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          name?: string;
-          symbol?: string;
-          contract_address?: string;
-          decimals?: number;
-          initial_supply?: string;
-          description?: string | null;
-          image_url?: string | null;
-          deployer_address?: string;
-          transaction_hash?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-      };
-      cities: {
-        Row: {
-          id: string;
-          name: string;
-          map_data: any;
-          funds: number;
-          population: number;
-          created_at: string;
-          updated_at: string;
-          user_id: string | null;
-        };
-        Insert: {
-          id?: string;
-          name: string;
-          map_data?: any;
-          funds?: number;
-          population?: number;
-          created_at?: string;
-          updated_at?: string;
-          user_id?: string | null;
-        };
-        Update: {
-          id?: string;
-          name?: string;
-          map_data?: any;
-          funds?: number;
-          population?: number;
-          created_at?: string;
-          updated_at?: string;
-          user_id?: string | null;
-        };
-      };
-      buildings: {
-        Row: {
-          id: string;
-          city_id: string;
-          type: string;
-          x: number;
-          y: number;
-          level: number;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          city_id: string;
-          type: string;
-          x: number;
-          y: number;
-          level?: number;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          city_id?: string;
-          type?: string;
-          x?: number;
-          y?: number;
-          level?: number;
-          created_at?: string;
-          updated_at?: string;
-        };
-      };
-      agents: {
-        Row: {
-          id: string;
-          name: string;
-          description: string | null;
-          owner_address: string;
-          personality: any | null;
-          capabilities: string[];
-          status: 'active' | 'inactive' | 'busy' | 'offline';
-          current_building_id: string | null;
-          assigned_building_ids: string[];
-          wallet_address: string | null;
-          avatar_url: string | null;
-          experience_points: number;
-          level: number;
-          reputation_score: number;
-          last_active: string;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          name: string;
-          description?: string | null;
-          owner_address: string;
-          personality?: any | null;
-          capabilities?: string[];
-          status?: 'active' | 'inactive' | 'busy' | 'offline';
-          current_building_id?: string | null;
-          assigned_building_ids?: string[];
-          wallet_address?: string | null;
-          avatar_url?: string | null;
-          experience_points?: number;
-          level?: number;
-          reputation_score?: number;
-          last_active?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          name?: string;
-          description?: string | null;
-          owner_address?: string;
-          personality?: any | null;
-          capabilities?: string[];
-          status?: 'active' | 'inactive' | 'busy' | 'offline';
-          current_building_id?: string | null;
-          assigned_building_ids?: string[];
-          wallet_address?: string | null;
-          avatar_url?: string | null;
-          experience_points?: number;
-          level?: number;
-          reputation_score?: number;
-          last_active?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-      };
-      tasks: {
-        Row: {
-          id: string;
-          title: string;
-          description: string;
-          creator_agent_id: string;
-          assigned_agent_id: string | null;
-          task_type: 'communication' | 'building_management' | 'resource_gathering' | 'collaboration' | 'custom';
-          priority: 'low' | 'medium' | 'high' | 'urgent';
-          status: 'pending' | 'assigned' | 'in_progress' | 'completed' | 'cancelled';
-          requirements: any | null;
-          reward_amount: number | null;
-          reward_token: string | null;
-          deadline: string | null;
-          completion_data: any | null;
-          created_at: string;
-          updated_at: string;
-          completed_at: string | null;
-        };
-        Insert: {
-          id?: string;
-          title: string;
-          description: string;
-          creator_agent_id: string;
-          assigned_agent_id?: string | null;
-          task_type?: 'communication' | 'building_management' | 'resource_gathering' | 'collaboration' | 'custom';
-          priority?: 'low' | 'medium' | 'high' | 'urgent';
-          status?: 'pending' | 'assigned' | 'in_progress' | 'completed' | 'cancelled';
-          requirements?: any | null;
-          reward_amount?: number | null;
-          reward_token?: string | null;
-          deadline?: string | null;
-          completion_data?: any | null;
-          created_at?: string;
-          updated_at?: string;
-          completed_at?: string | null;
-        };
-        Update: {
-          id?: string;
-          title?: string;
-          description?: string;
-          creator_agent_id?: string;
-          assigned_agent_id?: string | null;
-          task_type?: 'communication' | 'building_management' | 'resource_gathering' | 'collaboration' | 'custom';
-          priority?: 'low' | 'medium' | 'high' | 'urgent';
-          status?: 'pending' | 'assigned' | 'in_progress' | 'completed' | 'cancelled';
-          requirements?: any | null;
-          reward_amount?: number | null;
-          reward_token?: string | null;
-          deadline?: string | null;
-          completion_data?: any | null;
-          created_at?: string;
-          updated_at?: string;
-          completed_at?: string | null;
-        };
-      };
-      agent_communications: {
-        Row: {
-          id: string;
-          sender_agent_id: string;
-          receiver_agent_id: string | null;
-          message_type: 'direct' | 'broadcast' | 'task_related' | 'system';
-          content: string;
-          metadata: any | null;
-          task_id: string | null;
-          is_read: boolean;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          sender_agent_id: string;
-          receiver_agent_id?: string | null;
-          message_type?: 'direct' | 'broadcast' | 'task_related' | 'system';
-          content: string;
-          metadata?: any | null;
-          task_id?: string | null;
-          is_read?: boolean;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          sender_agent_id?: string;
-          receiver_agent_id?: string | null;
-          message_type?: 'direct' | 'broadcast' | 'task_related' | 'system';
-          content?: string;
-          metadata?: any | null;
-          task_id?: string | null;
-          is_read?: boolean;
-          created_at?: string;
-        };
-      };
       agent_actions: {
         Row: {
-          id: string;
-          agent_id: string;
-          action_type: 'move' | 'interact' | 'task_complete' | 'message_sent' | 'building_assigned' | 'custom';
-          action_data: any;
-          building_id: string | null;
-          target_agent_id: string | null;
-          task_id: string | null;
-          success: boolean;
-          error_message: string | null;
-          created_at: string;
-        };
+          action_data: Json | null
+          action_type: string
+          agent_id: string
+          building_id: string | null
+          created_at: string | null
+          error_message: string | null
+          id: string
+          success: boolean | null
+          target_agent_id: string | null
+          task_id: string | null
+        }
         Insert: {
-          id?: string;
-          agent_id: string;
-          action_type: 'move' | 'interact' | 'task_complete' | 'message_sent' | 'building_assigned' | 'custom';
-          action_data?: any;
-          building_id?: string | null;
-          target_agent_id?: string | null;
-          task_id?: string | null;
-          success?: boolean;
-          error_message?: string | null;
-          created_at?: string;
-        };
+          action_data?: Json | null
+          action_type: string
+          agent_id: string
+          building_id?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          success?: boolean | null
+          target_agent_id?: string | null
+          task_id?: string | null
+        }
         Update: {
-          id?: string;
-          agent_id?: string;
-          action_type?: 'move' | 'interact' | 'task_complete' | 'message_sent' | 'building_assigned' | 'custom';
-          action_data?: any;
-          building_id?: string | null;
-          target_agent_id?: string | null;
-          task_id?: string | null;
-          success?: boolean;
-          error_message?: string | null;
-          created_at?: string;
-        };
-      };
-    };
+          action_data?: Json | null
+          action_type?: string
+          agent_id?: string
+          building_id?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          success?: boolean | null
+          target_agent_id?: string | null
+          task_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_actions_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "active_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_actions_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_actions_target_agent_id_fkey"
+            columns: ["target_agent_id"]
+            isOneToOne: false
+            referencedRelation: "active_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_actions_target_agent_id_fkey"
+            columns: ["target_agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_actions_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "pending_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_actions_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_communications: {
+        Row: {
+          content: string
+          created_at: string | null
+          id: string
+          is_read: boolean | null
+          message_type: string | null
+          metadata: Json | null
+          receiver_agent_id: string | null
+          sender_agent_id: string
+          task_id: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          message_type?: string | null
+          metadata?: Json | null
+          receiver_agent_id?: string | null
+          sender_agent_id: string
+          task_id?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          message_type?: string | null
+          metadata?: Json | null
+          receiver_agent_id?: string | null
+          sender_agent_id?: string
+          task_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_communications_receiver_agent_id_fkey"
+            columns: ["receiver_agent_id"]
+            isOneToOne: false
+            referencedRelation: "active_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_communications_receiver_agent_id_fkey"
+            columns: ["receiver_agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_communications_sender_agent_id_fkey"
+            columns: ["sender_agent_id"]
+            isOneToOne: false
+            referencedRelation: "active_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_communications_sender_agent_id_fkey"
+            columns: ["sender_agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_communications_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "pending_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_communications_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agents: {
+        Row: {
+          assigned_building_ids: string[] | null
+          avatar_url: string | null
+          capabilities: string[] | null
+          created_at: string | null
+          current_building_id: string | null
+          description: string | null
+          experience_points: number | null
+          id: string
+          last_active: string | null
+          level: number | null
+          name: string
+          owner_address: string
+          personality: Json | null
+          reputation_score: number | null
+          status: string | null
+          updated_at: string | null
+          wallet_address: string | null
+        }
+        Insert: {
+          assigned_building_ids?: string[] | null
+          avatar_url?: string | null
+          capabilities?: string[] | null
+          created_at?: string | null
+          current_building_id?: string | null
+          description?: string | null
+          experience_points?: number | null
+          id?: string
+          last_active?: string | null
+          level?: number | null
+          name: string
+          owner_address: string
+          personality?: Json | null
+          reputation_score?: number | null
+          status?: string | null
+          updated_at?: string | null
+          wallet_address?: string | null
+        }
+        Update: {
+          assigned_building_ids?: string[] | null
+          avatar_url?: string | null
+          capabilities?: string[] | null
+          created_at?: string | null
+          current_building_id?: string | null
+          description?: string | null
+          experience_points?: number | null
+          id?: string
+          last_active?: string | null
+          level?: number | null
+          name?: string
+          owner_address?: string
+          personality?: Json | null
+          reputation_score?: number | null
+          status?: string | null
+          updated_at?: string | null
+          wallet_address?: string | null
+        }
+        Relationships: []
+      }
+      tasks: {
+        Row: {
+          assigned_agent_id: string | null
+          completed_at: string | null
+          completion_data: Json | null
+          created_at: string | null
+          creator_agent_id: string
+          deadline: string | null
+          description: string
+          id: string
+          priority: string | null
+          requirements: Json | null
+          reward_amount: number | null
+          reward_token: string | null
+          status: string | null
+          task_type: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_agent_id?: string | null
+          completed_at?: string | null
+          completion_data?: Json | null
+          created_at?: string | null
+          creator_agent_id: string
+          deadline?: string | null
+          description: string
+          id?: string
+          priority?: string | null
+          requirements?: Json | null
+          reward_amount?: number | null
+          reward_token?: string | null
+          status?: string | null
+          task_type?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_agent_id?: string | null
+          completed_at?: string | null
+          completion_data?: Json | null
+          created_at?: string | null
+          creator_agent_id?: string
+          deadline?: string | null
+          description?: string
+          id?: string
+          priority?: string | null
+          requirements?: Json | null
+          reward_amount?: number | null
+          reward_token?: string | null
+          status?: string | null
+          task_type?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_assigned_agent_id_fkey"
+            columns: ["assigned_agent_id"]
+            isOneToOne: false
+            referencedRelation: "active_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_assigned_agent_id_fkey"
+            columns: ["assigned_agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_creator_agent_id_fkey"
+            columns: ["creator_agent_id"]
+            isOneToOne: false
+            referencedRelation: "active_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_creator_agent_id_fkey"
+            columns: ["creator_agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
     Views: {
-      [_ in never]: never;
-    };
+      active_agents: {
+        Row: {
+          assigned_building_ids: string[] | null
+          avatar_url: string | null
+          capabilities: string[] | null
+          created_at: string | null
+          current_building_id: string | null
+          description: string | null
+          experience_points: number | null
+          id: string | null
+          last_active: string | null
+          level: number | null
+          name: string | null
+          owner_address: string | null
+          personality: Json | null
+          reputation_score: number | null
+          status: string | null
+          updated_at: string | null
+          wallet_address: string | null
+        }
+        Insert: {
+          assigned_building_ids?: string[] | null
+          avatar_url?: string | null
+          capabilities?: string[] | null
+          created_at?: string | null
+          current_building_id?: string | null
+          description?: string | null
+          experience_points?: number | null
+          id?: string | null
+          last_active?: string | null
+          level?: number | null
+          name?: string | null
+          owner_address?: string | null
+          personality?: Json | null
+          reputation_score?: number | null
+          status?: string | null
+          updated_at?: string | null
+          wallet_address?: string | null
+        }
+        Update: {
+          assigned_building_ids?: string[] | null
+          avatar_url?: string | null
+          capabilities?: string[] | null
+          created_at?: string | null
+          current_building_id?: string | null
+          description?: string | null
+          experience_points?: number | null
+          id?: string | null
+          last_active?: string | null
+          level?: number | null
+          name?: string | null
+          owner_address?: string | null
+          personality?: Json | null
+          reputation_score?: number | null
+          status?: string | null
+          updated_at?: string | null
+          wallet_address?: string | null
+        }
+        Relationships: []
+      }
+      pending_tasks: {
+        Row: {
+          assigned_agent_id: string | null
+          assigned_name: string | null
+          completed_at: string | null
+          completion_data: Json | null
+          created_at: string | null
+          creator_agent_id: string | null
+          creator_name: string | null
+          deadline: string | null
+          description: string | null
+          id: string | null
+          priority: string | null
+          requirements: Json | null
+          reward_amount: number | null
+          reward_token: string | null
+          status: string | null
+          task_type: string | null
+          title: string | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_assigned_agent_id_fkey"
+            columns: ["assigned_agent_id"]
+            isOneToOne: false
+            referencedRelation: "active_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_assigned_agent_id_fkey"
+            columns: ["assigned_agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_creator_agent_id_fkey"
+            columns: ["creator_agent_id"]
+            isOneToOne: false
+            referencedRelation: "active_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_creator_agent_id_fkey"
+            columns: ["creator_agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
     Functions: {
-      [_ in never]: never;
-    };
+      get_agent_stats: {
+        Args: { agent_uuid: string }
+        Returns: {
+          buildings_assigned: number
+          total_messages_received: number
+          total_messages_sent: number
+          total_tasks_completed: number
+          total_tasks_created: number
+        }[]
+      }
+    }
     Enums: {
-      [_ in never]: never;
-    };
-  };
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
 }
 
-// Type helpers
-export type Tables<T extends keyof Database["public"]["Tables"]> =
-  Database["public"]["Tables"][T]["Row"];
-export type TablesInsert<T extends keyof Database["public"]["Tables"]> =
-  Database["public"]["Tables"][T]["Insert"];
-export type TablesUpdate<T extends keyof Database["public"]["Tables"]> =
-  Database["public"]["Tables"][T]["Update"];
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
 
-// Specific table types
-export type Token = Tables<"tokens">;
-export type TokenInsert = TablesInsert<"tokens">;
-export type TokenUpdate = TablesUpdate<"tokens">;
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
-export type City = Tables<"cities">;
-export type CityInsert = TablesInsert<"cities">;
-export type CityUpdate = TablesUpdate<"cities">;
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
 
-export type Building = Tables<"buildings">;
-export type BuildingInsert = TablesInsert<"buildings">;
-export type BuildingUpdate = TablesUpdate<"buildings">;
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
 
-export type Agent = Tables<"agents">;
-export type AgentInsert = TablesInsert<"agents">;
-export type AgentUpdate = TablesUpdate<"agents">;
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
 
-export type Task = Tables<"tasks">;
-export type TaskInsert = TablesInsert<"tasks">;
-export type TaskUpdate = TablesUpdate<"tasks">;
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
 
-export type AgentCommunication = Tables<"agent_communications">;
-export type AgentCommunicationInsert = TablesInsert<"agent_communications">;
-export type AgentCommunicationUpdate = TablesUpdate<"agent_communications">;
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
 
-export type AgentAction = Tables<"agent_actions">;
-export type AgentActionInsert = TablesInsert<"agent_actions">;
-export type AgentActionUpdate = TablesUpdate<"agent_actions">;
+export const Constants = {
+  public: {
+    Enums: {},
+  },
+} as const
