@@ -38,8 +38,8 @@ export class Pathfinder {
       return false; // No tile exists
     }
 
-    // Always allow corridors (roads)
-    if (tile.type === TileType.CORRIDOR) {
+    // Always allow corridors (roads) and space tiles for movement
+    if (tile.type === TileType.CORRIDOR || tile.type === TileType.SPACE) {
       return true;
     }
 
@@ -48,8 +48,7 @@ export class Pathfinder {
       return tile.type === TileType.LIVING_QUARTERS ||
              tile.type === TileType.RESEARCH_LAB ||
              tile.type === TileType.ENGINEERING_BAY ||
-             tile.type === TileType.RECREATION ||
-             tile.type === TileType.SPACE;
+             tile.type === TileType.RECREATION;
     }
 
     return false;

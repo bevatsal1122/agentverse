@@ -113,32 +113,35 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
         y = building.y;
         console.log(`Placing agent ${backendAgent.name} at assigned building ${backendAgent.current_building_id} (${x}, ${y})`);
       } else {
-        // Building not found, fall back to random placement
-        console.warn(`Building ${backendAgent.current_building_id} not found for agent ${backendAgent.name}, using random placement`);
-        const walkableTiles = allTiles.filter(([_, tile]) => 
-          tile.type === TileType.CORRIDOR || tile.type === TileType.LIVING_QUARTERS || tile.type === TileType.RESEARCH_LAB
+        // Building not found, fall back to random building placement (not roads/corridors)
+        console.warn(`Building ${backendAgent.current_building_id} not found for agent ${backendAgent.name}, using random building placement`);
+        const buildingTypes = [TileType.LIVING_QUARTERS, TileType.RESEARCH_LAB, TileType.ENGINEERING_BAY, TileType.RECREATION, TileType.POWER_LINE];
+        const buildingTiles = allTiles.filter(([_, tile]) => 
+          buildingTypes.includes(tile.type)
         );
         
-        if (walkableTiles.length === 0) {
-          return null; // No walkable tiles
+        if (buildingTiles.length === 0) {
+          console.error('No building tiles available for agent placement');
+          return null; // No building tiles
         }
 
-        const [tileKey, tile] = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+        const [tileKey, tile] = buildingTiles[Math.floor(Math.random() * buildingTiles.length)];
         [x, y] = tileKey.split(',').map(Number);
       }
     } else {
-      // No assigned building, find a random walkable tile
-      const walkableTiles = allTiles.filter(([_, tile]) => 
-        tile.type === TileType.CORRIDOR || tile.type === TileType.LIVING_QUARTERS || tile.type === TileType.RESEARCH_LAB
+      // No assigned building, find a random building tile (not roads/corridors)
+      const buildingTypes = [TileType.LIVING_QUARTERS, TileType.RESEARCH_LAB, TileType.ENGINEERING_BAY, TileType.RECREATION, TileType.POWER_LINE];
+      const buildingTiles = allTiles.filter(([_, tile]) => 
+        buildingTypes.includes(tile.type)
       );
       
-      if (walkableTiles.length === 0) {
-        return null; // No walkable tiles
+      if (buildingTiles.length === 0) {
+        console.error('No building tiles available for agent placement');
+        return null; // No building tiles
       }
 
-      const [tileKey, tile] = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+      const [tileKey, tile] = buildingTiles[Math.floor(Math.random() * buildingTiles.length)];
       [x, y] = tileKey.split(',').map(Number);
-      console.log(`Placing agent ${backendAgent.name} at random location (${x}, ${y}) - no assigned building`);
     }
 
     const type = types[Math.floor(Math.random() * types.length)];
@@ -723,14 +726,93 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     }));
   };
 
+  const drawPlayerPath = (ctx: CanvasRenderingContext2D, state: GameState) => {
+    if (!state.playerPath || state.playerPath.length < 2) return;
+    
+    // Player path - bright blue highlighted path
+    ctx.strokeStyle = '#00BFFF'; // Bright blue color for player path
+    ctx.lineWidth = 6;
+    ctx.setLineDash([]); // Solid line
+    ctx.lineCap = 'round';
+    ctx.shadowColor = '#00BFFF';
+    ctx.shadowBlur = 15;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+    
+    ctx.beginPath();
+    
+    for (let i = 0; i < state.playerPath.length; i++) {
+      const node = state.playerPath[i];
+      // Use world coordinates - camera transformation is already applied
+      const worldX = node.x * state.tileSize + state.tileSize / 2;
+      const worldY = node.y * state.tileSize + state.tileSize / 2;
+      
+      if (i === 0) {
+        // Start from player's current position for the first segment
+        const playerWorldX = state.playerPosition.x * state.tileSize + state.tileSize / 2;
+        const playerWorldY = state.playerPosition.y * state.tileSize + state.tileSize / 2;
+        ctx.moveTo(playerWorldX, playerWorldY);
+        ctx.lineTo(worldX, worldY);
+      } else {
+        ctx.lineTo(worldX, worldY);
+      }
+    }
+    
+    ctx.stroke();
+    ctx.setLineDash([]); // Reset dash pattern
+    ctx.shadowBlur = 0; // Reset shadow
+    
+    // Draw path nodes with enhanced highlighting
+    for (let i = 0; i < state.playerPath.length; i++) {
+      const node = state.playerPath[i];
+      const worldX = node.x * state.tileSize + state.tileSize / 2;
+      const worldY = node.y * state.tileSize + state.tileSize / 2;
+      
+      // Draw node circle
+      ctx.fillStyle = '#00BFFF';
+      ctx.shadowColor = '#00BFFF';
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.arc(worldX, worldY, 4, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Draw node number
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 10px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowBlur = 0;
+      ctx.fillText((i + 1).toString(), worldX, worldY);
+    }
+    
+    ctx.shadowBlur = 0; // Reset shadow
+  };
+
   const drawAgentPath = (ctx: CanvasRenderingContext2D, agent: AIAgent, state: GameState) => {
     if (!agent.currentPath || agent.currentPath.length < 2) return;
     
-    // Draw path as connected line segments
-    ctx.strokeStyle = `${agent.color}80`; // Semi-transparent agent color
-    ctx.lineWidth = 3;
-    ctx.setLineDash([5, 5]); // Dashed line
-    ctx.lineCap = 'round';
+    // Check if this is a master agent (has a task-related thought)
+    const isMasterAgent = agent.currentThought && agent.currentThought.includes('Walking to');
+    
+    // Draw path as connected line segments with enhanced highlighting for master agents
+    if (isMasterAgent) {
+      // Master agent path - bright highlighted path
+      ctx.strokeStyle = '#FFD700'; // Gold color for master agent path
+      ctx.lineWidth = 5;
+      ctx.setLineDash([]); // Solid line for master agents
+      ctx.lineCap = 'round';
+      ctx.shadowColor = '#FFD700';
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+    } else {
+      // Regular agent path
+      ctx.strokeStyle = `${agent.color}80`; // Semi-transparent agent color
+      ctx.lineWidth = 3;
+      ctx.setLineDash([5, 5]); // Dashed line
+      ctx.lineCap = 'round';
+      ctx.shadowBlur = 0; // No shadow for regular agents
+    }
     
     ctx.beginPath();
     
@@ -753,9 +835,20 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     
     ctx.stroke();
     ctx.setLineDash([]); // Reset dash pattern
+    ctx.shadowBlur = 0; // Reset shadow
     
-    // Draw path nodes as small circles
-    ctx.fillStyle = `${agent.color}40`; // Very transparent agent color
+    // Draw path nodes with enhanced highlighting for master agents
+    if (isMasterAgent) {
+      // Master agent path nodes - bright gold circles
+      ctx.fillStyle = '#FFD700';
+      ctx.shadowColor = '#FFD700';
+      ctx.shadowBlur = 8;
+    } else {
+      // Regular agent path nodes
+      ctx.fillStyle = `${agent.color}40`; // Very transparent agent color
+      ctx.shadowBlur = 0;
+    }
+    
     for (let i = agent.pathIndex + 1; i < agent.currentPath.length; i++) {
       const node = agent.currentPath[i];
       // Use world coordinates - camera transformation is already applied
@@ -763,9 +856,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       const worldY = node.y * state.tileSize + state.tileSize / 2;
       
       ctx.beginPath();
-      ctx.arc(worldX, worldY, 3, 0, Math.PI * 2);
+      ctx.arc(worldX, worldY, isMasterAgent ? 5 : 3, 0, Math.PI * 2);
       ctx.fill();
     }
+    
+    ctx.shadowBlur = 0; // Reset shadow
   };
 
   const drawTargetBuildingIndicator = (ctx: CanvasRenderingContext2D, agent: AIAgent, state: GameState) => {
@@ -1607,7 +1702,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       ctx.fillRect(playerX + 24, playerY + 8 - headBob, 2, 2);
     }
 
-    // Draw agent paths first (so they appear behind agents)
+    // Draw player path first (so it appears behind everything)
+    if (state.playerPath && state.playerPath.length > 1) {
+      drawPlayerPath(ctx, state);
+    }
+
+    // Draw agent paths (so they appear behind agents)
     // Note: Paths are drawn in world coordinates, so they will be transformed with the camera
     state.aiAgents.forEach((agent) => {
       if (agent.isFollowingPath && agent.currentPath && agent.currentPath.length > 1) {

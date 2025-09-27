@@ -23,8 +23,8 @@ export default async function handler(
       });
     }
 
-    // Get all active agents from database and memory storage
-    const agentResult = await agentService.getActiveAgents();
+    // Get all agents from database and memory storage (not just recently active ones)
+    const agentResult = await agentService.getAgents();
     if (!agentResult.success || !agentResult.data) {
       return res.status(500).json({ 
         error: 'Failed to fetch agents from database',
@@ -61,6 +61,12 @@ export default async function handler(
         error: 'No active agents available for task generation' 
       });
     }
+    
+    // Debug: Log all agents and their building assignments
+    console.log(`📋 Found ${activeAgents.length} agents for task generation:`);
+    activeAgents.forEach(agent => {
+      console.log(`  - ${agent.name} (${agent.id}): building=${agent.current_building_id || 'none'}, status=${agent.status}`);
+    });
 
     // Check if there are any pending master tasks
     const pendingMasterTasks = memoryStorageService.getPendingMasterTasks();
@@ -138,7 +144,7 @@ export default async function handler(
     // Log task generation for monitoring
     console.log(`📋 Generated ${storedTasks.length} collaborative task(s) with ${storedTasks.reduce((sum, task) => sum + task.subtasks.length, 0)} total subtasks`);
     
-    // Load agents into game state if they're not already there
+    // Check if agents are already in game state - if so, don't reload them
     const gameAgents = Array.from(gameState.getAIAgents().values());
     const existingAgentIds = gameAgents.map(agent => agent.id);
     
@@ -201,45 +207,74 @@ export default async function handler(
         gameState.addAIAgent(gameAgent);
       }
     } else {
-      console.log('All agents already exist in game state, no repositioning needed');
+      console.log('All agents already exist in game state, preserving their current positions and states');
     }
 
-    // Schedule sequential movement for master agents (no instant movement)
+    // Schedule sequential movement for PLAYER AVATAR to visit child agents
     for (const task of storedTasks) {
       const masterAgentId = task.masterTask.agent_address;
       const masterAgent = activeAgents.find(agent => agent.id === masterAgentId);
       
       console.log(`🎯 Master Task: ${masterAgent?.name || masterAgentId} - "${task.masterTask.prompt.substring(0, 50)}..."`);
+      console.log(`🎮 Player avatar will visit child agents in sequence`);
       
-      // Schedule sequential movement with delays (no instant movement)
+      // Schedule sequential movement for PLAYER AVATAR
       setTimeout(async () => {
-        // Walk to each child agent in sequence with delays
+        // Get current player position
+        const playerState = gameState.getState();
+        const playerX = Math.round(playerState.playerPosition.x);
+        const playerY = Math.round(playerState.playerPosition.y);
+        
+        console.log(`🎮 Player avatar starting at position (${playerX}, ${playerY})`);
+
+        // Walk to each child agent in sequence with path calculation
         for (let i = 0; i < task.subtasks.length; i++) {
           const subtask = task.subtasks[i];
           const childAgentId = subtask.agent_address;
           const childAgent = activeAgents.find(agent => agent.id === childAgentId);
           
+          console.log(`🔍 Looking for child agent ${childAgentId}:`, childAgent ? `Found ${childAgent.name}` : 'Not found');
+          console.log(`🔍 Available agent IDs:`, activeAgents.map(a => a.id));
+          
           if (childAgent && childAgent.current_building_id) {
             const building = getBuildingById(childAgent.current_building_id);
             if (building) {
-              // Move master agent to child agent's building location
-              const success = gameState.moveAgentToLocation(masterAgentId, building.x, building.y);
-              if (success) {
-                console.log(`🚶 Master agent ${masterAgent?.name || masterAgentId} walking to child agent ${childAgent?.name || childAgentId} (${i + 1}/${task.subtasks.length}) at building ${building.id} (${building.x}, ${building.y})`);
+              // Calculate path from PLAYER to child agent's building
+              console.log(`🔍 Calculating path from player (${playerX}, ${playerY}) to (${building.x}, ${building.y})`);
+              const pathfinder = new Pathfinder(gameState.getState());
+              const path = pathfinder.findPath(
+                playerX, 
+                playerY, 
+                building.x, 
+                building.y
+              );
+              console.log(`🗺️ Pathfinding result:`, path ? `Found path with ${path.nodes.length} nodes` : 'No path found');
+              
+              if (path && path.nodes.length > 0) {
+                // Set player path for visualization and movement
+                console.log(`🚀 Setting player path to child agent ${childAgent?.name || childAgentId} (${i + 1}/${task.subtasks.length})`);
+                
+                // Set the calculated path for the player
+                gameState.setPlayerPath(path.nodes);
+                
+                console.log(`🗺️ Player avatar path set to child agent ${childAgent?.name || childAgentId} (${i + 1}/${task.subtasks.length}) at building ${building.id} (${building.x}, ${building.y})`);
+                console.log(`📍 Path has ${path.nodes.length} nodes:`, path.nodes.map(node => `(${node.x},${node.y})`).join(' -> '));
                 
                 // Log this movement action
                 await agentService.logAgentAction({
-                  agent_id: masterAgentId,
+                  agent_id: 'player_avatar',
                   action_type: 'move',
                   action_data: { 
-                    type: 'sequential_task_coordination',
+                    type: 'player_sequential_task_coordination',
                     target_agent: childAgentId,
                     target_agent_name: childAgent?.name,
                     building_id: building.id,
                     building_coordinates: { x: building.x, y: building.y },
                     sequence_number: i + 1,
                     total_agents: task.subtasks.length,
-                    task_id: task.masterTask.id
+                    task_id: task.masterTask.id,
+                    path_nodes: path.nodes,
+                    path_length: path.nodes.length
                   },
                   building_id: building.id,
                   target_agent_id: childAgentId,
@@ -247,7 +282,14 @@ export default async function handler(
                   success: true,
                 });
               } else {
-                console.warn(`Failed to move master agent ${masterAgentId} to child agent ${childAgentId} location`);
+                console.warn(`Failed to calculate path from player to child agent ${childAgentId} location`);
+                // Fallback to direct movement - create a simple path
+                const directPath = [
+                  { x: playerX, y: playerY },
+                  { x: building.x, y: building.y }
+                ];
+                gameState.setPlayerPath(directPath);
+                console.log(`🚶 Player avatar using direct path to child agent ${childAgent?.name || childAgentId} (${i + 1}/${task.subtasks.length}) at building ${building.id} (${building.x}, ${building.y})`);
               }
             } else {
               console.warn(`Building ${childAgent.current_building_id} not found for child agent ${childAgentId}`);
@@ -265,7 +307,7 @@ export default async function handler(
         const subtaskAgents = task.subtasks.map(subtask => 
           activeAgents.find(agent => agent.id === subtask.agent_address)?.name || subtask.agent_address
         );
-        console.log(`👥 Master agent will coordinate with: ${subtaskAgents.join(', ')}`);
+        console.log(`👥 Player avatar will visit: ${subtaskAgents.join(', ')}`);
       }, 2000); // Initial 2-second delay before starting movement
     }
 

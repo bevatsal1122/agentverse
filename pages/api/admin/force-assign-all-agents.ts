@@ -1,7 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { supabase } from '../../lib/supabase';
 import { agentService } from '../../services/agentService';
-import { getAvailableBuildings, getBuildingsByType } from '../../../src/maps/defaultMap';
+import { memoryStorageService } from '../../services/memoryStorageService';
+import { getAvailableBuildings, getBuildingsByType, unassignAgentFromBuilding } from '../../../src/maps/defaultMap';
 
 export default async function handler(
   req: NextApiRequest,
@@ -31,6 +32,26 @@ export default async function handler(
       });
     }
 
+    // Clear all existing building assignments first
+    console.log('Clearing all existing building assignments...');
+    
+    for (const agent of agents) {
+      // Clear any existing assignments in memory
+      const metadata = memoryStorageService.getAgentMetadata(agent.id);
+      if (metadata) {
+        const assignedBuildings = metadata.assigned_building_ids || [];
+        for (const buildingId of assignedBuildings) {
+          unassignAgentFromBuilding(buildingId);
+        }
+        
+        // Clear agent metadata
+        memoryStorageService.updateAgentMetadata(agent.id, {
+          assigned_building_ids: [],
+          current_building_id: null,
+        });
+      }
+    }
+
     // Get available buildings (only actual buildings, not roads/corridors)
     const availableBuildings = getAvailableBuildings();
     
@@ -51,12 +72,6 @@ export default async function handler(
 
     // Assign each agent to a building
     for (const agent of agents) {
-      // Skip if agent already has a building assignment
-      if (agent.current_building_id || (agent.assigned_building_ids && agent.assigned_building_ids.length > 0)) {
-        console.log(`Agent ${agent.name} (${agent.id}) already has building assignment, skipping`);
-        continue;
-      }
-
       // Find an available building
       const availableBuilding = validBuildings.find(building => 
         !building.assignedAgent
@@ -65,6 +80,21 @@ export default async function handler(
       if (!availableBuilding) {
         console.warn(`No available buildings for agent ${agent.name} (${agent.id})`);
         continue;
+      }
+
+      // Create metadata for agent if it doesn't exist
+      let metadata = memoryStorageService.getAgentMetadata(agent.id);
+      if (!metadata) {
+        // Initialize agent metadata
+        memoryStorageService.updateAgentMetadata(agent.id, {
+          assigned_building_ids: [],
+          current_building_id: null,
+          status: 'active',
+          experience_points: 0,
+          level: 1,
+          reputation_score: 0
+        });
+        metadata = memoryStorageService.getAgentMetadata(agent.id);
       }
 
       // Assign building to agent
@@ -100,7 +130,7 @@ export default async function handler(
     });
 
   } catch (error) {
-    console.error('Error setting up agent homes:', error);
+    console.error('Error force assigning all agents:', error);
     res.status(500).json({ 
       error: 'Internal server error',
       details: error instanceof Error ? error.message : 'Unknown error'

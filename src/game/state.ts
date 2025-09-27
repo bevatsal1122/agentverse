@@ -126,6 +126,9 @@ export interface GameState {
   aiAgents: Map<string, AIAgent>;
   chatMessages: ChatMessage[];
   maxChatMessages: number;
+  playerPath?: Array<{x: number, y: number}>;
+  playerPathIndex: number;
+  isPlayerFollowingPath: boolean;
 }
 
 class GameStateManager {
@@ -144,7 +147,10 @@ class GameStateManager {
     lastCrewmateUpdate: 0,
     aiAgents: new Map(),
     chatMessages: [],
-    maxChatMessages: 100
+    maxChatMessages: 100,
+    playerPath: undefined,
+    playerPathIndex: 0,
+    isPlayerFollowingPath: false
   };
 
   private listeners: Array<(state: GameState) => void> = [];
@@ -347,7 +353,7 @@ class GameStateManager {
       return null;
     }
     
-    // Find a random living quarters tile for home
+    // Find a random living quarters tile for home (only buildings, not roads/corridors)
     let homeX = 0, homeY = 0;
     const livingQuarters = allTiles.filter(([key, tile]) => 
       tile.type === TileType.LIVING_QUARTERS && 
@@ -358,14 +364,20 @@ class GameStateManager {
       homeX = randomHome[1].x;
       homeY = randomHome[1].y;
     } else {
-      // If no living quarters, pick any random tile from the map within boundaries
-      const validTiles = allTiles.filter(([key, tile]) => 
+      // If no living quarters, pick any random BUILDING tile from the map (not roads/corridors)
+      const buildingTypes = [TileType.LIVING_QUARTERS, TileType.RESEARCH_LAB, TileType.ENGINEERING_BAY, TileType.RECREATION, TileType.POWER_LINE];
+      const validBuildingTiles = allTiles.filter(([key, tile]) => 
+        buildingTypes.includes(tile.type) &&
         tile.x >= 0 && tile.x < this.state.mapWidth && tile.y >= 0 && tile.y < this.state.mapHeight
       );
-      if (validTiles.length > 0) {
-        const randomTile = validTiles[Math.floor(Math.random() * validTiles.length)];
+      if (validBuildingTiles.length > 0) {
+        const randomTile = validBuildingTiles[Math.floor(Math.random() * validBuildingTiles.length)];
         homeX = randomTile[1].x;
         homeY = randomTile[1].y;
+      } else {
+        // No buildings available, can't spawn agent
+        console.warn('No building tiles available for agent spawning');
+        return null;
       }
     }
     
@@ -389,14 +401,20 @@ class GameStateManager {
       workX = randomWork[1].x;
       workY = randomWork[1].y;
     } else {
-      // If no work tiles of preferred type, pick any random tile from the map within boundaries
-      const validTiles = allTiles.filter(([key, tile]) => 
+      // If no work tiles of preferred type, pick any random BUILDING tile from the map (not roads/corridors)
+      const buildingTypes = [TileType.LIVING_QUARTERS, TileType.RESEARCH_LAB, TileType.ENGINEERING_BAY, TileType.RECREATION, TileType.POWER_LINE];
+      const validBuildingTiles = allTiles.filter(([key, tile]) => 
+        buildingTypes.includes(tile.type) &&
         tile.x >= 0 && tile.x < this.state.mapWidth && tile.y >= 0 && tile.y < this.state.mapHeight
       );
-      if (validTiles.length > 0) {
-        const randomTile = validTiles[Math.floor(Math.random() * validTiles.length)];
+      if (validBuildingTiles.length > 0) {
+        const randomTile = validBuildingTiles[Math.floor(Math.random() * validBuildingTiles.length)];
         workX = randomTile[1].x;
         workY = randomTile[1].y;
+      } else {
+        // No buildings available, use home position
+        workX = homeX;
+        workY = homeY;
       }
     }
     
@@ -539,6 +557,10 @@ class GameStateManager {
     }
     
     if (agent.isFollowingPath && agent.currentPath) {
+      // Debug: Log when agent is following path
+      if (now % 1000 < 50) { // Log once per second
+        console.log(`🤖 Agent ${agent.name} following path: ${agent.pathIndex}/${agent.currentPath.length} at (${Math.round(agent.x)}, ${Math.round(agent.y)})`);
+      }
       this.followPath(agent, deltaTime, now);
     } else {
       // Random roaming removed - agents only move when following ChatGPT tasks
@@ -791,6 +813,20 @@ class GameStateManager {
     if (pixelX !== undefined || pixelY !== undefined) {
       this.updateCamera();
     }
+    this.notifyListeners();
+  }
+
+  setPlayerPath(path: Array<{x: number, y: number}>) {
+    this.state.playerPath = path;
+    this.state.playerPathIndex = 0;
+    this.state.isPlayerFollowingPath = true;
+    this.notifyListeners();
+  }
+
+  clearPlayerPath() {
+    this.state.playerPath = undefined;
+    this.state.playerPathIndex = 0;
+    this.state.isPlayerFollowingPath = false;
     this.notifyListeners();
   }
 

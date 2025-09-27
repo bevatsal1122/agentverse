@@ -416,10 +416,51 @@ export class AgentService {
     buildingId: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      // Get current agent metadata from memory
-      const metadata = memoryStorageService.getAgentMetadata(agentId);
+      // Validate that the building ID exists and is a valid building (not road/corridor)
+      const { getBuildingById } = await import('../../src/maps/defaultMap');
+      const building = getBuildingById(buildingId);
+      
+      if (!building) {
+        return { success: false, error: "Building not found" };
+      }
+
+      // Ensure only actual buildings can be assigned (not roads/corridors/water/space)
+      const validBuildingTypes = ['living_quarters', 'research_lab', 'engineering_bay', 'recreation', 'power_line'];
+      if (!validBuildingTypes.includes(building.type)) {
+        return { 
+          success: false, 
+          error: `Cannot assign ${building.type} to agent - only buildings are allowed, not roads or corridors` 
+        };
+      }
+
+      // Check if building is already assigned to another agent
+      if (building.assignedAgent && building.assignedAgent !== agentId) {
+        return { 
+          success: false, 
+          error: `Building ${buildingId} is already assigned to another agent` 
+        };
+      }
+
+      // Get current agent metadata from memory, create if doesn't exist
+      let metadata = memoryStorageService.getAgentMetadata(agentId);
       if (!metadata) {
-        return { success: false, error: "Agent not found" };
+        // Create initial metadata for the agent
+        const newMetadata = {
+          id: agentId,
+          assigned_building_ids: [],
+          current_building_id: null,
+          status: 'active' as const,
+          experience_points: 0,
+          level: 1,
+          reputation_score: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        memoryStorageService.setAgentMetadata(newMetadata);
+        metadata = memoryStorageService.getAgentMetadata(agentId);
+        if (!metadata) {
+          return { success: false, error: "Failed to create agent metadata" };
+        }
       }
 
       // Add building to assigned list if not already there
@@ -433,11 +474,14 @@ export class AgentService {
           current_building_id: buildingId, // Also set as current
         });
 
+        // Mark building as assigned in the map
+        building.assignedAgent = agentId;
+
         // Log the action in memory
         memoryStorageService.addAction({
           agent_id: agentId,
           action_type: 'building_assigned',
-          action_data: { building_id: buildingId },
+          action_data: { building_id: buildingId, building_type: building.type },
           building_id: buildingId,
           success: true,
         });
