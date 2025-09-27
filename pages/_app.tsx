@@ -1,10 +1,58 @@
 import type { AppProps } from "next/app";
 import { PrivyProvider } from "@privy-io/react-auth";
 import { AuthProvider } from "../src/contexts/AuthContext";
+import { useEffect } from "react";
 import "./index.css";
 
 export default function App({ Component, pageProps }: AppProps) {
   const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+
+  useEffect(() => {
+    // Play Super Mario music on loop when the app loads
+    const audio = new Audio("/super%20mario.mp3");
+    audio.loop = true;
+    audio.volume = 0.3; // Set volume to 30% to not be too loud
+
+    // Try to play immediately
+    const playAudio = async () => {
+      try {
+        await audio.play();
+        console.log("Audio started playing");
+      } catch (error) {
+        console.log(
+          "Audio autoplay prevented, waiting for user interaction:",
+          error
+        );
+
+        // If autoplay fails, wait for user interaction
+        const handleUserInteraction = () => {
+          audio
+            .play()
+            .then(() => {
+              console.log("Audio started after user interaction");
+              document.removeEventListener("click", handleUserInteraction);
+              document.removeEventListener("keydown", handleUserInteraction);
+              document.removeEventListener("touchstart", handleUserInteraction);
+            })
+            .catch((err) => {
+              console.log("Still unable to play audio:", err);
+            });
+        };
+
+        document.addEventListener("click", handleUserInteraction);
+        document.addEventListener("keydown", handleUserInteraction);
+        document.addEventListener("touchstart", handleUserInteraction);
+      }
+    };
+
+    playAudio();
+
+    // Cleanup function
+    return () => {
+      audio.pause();
+      audio.currentTime = 0;
+    };
+  }, []);
 
   // If no Privy App ID is provided, render without Privy (for development)
   if (!privyAppId) {

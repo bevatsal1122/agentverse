@@ -269,7 +269,7 @@ class GameStateManager {
       targetX: workX,
       targetY: workY,
       activity: CrewmateActivity.WALKING,
-      speed: 0.5 + Math.random() * 0.5, // Random speed between 0.5 and 1.0
+      speed: 1.0 + Math.random() * 1.0, // Random speed between 1.0 and 2.0
       direction: 'east',
       animationFrame: 0,
       lastMoveTime: Date.now(),
@@ -287,7 +287,7 @@ class GameStateManager {
       isFollowingPath: false,
       lastBuildingVisitTime: 0,
       visitCooldown: 15000 + Math.random() * 30000,
-      moveInterval: 500 + Math.random() * 300
+      moveInterval: 200 + Math.random() * 200 // 0.2-0.4 seconds between steps
     };
     
     this.addCrewmate(crewmate);
@@ -389,7 +389,7 @@ class GameStateManager {
       targetX: workX,
       targetY: workY,
       activity: CrewmateActivity.WALKING,
-      speed: 0.3 + Math.random() * 0.7, // Random speed between 0.3 and 1.0
+      speed: 1.2 + Math.random() * 0.8, // Random speed between 1.2 and 2.0
       direction: 'east',
       animationFrame: 0,
       lastMoveTime: Date.now(),
@@ -408,7 +408,7 @@ class GameStateManager {
       isFollowingPath: false,
       lastBuildingVisitTime: 0,
       visitCooldown: 15000 + Math.random() * 30000, // 15-45 seconds between visits
-      moveInterval: 500 + Math.random() * 300 // 0.5-0.8 seconds between steps
+      moveInterval: 150 + Math.random() * 150 // 0.15-0.3 seconds between steps
     };
     
     this.addAIAgent(agent);

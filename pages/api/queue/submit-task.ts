@@ -1,0 +1,170 @@
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { taskQueueService } from '../../services/taskQueueService';
+import { agentService } from '../../services/agentService';
+import { geminiService } from '../../services/geminiService';
+
+interface SubmitTaskRequest {
+  targetAgentId?: string; // Now optional - AI can select if not provided
+  requestingAgentId: string;
+  useAiSelection?: boolean; // Whether to use AI to select the best agent
+  taskData: {
+    title: string;
+    description: string;
+  };
+}
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    const { targetAgentId, requestingAgentId, useAiSelection, taskData }: SubmitTaskRequest = req.body;
+
+    // Validate required fields
+    if (!requestingAgentId || !taskData) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: requestingAgentId and taskData are required' 
+      });
+    }
+
+    if (!taskData.title || !taskData.description) {
+      return res.status(400).json({ 
+        error: 'Task data must include title and description' 
+      });
+    }
+
+    // Verify requesting agent exists
+    const requestingAgent = await agentService.getAgentById(requestingAgentId);
+    if (!requestingAgent.success) {
+      return res.status(404).json({ 
+        error: 'Requesting agent not found' 
+      });
+    }
+
+    let finalTargetAgentId = targetAgentId;
+    let aiRecommendation = undefined;
+
+    // Use AI selection if requested or if no target agent specified
+    if (useAiSelection || !targetAgentId) {
+      console.log('Using AI agent selection for task:', taskData.title);
+      
+      // Get all available agents
+      const availableAgentsResult = await agentService.getActiveAgents();
+      if (!availableAgentsResult.success || !availableAgentsResult.data || availableAgentsResult.data.length === 0) {
+        return res.status(400).json({ 
+          error: 'No available agents found for AI selection' 
+        });
+      }
+
+      // Filter out the requesting agent from available agents
+      const availableAgents = availableAgentsResult.data.filter(agent => agent.id !== requestingAgentId);
+      
+      if (availableAgents.length === 0) {
+        return res.status(400).json({ 
+          error: 'No other agents available for task assignment' 
+        });
+      }
+
+      // Get AI recommendation
+      const aiResult = await geminiService.selectBestAgent({
+        taskTitle: taskData.title,
+        taskDescription: taskData.description,
+        availableAgents
+      });
+
+      if (aiResult.success && aiResult.recommendation) {
+        finalTargetAgentId = aiResult.recommendation.recommendedAgentId;
+        aiRecommendation = {
+          ...aiResult.recommendation,
+          wasAiSelected: true
+        };
+        console.log(`AI recommended agent ${finalTargetAgentId} with confidence ${aiResult.recommendation.confidence}`);
+      } else {
+        // Fallback to first available agent if AI fails
+        finalTargetAgentId = availableAgents[0].id;
+        aiRecommendation = {
+          recommendedAgentId: finalTargetAgentId,
+          confidence: 0.3,
+          reasoning: 'Fallback selection due to AI service unavailable',
+          wasAiSelected: false
+        };
+        console.warn('AI selection failed, using fallback:', aiResult.error);
+      }
+    } else if (targetAgentId) {
+      // Manual selection - still get AI recommendation for comparison
+      const availableAgentsResult = await agentService.getActiveAgents();
+      if (availableAgentsResult.success && availableAgentsResult.data) {
+        const availableAgents = availableAgentsResult.data.filter(agent => agent.id !== requestingAgentId);
+        
+        const aiResult = await geminiService.selectBestAgent({
+          taskTitle: taskData.title,
+          taskDescription: taskData.description,
+          availableAgents
+        });
+
+        if (aiResult.success && aiResult.recommendation) {
+          aiRecommendation = {
+            ...aiResult.recommendation,
+            wasAiSelected: aiResult.recommendation.recommendedAgentId === targetAgentId
+          };
+        }
+      }
+    }
+
+    // Verify final target agent exists
+    const targetAgent = await agentService.getAgentById(finalTargetAgentId!);
+    if (!targetAgent.success) {
+      return res.status(404).json({ 
+        error: 'Target agent not found' 
+      });
+    }
+
+    // Add task to queue with AI recommendation
+    const queuedTaskId = taskQueueService.addTaskToQueue(
+      finalTargetAgentId!, 
+      requestingAgentId, 
+      taskData,
+      aiRecommendation
+    );
+
+    // Update requesting agent's last active time
+    await agentService.updateAgentLastActive(requestingAgentId);
+
+    // Log the action
+    await agentService.logAgentAction({
+      agent_id: requestingAgentId,
+      action_type: 'custom',
+      action_data: { 
+        type: 'task_queued',
+        target_agent_id: finalTargetAgentId,
+        queued_task_id: queuedTaskId,
+        task_title: taskData.title,
+        ai_selected: useAiSelection || !targetAgentId,
+        ai_confidence: aiRecommendation?.confidence,
+        ai_reasoning: aiRecommendation?.reasoning
+      },
+      target_agent_id: finalTargetAgentId,
+      success: true,
+    });
+
+    res.status(201).json({ 
+      success: true, 
+      queuedTaskId,
+      targetAgentId: finalTargetAgentId,
+      targetAgentName: targetAgent.data?.name,
+      aiRecommendation,
+      message: `Task queued for agent ${targetAgent.data?.name || finalTargetAgentId}`,
+      queueStatus: taskQueueService.getQueueStatus(finalTargetAgentId!)
+    });
+
+  } catch (error) {
+    console.error('Error submitting task to queue:', error);
+    res.status(500).json({ 
+      error: 'Internal server error' 
+    });
+  }
+}

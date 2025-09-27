@@ -400,7 +400,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
   const drawRoadTile = (ctx: CanvasRenderingContext2D, x: number, y: number, size: number, state: GameState, tileX: number, tileY: number, roadType: TileType) => {
     // Enhanced retro bitmap road colors - single road type
     const baseColor = '#2A2A2A'; // Dark asphalt
-    const lineColor = '#FFD700'; // Gold lines
+    const lineColor = '#4d4d4d'; // White lines
     const edgeColor = '#1A1A1A'; // Darker edge
     const highlightColor = '#404040'; // Lighter highlight
     

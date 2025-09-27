@@ -1,16 +1,40 @@
 import { supabase } from "../lib/supabase";
-import {
-  Agent,
-  AgentInsert,
-  AgentUpdate,
-  Task,
-  TaskInsert,
-  TaskUpdate,
-  AgentCommunication,
-  AgentCommunicationInsert,
-  AgentAction,
-  AgentActionInsert,
-} from "../types/database.types";
+import { taskQueueService } from "./taskQueueService";
+import { memoryStorageService, AgentCommunication, AgentAction, AgentMetadata, Task } from "./memoryStorageService";
+import { getAvailableBuildings, assignAgentToBuilding } from "../../src/maps/defaultMap";
+
+// Minimal database agent interface (only what's stored in DB)
+interface DbAgent {
+  id: string;
+  name: string;
+  owner_address: string;
+  wallet_address?: string;
+  created_at: string;
+}
+
+// Full agent interface (DB + Memory data combined)
+interface Agent extends DbAgent {
+  description?: string;
+  personality?: {
+    traits: string[];
+    communication_style: string;
+    goals: string[];
+    preferences: Record<string, any>;
+  };
+  capabilities: string[];
+  status: 'active' | 'inactive' | 'busy' | 'offline';
+  current_building_id?: string;
+  assigned_building_ids: string[];
+  avatar_url?: string;
+  experience_points: number;
+  level: number;
+  reputation_score: number;
+  last_active: string;
+  updated_at: string;
+}
+
+// Type assertion helper for Supabase operations
+const typedSupabase = supabase as any;
 
 export interface AgentRegistrationData {
   name: string;
@@ -55,25 +79,16 @@ export class AgentService {
     agentData: AgentRegistrationData
   ): Promise<{ success: boolean; data?: Agent; error?: string }> {
     try {
-      const insertData: AgentInsert = {
+      // Store only essential data in database
+      const dbInsertData = {
         name: agentData.name,
-        description: agentData.description || null,
         owner_address: agentData.owner_address,
-        personality: agentData.personality || null,
-        capabilities: agentData.capabilities,
-        status: 'active',
-        assigned_building_ids: [],
         wallet_address: agentData.wallet_address || null,
-        avatar_url: agentData.avatar_url || null,
-        experience_points: 0,
-        level: 1,
-        reputation_score: 100,
-        last_active: new Date().toISOString(),
       };
 
-      const { data, error } = await supabase
+      const { data: dbData, error } = await typedSupabase
         .from("agents")
-        .insert(insertData)
+        .insert(dbInsertData)
         .select()
         .single();
 
@@ -82,15 +97,64 @@ export class AgentService {
         return { success: false, error: error.message };
       }
 
-      // Log the registration action
-      await this.logAgentAction({
-        agent_id: data.id,
+      if (!dbData) {
+        return { success: false, error: "No data returned from insert" };
+      }
+
+      // Auto-assign a building to the new agent
+      const availableBuildings = getAvailableBuildings();
+      let assignedBuildingId: string | null = null;
+      
+      if (availableBuildings.length > 0) {
+        // Prefer living_quarters for new agents, but assign any available building if none
+        const livingQuarters = availableBuildings.filter(b => b.type === 'living_quarters');
+        const buildingToAssign = livingQuarters.length > 0 ? livingQuarters[0] : availableBuildings[0];
+        
+        if (assignAgentToBuilding(buildingToAssign.id, dbData.id)) {
+          assignedBuildingId = buildingToAssign.id;
+          console.log(`Auto-assigned building ${buildingToAssign.id} (${buildingToAssign.type}) to agent ${dbData.name}`);
+        }
+      }
+
+      // Store all other data in memory
+      const agentMetadata: AgentMetadata = {
+        id: dbData.id,
+        description: agentData.description,
+        personality: agentData.personality,
+        capabilities: agentData.capabilities,
+        status: 'active',
+        current_building_id: assignedBuildingId || undefined,
+        assigned_building_ids: assignedBuildingId ? [assignedBuildingId] : [],
+        avatar_url: agentData.avatar_url,
+        experience_points: 0,
+        level: 1,
+        reputation_score: 100,
+        last_active: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      memoryStorageService.setAgentMetadata(agentMetadata);
+
+      // Log the registration action in memory
+      memoryStorageService.addAction({
+        agent_id: dbData.id,
         action_type: 'custom',
-        action_data: { type: 'agent_registered' },
+        action_data: { 
+          type: 'agent_registered',
+          auto_assigned_building: assignedBuildingId,
+          building_type: assignedBuildingId ? availableBuildings.find(b => b.id === assignedBuildingId)?.type : null
+        },
+        building_id: assignedBuildingId || undefined,
         success: true,
       });
 
-      return { success: true, data };
+      // Combine DB and memory data for return
+      const fullAgent: Agent = {
+        ...dbData,
+        ...agentMetadata
+      };
+
+      return { success: true, data: fullAgent };
     } catch (error) {
       console.error("Error registering agent:", error);
       return {
@@ -106,7 +170,8 @@ export class AgentService {
     error?: string;
   }> {
     try {
-      const { data, error } = await supabase
+      // Get basic agent data from database
+      const { data: dbAgents, error } = await typedSupabase
         .from("agents")
         .select("*")
         .order("created_at", { ascending: false });
@@ -116,7 +181,31 @@ export class AgentService {
         return { success: false, error: error.message };
       }
 
-      return { success: true, data: data || [] };
+      // Combine with memory data
+      const fullAgents: Agent[] = (dbAgents || []).map((dbAgent: DbAgent) => {
+        const metadata = memoryStorageService.getAgentMetadata(dbAgent.id);
+        
+        // If no metadata in memory, create default
+        if (!metadata) {
+          const defaultMetadata: AgentMetadata = {
+            id: dbAgent.id,
+            capabilities: [],
+            status: 'active',
+            assigned_building_ids: [],
+            experience_points: 0,
+            level: 1,
+            reputation_score: 100,
+            last_active: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+          memoryStorageService.setAgentMetadata(defaultMetadata);
+          return { ...dbAgent, ...defaultMetadata };
+        }
+
+        return { ...dbAgent, ...metadata };
+      });
+
+      return { success: true, data: fullAgents };
     } catch (error) {
       console.error("Error fetching agents:", error);
       return {
@@ -130,7 +219,8 @@ export class AgentService {
     id: string
   ): Promise<{ success: boolean; data?: Agent; error?: string }> {
     try {
-      const { data, error } = await supabase
+      // Get basic agent data from database
+      const { data: dbAgent, error } = await typedSupabase
         .from("agents")
         .select("*")
         .eq("id", id)
@@ -141,7 +231,27 @@ export class AgentService {
         return { success: false, error: error.message };
       }
 
-      return { success: true, data };
+      // Get metadata from memory
+      const metadata = memoryStorageService.getAgentMetadata(id);
+      
+      // If no metadata in memory, create default
+      if (!metadata) {
+        const defaultMetadata: AgentMetadata = {
+          id: dbAgent.id,
+          capabilities: [],
+          status: 'active',
+          assigned_building_ids: [],
+          experience_points: 0,
+          level: 1,
+          reputation_score: 100,
+          last_active: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        memoryStorageService.setAgentMetadata(defaultMetadata);
+        return { success: true, data: { ...dbAgent, ...defaultMetadata } };
+      }
+
+      return { success: true, data: { ...dbAgent, ...metadata } };
     } catch (error) {
       console.error("Error fetching agent:", error);
       return {
@@ -155,7 +265,8 @@ export class AgentService {
     ownerAddress: string
   ): Promise<{ success: boolean; data?: Agent[]; error?: string }> {
     try {
-      const { data, error } = await supabase
+      // Get basic agent data from database
+      const { data: dbAgents, error } = await typedSupabase
         .from("agents")
         .select("*")
         .eq("owner_address", ownerAddress)
@@ -166,7 +277,30 @@ export class AgentService {
         return { success: false, error: error.message };
       }
 
-      return { success: true, data: data || [] };
+      // Combine with memory data
+      const fullAgents: Agent[] = (dbAgents || []).map((dbAgent: DbAgent) => {
+        const metadata = memoryStorageService.getAgentMetadata(dbAgent.id);
+        
+        if (!metadata) {
+          const defaultMetadata: AgentMetadata = {
+            id: dbAgent.id,
+            capabilities: [],
+            status: 'active',
+            assigned_building_ids: [],
+            experience_points: 0,
+            level: 1,
+            reputation_score: 100,
+            last_active: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+          memoryStorageService.setAgentMetadata(defaultMetadata);
+          return { ...dbAgent, ...defaultMetadata };
+        }
+
+        return { ...dbAgent, ...metadata };
+      });
+
+      return { success: true, data: fullAgents };
     } catch (error) {
       console.error("Error fetching agents by owner:", error);
       return {
@@ -178,22 +312,73 @@ export class AgentService {
 
   async updateAgent(
     id: string,
-    updates: AgentUpdate
+    updates: Partial<Agent>
   ): Promise<{ success: boolean; data?: Agent; error?: string }> {
     try {
-      const { data, error } = await supabase
-        .from("agents")
-        .update({ ...updates, updated_at: new Date().toISOString() })
-        .eq("id", id)
-        .select()
-        .single();
+      // Separate DB updates (only essential fields) from memory updates
+      const dbUpdates: Partial<DbAgent> = {};
+      const memoryUpdates: Partial<AgentMetadata> = {};
 
-      if (error) {
-        console.error("Error updating agent:", error);
-        return { success: false, error: error.message };
+      // Only update database for essential fields
+      if (updates.name !== undefined) dbUpdates.name = updates.name;
+      if (updates.wallet_address !== undefined) dbUpdates.wallet_address = updates.wallet_address;
+
+      // Everything else goes to memory
+      const memoryFields = [
+        'description', 'personality', 'capabilities', 'status', 
+        'current_building_id', 'assigned_building_ids', 'avatar_url', 
+        'experience_points', 'level', 'reputation_score'
+      ] as const;
+      
+      memoryFields.forEach(field => {
+        if (updates[field] !== undefined) {
+          (memoryUpdates as any)[field] = updates[field];
+        }
+      });
+
+      // Update database if needed
+      let dbData = null;
+      if (Object.keys(dbUpdates).length > 0) {
+        const { data, error } = await typedSupabase
+          .from("agents")
+          .update(dbUpdates)
+          .eq("id", id)
+          .select()
+          .single();
+
+        if (error) {
+          console.error("Error updating agent in database:", error);
+          return { success: false, error: error.message };
+        }
+        dbData = data;
+      } else {
+        // Get current DB data
+        const { data, error } = await typedSupabase
+          .from("agents")
+          .select("*")
+          .eq("id", id)
+          .single();
+
+        if (error) {
+          console.error("Error fetching agent:", error);
+          return { success: false, error: error.message };
+        }
+        dbData = data;
       }
 
-      return { success: true, data };
+      // Update memory
+      const updatedMetadata = memoryStorageService.updateAgentMetadata(id, memoryUpdates);
+      if (!updatedMetadata) {
+        return { success: false, error: "Agent not found in memory" };
+      }
+
+      // Combine for return
+      const fullAgent: Agent = {
+        ...dbData,
+        ...updatedMetadata
+      };
+
+      return { success: true, data: fullAgent };
     } catch (error) {
       console.error("Error updating agent:", error);
       return {
@@ -208,36 +393,25 @@ export class AgentService {
     buildingId: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      // Get current agent data
-      const { data: agent, error: fetchError } = await supabase
-        .from("agents")
-        .select("assigned_building_ids")
-        .eq("id", agentId)
-        .single();
-
-      if (fetchError) {
-        return { success: false, error: fetchError.message };
+      // Get current agent metadata from memory
+      const metadata = memoryStorageService.getAgentMetadata(agentId);
+      if (!metadata) {
+        return { success: false, error: "Agent not found" };
       }
 
       // Add building to assigned list if not already there
-      const currentBuildings = agent.assigned_building_ids || [];
+      const currentBuildings = metadata.assigned_building_ids || [];
       if (!currentBuildings.includes(buildingId)) {
         const updatedBuildings = [...currentBuildings, buildingId];
         
-        const { error: updateError } = await supabase
-          .from("agents")
-          .update({ 
-            assigned_building_ids: updatedBuildings,
-            updated_at: new Date().toISOString()
-          })
-          .eq("id", agentId);
+        // Update in memory
+        memoryStorageService.updateAgentMetadata(agentId, {
+          assigned_building_ids: updatedBuildings,
+          current_building_id: buildingId, // Also set as current
+        });
 
-        if (updateError) {
-          return { success: false, error: updateError.message };
-        }
-
-        // Log the action
-        await this.logAgentAction({
+        // Log the action in memory
+        memoryStorageService.addAction({
           agent_id: agentId,
           action_type: 'building_assigned',
           action_data: { building_id: buildingId },
@@ -262,31 +436,21 @@ export class AgentService {
     taskData: TaskCreationData
   ): Promise<{ success: boolean; data?: Task; error?: string }> {
     try {
-      const insertData: TaskInsert = {
+      // Create task in memory
+      const task = memoryStorageService.addTask({
         title: taskData.title,
         description: taskData.description,
         creator_agent_id: taskData.creator_agent_id,
         task_type: taskData.task_type || 'custom',
         priority: taskData.priority || 'medium',
         status: 'pending',
-        requirements: taskData.requirements || null,
-        reward_amount: taskData.reward_amount || null,
-        reward_token: taskData.reward_token || null,
-        deadline: taskData.deadline || null,
-      };
+        requirements: taskData.requirements,
+        reward_amount: taskData.reward_amount,
+        reward_token: taskData.reward_token,
+        deadline: taskData.deadline,
+      });
 
-      const { data, error } = await supabase
-        .from("tasks")
-        .insert(insertData)
-        .select()
-        .single();
-
-      if (error) {
-        console.error("Error creating task:", error);
-        return { success: false, error: error.message };
-      }
-
-      return { success: true, data };
+      return { success: true, data: task };
     } catch (error) {
       console.error("Error creating task:", error);
       return {
@@ -302,19 +466,8 @@ export class AgentService {
     error?: string;
   }> {
     try {
-      const { data, error } = await supabase
-        .from("tasks")
-        .select("*")
-        .eq("status", "pending")
-        .order("priority", { ascending: false })
-        .order("created_at", { ascending: true });
-
-      if (error) {
-        console.error("Error fetching available tasks:", error);
-        return { success: false, error: error.message };
-      }
-
-      return { success: true, data: data || [] };
+      const tasks = memoryStorageService.getPendingTasks();
+      return { success: true, data: tasks };
     } catch (error) {
       console.error("Error fetching available tasks:", error);
       return {
@@ -329,24 +482,27 @@ export class AgentService {
     agentId: string
   ): Promise<{ success: boolean; data?: Task; error?: string }> {
     try {
-      const { data, error } = await supabase
-        .from("tasks")
-        .update({
-          assigned_agent_id: agentId,
-          status: 'assigned',
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", taskId)
-        .eq("status", "pending") // Only assign if still pending
-        .select()
-        .single();
-
-      if (error) {
-        console.error("Error assigning task:", error);
-        return { success: false, error: error.message };
+      // Get task from memory
+      const task = memoryStorageService.getTask(taskId);
+      if (!task) {
+        return { success: false, error: "Task not found" };
       }
 
-      return { success: true, data };
+      if (task.status !== 'pending') {
+        return { success: false, error: "Task is not available for assignment" };
+      }
+
+      // Update task in memory
+      const updatedTask = memoryStorageService.updateTask(taskId, {
+        assigned_agent_id: agentId,
+        status: 'assigned',
+      });
+
+      if (!updatedTask) {
+        return { success: false, error: "Failed to update task" };
+      }
+
+      return { success: true, data: updatedTask };
     } catch (error) {
       console.error("Error assigning task:", error);
       return {
@@ -362,34 +518,27 @@ export class AgentService {
     completionData?: any
   ): Promise<{ success: boolean; data?: Task; error?: string }> {
     try {
-      const updateData: TaskUpdate = {
-        status,
-        updated_at: new Date().toISOString(),
-      };
-
-      if (status === 'completed') {
-        updateData.completed_at = new Date().toISOString();
-        if (completionData) {
-          updateData.completion_data = completionData;
-        }
+      // Get current task from memory
+      const task = memoryStorageService.getTask(taskId);
+      if (!task) {
+        return { success: false, error: "Task not found" };
       }
 
-      const { data, error } = await supabase
-        .from("tasks")
-        .update(updateData)
-        .eq("id", taskId)
-        .select()
-        .single();
-
-      if (error) {
-        console.error("Error updating task status:", error);
-        return { success: false, error: error.message };
+      // Update task in memory
+      const updates: Partial<Task> = { status };
+      if (completionData) {
+        updates.completion_data = completionData;
       }
 
-      // Log task completion
-      if (status === 'completed' && data.assigned_agent_id) {
-        await this.logAgentAction({
-          agent_id: data.assigned_agent_id,
+      const updatedTask = memoryStorageService.updateTask(taskId, updates);
+      if (!updatedTask) {
+        return { success: false, error: "Failed to update task" };
+      }
+
+      // Log task completion in memory
+      if (status === 'completed' && updatedTask.assigned_agent_id) {
+        memoryStorageService.addAction({
+          agent_id: updatedTask.assigned_agent_id,
           action_type: 'task_complete',
           action_data: { task_id: taskId, completion_data: completionData },
           task_id: taskId,
@@ -397,7 +546,7 @@ export class AgentService {
         });
       }
 
-      return { success: true, data };
+      return { success: true, data: updatedTask };
     } catch (error) {
       console.error("Error updating task status:", error);
       return {
@@ -413,42 +562,37 @@ export class AgentService {
     messageData: MessageData
   ): Promise<{ success: boolean; data?: AgentCommunication; error?: string }> {
     try {
-      const insertData: AgentCommunicationInsert = {
+      // Store message in memory
+      const communication = memoryStorageService.addCommunication({
         sender_agent_id: messageData.sender_agent_id,
-        receiver_agent_id: messageData.receiver_agent_id || null,
+        receiver_agent_id: messageData.receiver_agent_id,
         content: messageData.content,
         message_type: messageData.message_type || 'direct',
-        metadata: messageData.metadata || null,
-        task_id: messageData.task_id || null,
+        metadata: messageData.metadata,
+        task_id: messageData.task_id,
         is_read: false,
-      };
+      });
 
-      const { data, error } = await supabase
-        .from("agent_communications")
-        .insert(insertData)
-        .select()
-        .single();
-
-      if (error) {
-        console.error("Error sending message:", error);
-        return { success: false, error: error.message };
-      }
-
-      // Log the message action
-      await this.logAgentAction({
+      // Log the message action in memory
+      memoryStorageService.addAction({
         agent_id: messageData.sender_agent_id,
         action_type: 'message_sent',
         action_data: { 
-          message_id: data.id,
+          message_id: communication.id,
           receiver_id: messageData.receiver_agent_id,
           message_type: messageData.message_type 
         },
-        target_agent_id: messageData.receiver_agent_id || null,
-        task_id: messageData.task_id || null,
+        target_agent_id: messageData.receiver_agent_id,
+        task_id: messageData.task_id,
         success: true,
       });
 
-      return { success: true, data };
+      // Update sender session
+      memoryStorageService.updateAgentSession(messageData.sender_agent_id, {
+        current_activity: 'messaging'
+      });
+
+      return { success: true, data: communication };
     } catch (error) {
       console.error("Error sending message:", error);
       return {
@@ -463,19 +607,8 @@ export class AgentService {
     limit: number = 50
   ): Promise<{ success: boolean; data?: AgentCommunication[]; error?: string }> {
     try {
-      const { data, error } = await supabase
-        .from("agent_communications")
-        .select("*")
-        .or(`sender_agent_id.eq.${agentId},receiver_agent_id.eq.${agentId}`)
-        .order("created_at", { ascending: false })
-        .limit(limit);
-
-      if (error) {
-        console.error("Error fetching messages:", error);
-        return { success: false, error: error.message };
-      }
-
-      return { success: true, data: data || [] };
+      const messages = memoryStorageService.getCommunicationsForAgent(agentId, limit);
+      return { success: true, data: messages };
     } catch (error) {
       console.error("Error fetching messages:", error);
       return {
@@ -489,16 +622,10 @@ export class AgentService {
     messageId: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const { error } = await supabase
-        .from("agent_communications")
-        .update({ is_read: true })
-        .eq("id", messageId);
-
-      if (error) {
-        console.error("Error marking message as read:", error);
-        return { success: false, error: error.message };
+      const success = memoryStorageService.markCommunicationAsRead(messageId);
+      if (!success) {
+        return { success: false, error: "Message not found" };
       }
-
       return { success: true };
     } catch (error) {
       console.error("Error marking message as read:", error);
@@ -509,21 +636,13 @@ export class AgentService {
     }
   }
 
-  // ===== ACTION LOGGING =====
+  // ===== ACTION LOGGING (IN-MEMORY) =====
 
   async logAgentAction(
-    actionData: AgentActionInsert
+    actionData: Omit<AgentAction, 'id' | 'created_at'>
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const { error } = await supabase
-        .from("agent_actions")
-        .insert(actionData);
-
-      if (error) {
-        console.error("Error logging agent action:", error);
-        return { success: false, error: error.message };
-      }
-
+      memoryStorageService.addAction(actionData);
       return { success: true };
     } catch (error) {
       console.error("Error logging agent action:", error);
@@ -539,19 +658,8 @@ export class AgentService {
     limit: number = 100
   ): Promise<{ success: boolean; data?: AgentAction[]; error?: string }> {
     try {
-      const { data, error } = await supabase
-        .from("agent_actions")
-        .select("*")
-        .eq("agent_id", agentId)
-        .order("created_at", { ascending: false })
-        .limit(limit);
-
-      if (error) {
-        console.error("Error fetching agent actions:", error);
-        return { success: false, error: error.message };
-      }
-
-      return { success: true, data: data || [] };
+      const actions = memoryStorageService.getActionsForAgent(agentId, limit);
+      return { success: true, data: actions };
     } catch (error) {
       console.error("Error fetching agent actions:", error);
       return {
@@ -561,24 +669,213 @@ export class AgentService {
     }
   }
 
-  // ===== UTILITY FUNCTIONS =====
+  // ===== TASK QUEUE INTEGRATION =====
+
+  async submitTaskToQueue(
+    targetAgentId: string,
+    requestingAgentId: string,
+    taskData: {
+      title: string;
+      description: string;
+    },
+    aiRecommendation?: any
+  ): Promise<{ success: boolean; queuedTaskId?: string; error?: string }> {
+    try {
+      // Verify both agents exist
+      const [targetAgent, requestingAgent] = await Promise.all([
+        this.getAgentById(targetAgentId),
+        this.getAgentById(requestingAgentId)
+      ]);
+
+      if (!targetAgent.success || !requestingAgent.success) {
+        return { success: false, error: 'One or both agents not found' };
+      }
+
+      // Add task to queue
+      const queuedTaskId = taskQueueService.addTaskToQueue(
+        targetAgentId, 
+        requestingAgentId, 
+        taskData,
+        aiRecommendation
+      );
+
+      // Update requesting agent's last active time
+      await this.updateAgentLastActive(requestingAgentId);
+
+      // Log the action in memory
+      memoryStorageService.addAction({
+        agent_id: requestingAgentId,
+        action_type: 'custom',
+        action_data: { 
+          type: 'task_queued',
+          target_agent_id: targetAgentId,
+          queued_task_id: queuedTaskId,
+          task_title: taskData.title
+        },
+        target_agent_id: targetAgentId,
+        success: true,
+      });
+
+      return { success: true, queuedTaskId };
+    } catch (error) {
+      console.error("Error submitting task to queue:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error occurred",
+      };
+    }
+  }
+
+  getAgentQueueStatus(agentId: string) {
+    return taskQueueService.getQueueStatus(agentId);
+  }
+
+  getAllQueueStatuses() {
+    return taskQueueService.getAllQueues();
+  }
+
+  // ===== AI-POWERED TASK ASSIGNMENT =====
+
+  async submitTaskWithAiSelection(
+    requestingAgentId: string,
+    taskData: {
+      title: string;
+      description: string;
+    }
+  ): Promise<{ 
+    success: boolean; 
+    queuedTaskId?: string; 
+    targetAgentId?: string;
+    aiRecommendation?: any;
+    error?: string 
+  }> {
+    try {
+      // Verify requesting agent exists
+      const requestingAgent = await this.getAgentById(requestingAgentId);
+      if (!requestingAgent.success) {
+        return { success: false, error: 'Requesting agent not found' };
+      }
+
+      // Get available agents (excluding the requesting agent)
+      const availableAgentsResult = await this.getActiveAgents();
+      if (!availableAgentsResult.success || !availableAgentsResult.data) {
+        return { success: false, error: 'No available agents found' };
+      }
+
+      const availableAgents = availableAgentsResult.data.filter(agent => agent.id !== requestingAgentId);
+      if (availableAgents.length === 0) {
+        return { success: false, error: 'No other agents available for task assignment' };
+      }
+
+      // Get AI recommendation
+      const geminiServiceModule = await import("./geminiService");
+      const aiResult = await geminiServiceModule.chatGPTService.selectBestAgent({
+        taskTitle: taskData.title,
+        taskDescription: taskData.description,
+        availableAgents: availableAgents as any,
+      });
+
+      let targetAgentId: string;
+      let aiRecommendation: any;
+
+      if (aiResult.success && aiResult.recommendation) {
+        targetAgentId = aiResult.recommendation.recommendedAgentId;
+        aiRecommendation = {
+          ...aiResult.recommendation,
+          wasAiSelected: true
+        };
+      } else {
+        // Fallback to first available agent
+        targetAgentId = availableAgents[0].id;
+        aiRecommendation = {
+          recommendedAgentId: targetAgentId,
+          confidence: 0.3,
+          reasoning: 'Fallback selection due to AI service unavailable',
+          wasAiSelected: false
+        };
+      }
+
+      // Submit task to queue
+      const result = await this.submitTaskToQueue(
+        targetAgentId,
+        requestingAgentId,
+        taskData,
+        aiRecommendation
+      );
+
+      return {
+        ...result,
+        targetAgentId,
+        aiRecommendation
+      };
+
+    } catch (error) {
+      console.error("Error submitting task with AI selection:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error occurred",
+      };
+    }
+  }
+
+  // ===== BUILDING MANAGEMENT HELPERS =====
+
+  async getAgentBuildingInfo(agentId: string): Promise<{ 
+    success: boolean; 
+    data?: { 
+      currentBuildingId: string | null; 
+      assignedBuildingIds: string[]; 
+      buildingDetails?: any[] 
+    }; 
+    error?: string 
+  }> {
+    try {
+      const agentResult = await this.getAgentById(agentId);
+      if (!agentResult.success || !agentResult.data) {
+        return { success: false, error: 'Agent not found' };
+      }
+
+      const agent = agentResult.data;
+      const buildingDetails = [];
+      
+      // Get details for assigned buildings
+      if (agent.assigned_building_ids && agent.assigned_building_ids.length > 0) {
+        const { getBuildingById } = await import("../../src/maps/defaultMap");
+        for (const buildingId of agent.assigned_building_ids) {
+          const building = getBuildingById(buildingId);
+          if (building) {
+            buildingDetails.push(building);
+          }
+        }
+      }
+
+      return {
+        success: true,
+        data: {
+          currentBuildingId: agent.current_building_id || null,
+          assignedBuildingIds: agent.assigned_building_ids || [],
+          buildingDetails
+        }
+      };
+    } catch (error) {
+      console.error("Error getting agent building info:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error occurred",
+      };
+    }
+  }
+
 
   async updateAgentLastActive(
     agentId: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const { error } = await supabase
-        .from("agents")
-        .update({ 
-          last_active: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", agentId);
-
-      if (error) {
-        console.error("Error updating agent last active:", error);
-        return { success: false, error: error.message };
-      }
+      // Update only in memory (last_active is no longer in database)
+      memoryStorageService.updateAgentSession(agentId, {});
+      memoryStorageService.updateAgentMetadata(agentId, {
+        last_active: new Date().toISOString()
+      });
 
       return { success: true };
     } catch (error) {
@@ -596,25 +893,106 @@ export class AgentService {
     error?: string;
   }> {
     try {
-      // Get agents active in the last hour
-      const oneHourAgo = new Date();
-      oneHourAgo.setHours(oneHourAgo.getHours() - 1);
-
-      const { data, error } = await supabase
-        .from("agents")
-        .select("*")
-        .eq("status", "active")
-        .gte("last_active", oneHourAgo.toISOString())
-        .order("last_active", { ascending: false });
-
-      if (error) {
-        console.error("Error fetching active agents:", error);
-        return { success: false, error: error.message };
+      // Get all agents and filter by active status and recent activity from memory
+      const allAgents = await this.getAgents();
+      if (!allAgents.success || !allAgents.data) {
+        return { success: false, error: "Failed to fetch agents" };
       }
 
-      return { success: true, data: data || [] };
+      const oneHourAgo = new Date();
+      oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+      const cutoffTime = oneHourAgo.getTime();
+
+      const activeAgents = allAgents.data.filter(agent => {
+        return agent.status === 'active' && 
+               new Date(agent.last_active).getTime() > cutoffTime;
+      });
+
+      // Sort by last active time
+      activeAgents.sort((a, b) => 
+        new Date(b.last_active).getTime() - new Date(a.last_active).getTime()
+      );
+
+      return { success: true, data: activeAgents };
     } catch (error) {
       console.error("Error fetching active agents:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error occurred",
+      };
+    }
+  }
+
+  // ===== MEMORY ANALYTICS & STATS =====
+
+  getAgentMemoryStats(agentId: string): {
+    success: boolean;
+    data?: {
+      totalMessages: number;
+      messagesLast24h: number;
+      totalActions: number;
+      actionsLast24h: number;
+      lastActive?: string;
+    };
+    error?: string;
+  } {
+    try {
+      const stats = memoryStorageService.getAgentStats(agentId);
+      return { success: true, data: stats };
+    } catch (error) {
+      console.error("Error getting agent memory stats:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error occurred",
+      };
+    }
+  }
+
+  getSystemMemoryUsage(): {
+    success: boolean;
+    data?: {
+      communications: number;
+      actions: number;
+      sessions: number;
+      totalItems: number;
+    };
+    error?: string;
+  } {
+    try {
+      const usage = memoryStorageService.getMemoryUsage();
+      return { success: true, data: usage };
+    } catch (error) {
+      console.error("Error getting memory usage:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error occurred",
+      };
+    }
+  }
+
+  cleanupOldMemoryData(maxAgeHours: number = 168): {
+    success: boolean;
+    data?: { communications: number; actions: number };
+    error?: string;
+  } {
+    try {
+      const result = memoryStorageService.clearOldData(maxAgeHours);
+      return { success: true, data: result };
+    } catch (error) {
+      console.error("Error cleaning up old memory data:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error occurred",
+      };
+    }
+  }
+
+  getActiveSessions(maxAgeMinutes: number = 60) {
+    try {
+      const sessions = memoryStorageService.getActiveSessions(maxAgeMinutes);
+      return { success: true, data: sessions };
+    } catch (error) {
+      console.error("Error getting active sessions:", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error occurred",
