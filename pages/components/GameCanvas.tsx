@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { gameState, Tool, TileType, GameState } from '../game/state';
+import { gameState, Tool, TileType, GameState, Crewmate, CrewmateType, CrewmateActivity } from '../game/state';
 import { MapLoader } from '../maps/mapLoader';
 
 interface GameCanvasProps {
@@ -68,11 +68,22 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     // Generate initial traffic
     generateTraffic(gameState.getState());
     
-    // Animation loop for traffic (throttled for performance)
+    // Spawn initial crewmates
+    const currentState = gameState.getState();
+    if (currentState.crewmates.size === 0) {
+      // Spawn 3-5 crewmates initially
+      const numCrewmates = 3 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < numCrewmates; i++) {
+        gameState.spawnRandomCrewmate();
+      }
+    }
+    
+    // Animation loop for traffic and crewmates (throttled for performance)
     let lastTime = 0;
     const animate = (currentTime: number) => {
       if (currentTime - lastTime > 100) { // Update every 100ms instead of every frame
         updateTraffic();
+        gameState.updateCrewmates(); // Update crewmate AI and movement
         updateCanvas(gameState.getState());
         lastTime = currentTime;
       }
@@ -109,22 +120,22 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     // Handle different tools
     switch (currentTool) {
       case Tool.BULLDOZER:
-        gameState.placeTile(gridX, gridY, TileType.GRASS);
+        gameState.placeTile(gridX, gridY, TileType.SPACE);
         break;
-      case Tool.ROAD:
-        gameState.placeTile(gridX, gridY, TileType.ROAD);
+      case Tool.CORRIDOR:
+        gameState.placeTile(gridX, gridY, TileType.CORRIDOR);
         break;
-      case Tool.RESIDENTIAL:
-        gameState.placeTile(gridX, gridY, TileType.RESIDENTIAL);
+      case Tool.LIVING_QUARTERS:
+        gameState.placeTile(gridX, gridY, TileType.LIVING_QUARTERS);
         break;
-      case Tool.COMMERCIAL:
-        gameState.placeTile(gridX, gridY, TileType.COMMERCIAL);
+      case Tool.RESEARCH_LAB:
+        gameState.placeTile(gridX, gridY, TileType.RESEARCH_LAB);
         break;
-      case Tool.INDUSTRIAL:
-        gameState.placeTile(gridX, gridY, TileType.INDUSTRIAL);
+      case Tool.ENGINEERING_BAY:
+        gameState.placeTile(gridX, gridY, TileType.ENGINEERING_BAY);
         break;
-      case Tool.PARK:
-        gameState.placeTile(gridX, gridY, TileType.PARK);
+      case Tool.RECREATION:
+        gameState.placeTile(gridX, gridY, TileType.RECREATION);
         break;
       case Tool.POWER:
         gameState.placeTile(gridX, gridY, TileType.POWER_LINE);
@@ -134,58 +145,122 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
 
   const getTileColor = (type: TileType): string => {
     switch (type) {
-      case TileType.GRASS:
-        return '#228B22'; // Forest green
-      case TileType.ROAD:
-        return '#404040'; // Dark gray (local roads)
-      case TileType.MAIN_ROAD:
-        return '#2F2F2F'; // Darker gray (main roads)
+      case TileType.SPACE:
+        return '#0a0a1a'; // Deep space dark blue
+      case TileType.CORRIDOR:
+        return '#2a2a3a'; // Dark gray corridor
+      case TileType.MAIN_CORRIDOR:
+        return '#1a1a2a'; // Darker main corridor
       case TileType.HIGHWAY:
-        return '#1C1C1C'; // Very dark gray (highways)
-      case TileType.RESIDENTIAL:
-        return '#98FB98'; // Pale green (residential zoning)
-      case TileType.COMMERCIAL:
-        return '#87CEFA'; // Light sky blue (commercial zoning)
-      case TileType.INDUSTRIAL:
-        return '#DEB887'; // Burlywood (industrial zoning)
-      case TileType.PARK:
-        return '#006400'; // Dark green
+        return '#0f0f1f'; // Very dark main highway
+      case TileType.LIVING_QUARTERS:
+        return '#2a3a4a'; // Blue-gray quarters
+      case TileType.RESEARCH_LAB:
+        return '#3a2a4a'; // Purple-gray research
+      case TileType.ENGINEERING_BAY:
+        return '#4a3a2a'; // Orange-gray engineering
+      case TileType.RECREATION:
+        return '#2a4a3a'; // Green-gray recreation
       case TileType.POWER_LINE:
-        return '#FFFF00'; // Bright yellow
+        return '#ffaa00'; // Bright orange power
       case TileType.WATER:
-        return '#1E90FF'; // Dodger blue
+        return '#1a3a5a'; // Deep blue water
       default:
-        return '#ffffff';
+        return '#0a0a1a'; // Default to space
     }
   };
 
-  const drawGrassTexture = (ctx: CanvasRenderingContext2D, x: number, y: number, size: number) => {
-    // Base grass color
-    ctx.fillStyle = '#228B22';
+  const drawSpaceTexture = (ctx: CanvasRenderingContext2D, x: number, y: number, size: number) => {
+    // Base space color
+    ctx.fillStyle = '#0a0a1a';
     ctx.fillRect(x, y, size, size);
     
-    // Add consistent grass texture pattern
-    ctx.fillStyle = '#32CD32';
-    // Light grass spots in a pattern
-    for (let gx = 0; gx < size; gx += 4) {
-      for (let gy = 0; gy < size; gy += 4) {
-        if ((gx + gy) % 8 === 0) {
-          ctx.fillRect(x + gx, y + gy, 1, 1);
+    // Add star field pattern
+    ctx.fillStyle = '#ffffff';
+    // Bright stars
+    for (let sx = 0; sx < size; sx += 6) {
+      for (let sy = 0; sy < size; sy += 6) {
+        if ((sx + sy) % 12 === 0) {
+          ctx.fillRect(x + sx, y + sy, 1, 1);
         }
       }
     }
     
-    // Darker grass spots
-    ctx.fillStyle = '#006400';
-    for (let gx = 2; gx < size; gx += 8) {
-      for (let gy = 2; gy < size; gy += 8) {
-        ctx.fillRect(x + gx, y + gy, 2, 2);
+    // Dimmer stars
+    ctx.fillStyle = '#666666';
+    for (let sx = 3; sx < size; sx += 8) {
+      for (let sy = 3; sy < size; sy += 8) {
+        if ((sx + sy) % 16 === 0) {
+          ctx.fillRect(x + sx, y + sy, 1, 1);
+        }
       }
     }
   };
 
-  const isRoadType = (type: TileType | undefined): boolean => {
-    return type === TileType.ROAD || type === TileType.MAIN_ROAD || type === TileType.HIGHWAY;
+  const isCorridorType = (type: TileType | undefined): boolean => {
+    return type === TileType.CORRIDOR || type === TileType.MAIN_CORRIDOR || type === TileType.HIGHWAY;
+  };
+
+  const drawCrewmate = (ctx: CanvasRenderingContext2D, crewmate: Crewmate, x: number, y: number, tileSize: number) => {
+    const centerX = x + tileSize / 2;
+    const centerY = y + tileSize / 2;
+    const size = tileSize * 0.6;
+    
+    // Crewmate body (oval shape like Among Us)
+    ctx.fillStyle = crewmate.color;
+    ctx.beginPath();
+    ctx.ellipse(centerX, centerY + size * 0.1, size * 0.4, size * 0.5, 0, 0, 2 * Math.PI);
+    ctx.fill();
+    
+    // Crewmate backpack
+    ctx.fillStyle = crewmate.color;
+    ctx.beginPath();
+    ctx.ellipse(centerX, centerY + size * 0.3, size * 0.15, size * 0.25, 0, 0, 2 * Math.PI);
+    ctx.fill();
+    
+    // Crewmate visor (white)
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.ellipse(centerX, centerY - size * 0.1, size * 0.3, size * 0.2, 0, 0, 2 * Math.PI);
+    ctx.fill();
+    
+    // Visor reflection
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.beginPath();
+    ctx.ellipse(centerX - size * 0.05, centerY - size * 0.15, size * 0.1, size * 0.05, 0, 0, 2 * Math.PI);
+    ctx.fill();
+    
+    // Activity indicator
+    if (crewmate.activity !== CrewmateActivity.WALKING) {
+      const indicatorColor = getActivityColor(crewmate.activity);
+      ctx.fillStyle = indicatorColor;
+      ctx.beginPath();
+      ctx.arc(centerX + size * 0.3, centerY - size * 0.2, size * 0.08, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+    
+    // Walking animation - slight bounce
+    if (crewmate.activity === CrewmateActivity.WALKING) {
+      const bounce = Math.sin(crewmate.animationFrame * 0.5) * 2;
+      ctx.translate(0, bounce);
+    }
+  };
+
+  const getActivityColor = (activity: CrewmateActivity): string => {
+    switch (activity) {
+      case CrewmateActivity.WORKING:
+        return '#ffaa00';
+      case CrewmateActivity.RESTING:
+        return '#00ff88';
+      case CrewmateActivity.EATING:
+        return '#ff6b6b';
+      case CrewmateActivity.RESEARCHING:
+        return '#aa88ff';
+      case CrewmateActivity.MAINTAINING:
+        return '#ff8800';
+      default:
+        return '#ffffff';
+    }
   };
 
   const drawRoadTile = (ctx: CanvasRenderingContext2D, x: number, y: number, size: number, state: GameState, tileX: number, tileY: number, roadType: TileType) => {
@@ -194,9 +269,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     let lineColor = '#FFFF00';
     let edgeColor = '#606060';
     
-    if (roadType === TileType.MAIN_ROAD) {
+    if (roadType === TileType.MAIN_CORRIDOR) {
       baseColor = '#2F2F2F';
-      lineColor = '#FFFFFF'; // White lines for main roads
+      lineColor = '#FFFFFF'; // White lines for main corridors
       edgeColor = '#505050';
     } else if (roadType === TileType.HIGHWAY) {
       baseColor = '#1C1C1C';
@@ -208,10 +283,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     ctx.fillRect(x, y, size, size);
     
     // Check adjacent tiles for road connections
-    const hasRoadNorth = isRoadType(state.mapData.get(`${tileX},${tileY - 1}`)?.type);
-    const hasRoadSouth = isRoadType(state.mapData.get(`${tileX},${tileY + 1}`)?.type);
-    const hasRoadEast = isRoadType(state.mapData.get(`${tileX + 1},${tileY}`)?.type);
-    const hasRoadWest = isRoadType(state.mapData.get(`${tileX - 1},${tileY}`)?.type);
+    const hasRoadNorth = isCorridorType(state.mapData.get(`${tileX},${tileY - 1}`)?.type);
+    const hasRoadSouth = isCorridorType(state.mapData.get(`${tileX},${tileY + 1}`)?.type);
+    const hasRoadEast = isCorridorType(state.mapData.get(`${tileX + 1},${tileY}`)?.type);
+    const hasRoadWest = isCorridorType(state.mapData.get(`${tileX - 1},${tileY}`)?.type);
     
     // Draw road markings based on type
     if (roadType === TileType.HIGHWAY) {
@@ -236,8 +311,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       if (!hasRoadEast) ctx.fillRect(x + size - 3, y, 3, size);
       if (!hasRoadWest) ctx.fillRect(x, y, 3, size);
       
-    } else if (roadType === TileType.MAIN_ROAD) {
-      // Main road with center divider
+    } else if (roadType === TileType.MAIN_CORRIDOR) {
+      // Main corridor with center divider
       ctx.fillStyle = lineColor;
       
       if (hasRoadNorth || hasRoadSouth) {
@@ -288,7 +363,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     
     // Find all road tiles
     state.mapData.forEach((tile) => {
-      if (isRoadType(tile.type)) {
+      if (isCorridorType(tile.type)) {
         roadTiles.push(tile);
       }
     });
@@ -385,8 +460,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     const ctx = ctxRef.current;
     const canvas = canvasRef.current;
 
-    // Clear canvas
-    ctx.fillStyle = '#2a2a2a';
+    // Clear canvas with space background
+    ctx.fillStyle = '#0a0a1a';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // Save context for transformations
@@ -407,12 +482,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
         const x = tileX * state.tileSize;
         const y = tileY * state.tileSize;
         
-        // If no tile exists at this position, render grass
+        // If no tile exists at this position, render space
         if (!state.mapData.has(`${tileX},${tileY}`)) {
-          drawGrassTexture(ctx, x, y, state.tileSize);
+          drawSpaceTexture(ctx, x, y, state.tileSize);
           
           // Add subtle tile border
-          ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
           ctx.lineWidth = 1;
           ctx.strokeRect(x, y, state.tileSize, state.tileSize);
         }
@@ -431,9 +506,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       const y = tile.y * state.tileSize;
 
       // Special rendering for different tile types
-      if (tile.type === TileType.GRASS) {
-        drawGrassTexture(ctx, x, y, state.tileSize);
-      } else if (isRoadType(tile.type)) {
+      if (tile.type === TileType.SPACE) {
+        drawSpaceTexture(ctx, x, y, state.tileSize);
+      } else if (isCorridorType(tile.type)) {
         drawRoadTile(ctx, x, y, state.tileSize, state, tile.x, tile.y, tile.type);
       } else {
         // Fill zoning background color for districts
@@ -441,178 +516,177 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
         ctx.fillRect(x, y, state.tileSize, state.tileSize);
         
         // Add subtle zoning pattern
-        if (tile.type === TileType.RESIDENTIAL) {
-          ctx.fillStyle = 'rgba(152, 251, 152, 0.3)'; // Semi-transparent green overlay
+        if (tile.type === TileType.LIVING_QUARTERS) {
+          ctx.fillStyle = 'rgba(100, 150, 200, 0.3)'; // Semi-transparent blue overlay
           ctx.fillRect(x, y, state.tileSize, state.tileSize);
-        } else if (tile.type === TileType.COMMERCIAL) {
-          ctx.fillStyle = 'rgba(135, 206, 250, 0.3)'; // Semi-transparent blue overlay
+        } else if (tile.type === TileType.RESEARCH_LAB) {
+          ctx.fillStyle = 'rgba(150, 100, 200, 0.3)'; // Semi-transparent purple overlay
           ctx.fillRect(x, y, state.tileSize, state.tileSize);
-        } else if (tile.type === TileType.INDUSTRIAL) {
-          ctx.fillStyle = 'rgba(222, 184, 135, 0.3)'; // Semi-transparent brown overlay
+        } else if (tile.type === TileType.ENGINEERING_BAY) {
+          ctx.fillStyle = 'rgba(200, 150, 100, 0.3)'; // Semi-transparent orange overlay
+          ctx.fillRect(x, y, state.tileSize, state.tileSize);
+        } else if (tile.type === TileType.RECREATION) {
+          ctx.fillStyle = 'rgba(100, 200, 150, 0.3)'; // Semi-transparent green overlay
           ctx.fillRect(x, y, state.tileSize, state.tileSize);
         }
 
         // Add building sprites
-        if (tile.type === TileType.RESIDENTIAL) {
-          // Create variety in residential buildings based on position
-          const buildingType = (tile.x + tile.y) % 4;
+        if (tile.type === TileType.LIVING_QUARTERS) {
+          // Create variety in living quarters based on position
+          const moduleType = (tile.x + tile.y) % 4;
           
-          if (buildingType === 0) {
-            // Single-family house
-            ctx.fillStyle = '#654321'; // Brown shadow
-            ctx.fillRect(x + 7, y + 17, 18, 12);
+          if (moduleType === 0) {
+            // Crew quarters module
+            ctx.fillStyle = '#2a3a4a'; // Module shadow
+            ctx.fillRect(x + 6, y + 16, 20, 12);
             
-            ctx.fillStyle = '#8B4513'; // House body
-            ctx.fillRect(x + 6, y + 16, 18, 12);
+            ctx.fillStyle = '#3a4a5a'; // Module body
+            ctx.fillRect(x + 5, y + 15, 20, 12);
             
-            ctx.fillStyle = '#A0522D'; // Roof
-            ctx.fillRect(x + 4, y + 12, 22, 6);
-            ctx.fillRect(x + 6, y + 10, 18, 4);
-            ctx.fillRect(x + 8, y + 8, 14, 4);
+            ctx.fillStyle = '#4a5a6a'; // Module top
+            ctx.fillRect(x + 4, y + 12, 22, 4);
             
-            ctx.fillStyle = '#8B0000'; // Roof color
-            ctx.fillRect(x + 4, y + 12, 22, 2);
-            ctx.fillRect(x + 6, y + 10, 18, 2);
-            ctx.fillRect(x + 8, y + 8, 14, 2);
+            // Glowing windows
+            ctx.fillStyle = '#ffd700'; // Golden windows
+            ctx.fillRect(x + 8, y + 18, 3, 3);
+            ctx.fillRect(x + 13, y + 18, 3, 3);
+            ctx.fillRect(x + 18, y + 18, 3, 3);
             
-            ctx.fillStyle = '#4169E1'; // Door
-            ctx.fillRect(x + 14, y + 20, 4, 8);
+            // Door
+            ctx.fillStyle = '#6a7a8a'; // Door
+            ctx.fillRect(x + 14, y + 21, 4, 6);
             
-            ctx.fillStyle = '#87CEEB'; // Windows
-            ctx.fillRect(x + 9, y + 19, 3, 3);
-            ctx.fillRect(x + 20, y + 19, 3, 3);
+          } else if (moduleType === 1) {
+            // Family quarters module
+            ctx.fillStyle = '#2a3a4a'; // Shadow
+            ctx.fillRect(x + 4, y + 8, 24, 20);
             
-          } else if (buildingType === 1) {
-            // Apartment building
-            ctx.fillStyle = '#555555'; // Shadow
-            ctx.fillRect(x + 5, y + 9, 22, 20);
+            ctx.fillStyle = '#3a4a5a'; // Module body
+            ctx.fillRect(x + 3, y + 7, 24, 20);
             
-            ctx.fillStyle = '#CD853F'; // Building body (tan)
-            ctx.fillRect(x + 4, y + 8, 22, 20);
-            
-            ctx.fillStyle = '#8B4513'; // Roof
-            ctx.fillRect(x + 3, y + 6, 24, 4);
+            ctx.fillStyle = '#4a5a6a'; // Module top
+            ctx.fillRect(x + 2, y + 5, 26, 4);
             
             // Multiple windows pattern
-            ctx.fillStyle = '#87CEEB'; // Windows
+            ctx.fillStyle = '#ffd700'; // Golden windows
             for (let wx = 0; wx < 4; wx++) {
               for (let wy = 0; wy < 3; wy++) {
-                ctx.fillRect(x + 6 + wx * 4, y + 12 + wy * 4, 2, 2);
+                ctx.fillRect(x + 5 + wx * 4, y + 11 + wy * 4, 2, 2);
               }
             }
             
-            ctx.fillStyle = '#654321'; // Door
-            ctx.fillRect(x + 14, y + 22, 4, 6);
+            ctx.fillStyle = '#6a7a8a'; // Door
+            ctx.fillRect(x + 13, y + 21, 4, 6);
             
-          } else if (buildingType === 2) {
-            // Townhouse
-            ctx.fillStyle = '#444444'; // Shadow
-            ctx.fillRect(x + 3, y + 15, 26, 14);
+          } else if (moduleType === 2) {
+            // Luxury quarters module
+            ctx.fillStyle = '#2a3a4a'; // Shadow
+            ctx.fillRect(x + 2, y + 14, 28, 14);
             
-            ctx.fillStyle = '#DC143C'; // Red brick
-            ctx.fillRect(x + 2, y + 14, 26, 14);
+            ctx.fillStyle = '#4a5a6a'; // Module body
+            ctx.fillRect(x + 1, y + 13, 28, 14);
             
-            ctx.fillStyle = '#2F4F4F'; // Dark roof
-            ctx.fillRect(x + 1, y + 10, 28, 6);
+            ctx.fillStyle = '#5a6a7a'; // Module top
+            ctx.fillRect(x + 0, y + 9, 30, 6);
             
-            // Townhouse windows
-            ctx.fillStyle = '#FFFF00'; // Lit windows
-            ctx.fillRect(x + 6, y + 18, 3, 3);
-            ctx.fillRect(x + 12, y + 18, 3, 3);
-            ctx.fillRect(x + 18, y + 18, 3, 3);
-            ctx.fillRect(x + 24, y + 18, 3, 3);
+            // Large luxury windows
+            ctx.fillStyle = '#ffd700'; // Golden windows
+            ctx.fillRect(x + 5, y + 17, 4, 4);
+            ctx.fillRect(x + 11, y + 17, 4, 4);
+            ctx.fillRect(x + 17, y + 17, 4, 4);
+            ctx.fillRect(x + 23, y + 17, 4, 4);
             
-            ctx.fillStyle = '#8B4513'; // Door
-            ctx.fillRect(x + 14, y + 22, 4, 6);
+            ctx.fillStyle = '#6a7a8a'; // Door
+            ctx.fillRect(x + 13, y + 21, 4, 6);
             
           } else {
-            // Modern house
-            ctx.fillStyle = '#666666'; // Shadow
-            ctx.fillRect(x + 4, y + 13, 24, 16);
+            // Compact quarters module
+            ctx.fillStyle = '#2a3a4a'; // Shadow
+            ctx.fillRect(x + 3, y + 12, 26, 16);
             
-            ctx.fillStyle = '#F5F5DC'; // Beige modern
-            ctx.fillRect(x + 3, y + 12, 24, 16);
+            ctx.fillStyle = '#3a4a5a'; // Module body
+            ctx.fillRect(x + 2, y + 11, 26, 16);
             
-            ctx.fillStyle = '#696969'; // Flat roof
-            ctx.fillRect(x + 2, y + 10, 26, 4);
+            ctx.fillStyle = '#4a5a6a'; // Module top
+            ctx.fillRect(x + 1, y + 9, 28, 4);
             
-            // Large modern windows
-            ctx.fillStyle = '#4169E1'; // Blue tinted windows
-            ctx.fillRect(x + 6, y + 16, 6, 6);
-            ctx.fillRect(x + 18, y + 16, 6, 6);
+            // Compact windows
+            ctx.fillStyle = '#ffd700'; // Golden windows
+            ctx.fillRect(x + 5, y + 15, 6, 6);
+            ctx.fillRect(x + 19, y + 15, 6, 6);
             
-            ctx.fillStyle = '#2F4F4F'; // Modern door
-            ctx.fillRect(x + 14, y + 22, 4, 6);
+            ctx.fillStyle = '#6a7a8a'; // Door
+            ctx.fillRect(x + 13, y + 21, 4, 6);
           }
           
-        } else if (tile.type === TileType.COMMERCIAL) {
-          // Create variety in commercial buildings
-          const buildingType = (tile.x * 3 + tile.y * 2) % 3;
+        } else if (tile.type === TileType.RESEARCH_LAB) {
+          // Create variety in research lab modules
+          const labType = (tile.x * 3 + tile.y * 2) % 3;
           
-          if (buildingType === 0) {
-            // Office tower
-            ctx.fillStyle = '#555555'; // Shadow
-            ctx.fillRect(x + 3, y + 7, 26, 22);
+          if (labType === 0) {
+            // Main research tower
+            ctx.fillStyle = '#3a2a4a'; // Shadow
+            ctx.fillRect(x + 2, y + 6, 28, 22);
             
-            ctx.fillStyle = '#708090'; // Building body
-            ctx.fillRect(x + 2, y + 6, 26, 22);
+            ctx.fillStyle = '#4a3a5a'; // Module body
+            ctx.fillRect(x + 1, y + 5, 28, 22);
             
-            ctx.fillStyle = '#2F4F4F'; // Building top
-            ctx.fillRect(x + 2, y + 6, 26, 4);
+            ctx.fillStyle = '#5a4a6a'; // Module top
+            ctx.fillRect(x + 1, y + 5, 28, 4);
             
-            // Regular office windows
-            ctx.fillStyle = '#FFFF00'; // Lit windows
+            // Research lab windows with purple glow
+            ctx.fillStyle = '#aa88ff'; // Purple lit windows
             for (let wx = 0; wx < 5; wx++) {
               for (let wy = 0; wy < 4; wy++) {
                 if ((wx + wy) % 2 === 0) { // Checkerboard pattern
-                  ctx.fillRect(x + 4 + wx * 4, y + 12 + wy * 3, 2, 2);
+                  ctx.fillRect(x + 3 + wx * 4, y + 9 + wy * 4, 2, 2);
                 }
               }
             }
             
-          } else if (buildingType === 1) {
-            // Shopping center
-            ctx.fillStyle = '#666666'; // Shadow
-            ctx.fillRect(x + 2, y + 17, 28, 12);
+          } else if (labType === 1) {
+            // Laboratory complex
+            ctx.fillStyle = '#3a2a4a'; // Shadow
+            ctx.fillRect(x + 1, y + 16, 30, 12);
             
-            ctx.fillStyle = '#B8860B'; // Golden building
-            ctx.fillRect(x + 1, y + 16, 28, 12);
+            ctx.fillStyle = '#4a3a5a'; // Module body
+            ctx.fillRect(x + 0, y + 15, 30, 12);
             
-            ctx.fillStyle = '#8B4513'; // Brown roof
-            ctx.fillRect(x + 0, y + 14, 30, 4);
+            ctx.fillStyle = '#5a4a6a'; // Module top
+            ctx.fillRect(x + 0, y + 13, 30, 4);
             
-            // Store front windows
-            ctx.fillStyle = '#87CEEB'; // Large store windows
-            ctx.fillRect(x + 3, y + 20, 8, 6);
-            ctx.fillRect(x + 13, y + 20, 8, 6);
-            ctx.fillRect(x + 23, y + 20, 6, 6);
+            // Lab equipment windows
+            ctx.fillStyle = '#aa88ff'; // Purple lab windows
+            ctx.fillRect(x + 2, y + 19, 8, 6);
+            ctx.fillRect(x + 12, y + 19, 8, 6);
+            ctx.fillRect(x + 22, y + 19, 6, 6);
             
-            // Store signs
-            ctx.fillStyle = '#FF0000'; // Red signage
-            ctx.fillRect(x + 4, y + 18, 6, 2);
-            ctx.fillRect(x + 14, y + 18, 6, 2);
+            // Lab equipment indicators
+            ctx.fillStyle = '#ff88aa'; // Pink equipment lights
+            ctx.fillRect(x + 3, y + 17, 6, 2);
+            ctx.fillRect(x + 13, y + 17, 6, 2);
             
           } else {
-            // Modern glass building
-            ctx.fillStyle = '#444444'; // Shadow
-            ctx.fillRect(x + 4, y + 5, 24, 24);
+            // Advanced research module
+            ctx.fillStyle = '#3a2a4a'; // Shadow
+            ctx.fillRect(x + 3, y + 4, 26, 24);
             
-            ctx.fillStyle = '#4682B4'; // Steel blue
-            ctx.fillRect(x + 3, y + 4, 24, 24);
+            ctx.fillStyle = '#4a3a5a'; // Module body
+            ctx.fillRect(x + 2, y + 3, 26, 24);
             
-            ctx.fillStyle = '#2F4F4F'; // Dark top
-            ctx.fillRect(x + 3, y + 4, 24, 3);
+            ctx.fillStyle = '#5a4a6a'; // Module top
+            ctx.fillRect(x + 2, y + 3, 26, 3);
             
-            // Glass curtain wall effect
-            ctx.fillStyle = '#87CEEB'; // Light blue glass
+            // Advanced lab equipment
+            ctx.fillStyle = '#aa88ff'; // Purple equipment
             for (let gx = 0; gx < 6; gx++) {
               for (let gy = 0; gy < 6; gy++) {
-                ctx.fillRect(x + 5 + gx * 3, y + 8 + gy * 3, 2, 2);
+                ctx.fillRect(x + 4 + gx * 3, y + 7 + gy * 3, 2, 2);
               }
             }
           }
           
-        } else if (tile.type === TileType.INDUSTRIAL) {
+        } else if (tile.type === TileType.ENGINEERING_BAY) {
           // Create variety in industrial buildings
           const buildingType = (tile.x * 2 + tile.y) % 3;
           
@@ -693,7 +767,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
             }
           }
           
-        } else if (tile.type === TileType.PARK) {
+        } else if (tile.type === TileType.RECREATION) {
           // Create variety in park designs
           const parkType = (tile.x + tile.y * 2) % 4;
           
@@ -818,7 +892,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       }
 
       // Add enhanced 3D tile borders and depth
-      if (tile.type === TileType.RESIDENTIAL || tile.type === TileType.COMMERCIAL || tile.type === TileType.INDUSTRIAL) {
+      if (tile.type === TileType.LIVING_QUARTERS || tile.type === TileType.RESEARCH_LAB || tile.type === TileType.ENGINEERING_BAY) {
         // 3D building effect - highlight top and left edges
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
         ctx.lineWidth = 1;
@@ -883,6 +957,21 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     ctx.fillStyle = '#000000';
     ctx.fillRect(playerX + 8, playerY + 22, 3, 2);
     ctx.fillRect(playerX + 13, playerY + 22, 3, 2);
+
+    // Draw crewmates
+    state.crewmates.forEach((crewmate) => {
+      const screenX = (crewmate.x * state.tileSize) - state.cameraPosition.x;
+      const screenY = (crewmate.y * state.tileSize) - state.cameraPosition.y;
+      
+      // Only render crewmates in viewport
+      if (screenX > -state.tileSize && screenX < window.innerWidth + state.tileSize && 
+          screenY > -state.tileSize && screenY < window.innerHeight + state.tileSize) {
+        
+        ctx.save();
+        drawCrewmate(ctx, crewmate, screenX, screenY, state.tileSize);
+        ctx.restore();
+      }
+    });
 
     // Draw traffic elements
     drawTraffic(ctx, state);

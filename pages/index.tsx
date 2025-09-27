@@ -10,71 +10,66 @@ export default function Home() {
   }, [router]);
 
   return (
-    <div className="h-screen bg-gray-300 overflow-hidden relative">
-      {/* Enhanced Background - City Skyline Pattern */}
+    <div className="h-screen amongus-grid overflow-hidden relative">
+      {/* Among Us Style Background */}
       <div className="absolute inset-0">
-        {/* Base Grid */}
-        <div className="grid grid-cols-32 grid-rows-32 h-full w-full opacity-30">
-          {Array.from({ length: 32 * 32 }).map((_, i) => {
-            const x = i % 32;
-            const y = Math.floor(i / 32);
-            const isGrass = Math.random() > 0.6;
-            const isRoad = Math.random() > 0.9 && (x === 0 || x === 31 || y === 0 || y === 31);
-            return (
-              <div
-                key={i}
-                className={`border border-gray-400 ${
-                  isRoad ? 'bg-gray-600' : isGrass ? 'bg-green-400' : 'bg-gray-200'
-                }`}
-                style={{ width: '32px', height: '32px' }}
-              />
-            );
-          })}
+        {/* Space Station Buildings */}
+        <div className="absolute top-20 left-20 w-40 h-32 amongus-building rounded-lg">
+          <div className="w-full h-full bg-gradient-to-b from-gray-600 to-gray-700 rounded-lg"></div>
+          <div className="absolute top-2 left-2 w-3 h-3 amongus-window rounded-sm"></div>
+          <div className="absolute top-2 right-2 w-3 h-3 amongus-window rounded-sm"></div>
+          <div className="absolute bottom-2 left-2 w-3 h-3 amongus-window rounded-sm"></div>
+          <div className="absolute bottom-2 right-2 w-3 h-3 amongus-window rounded-sm"></div>
         </div>
         
-        {/* Decorative Buildings */}
-        <div className="absolute top-10 left-10 w-32 h-20 bg-gray-600 border-2 border-gray-800">
-          <div className="w-full h-full bg-gray-500 border-b-2 border-gray-700"></div>
-          <div className="absolute top-1 left-1 w-2 h-2 bg-yellow-300"></div>
-          <div className="absolute top-1 right-1 w-2 h-2 bg-yellow-300"></div>
+        <div className="absolute top-32 right-24 w-32 h-24 amongus-building rounded-lg">
+          <div className="w-full h-full bg-gradient-to-b from-gray-600 to-gray-700 rounded-lg"></div>
+          <div className="absolute top-2 left-2 w-3 h-3 amongus-window rounded-sm"></div>
+          <div className="absolute top-2 right-2 w-3 h-3 amongus-window rounded-sm"></div>
         </div>
         
-        <div className="absolute top-16 right-16 w-24 h-16 bg-gray-600 border-2 border-gray-800">
-          <div className="w-full h-full bg-gray-500 border-b-2 border-gray-700"></div>
-          <div className="absolute top-1 left-1 w-2 h-2 bg-yellow-300"></div>
+        <div className="absolute bottom-32 left-32 w-36 h-28 amongus-building rounded-lg">
+          <div className="w-full h-full bg-gradient-to-b from-gray-600 to-gray-700 rounded-lg"></div>
+          <div className="absolute top-2 left-2 w-3 h-3 amongus-window rounded-sm"></div>
+          <div className="absolute top-2 right-2 w-3 h-3 amongus-window rounded-sm"></div>
+          <div className="absolute bottom-2 left-2 w-3 h-3 amongus-window rounded-sm"></div>
         </div>
         
-        <div className="absolute bottom-20 left-20 w-28 h-24 bg-gray-600 border-2 border-gray-800">
-          <div className="w-full h-full bg-gray-500 border-b-2 border-gray-700"></div>
-          <div className="absolute top-1 left-1 w-2 h-2 bg-yellow-300"></div>
-          <div className="absolute top-1 right-1 w-2 h-2 bg-yellow-300"></div>
-          <div className="absolute bottom-1 left-1 w-2 h-2 bg-yellow-300"></div>
+        <div className="absolute bottom-24 right-16 w-28 h-20 amongus-building rounded-lg">
+          <div className="w-full h-full bg-gradient-to-b from-gray-600 to-gray-700 rounded-lg"></div>
+          <div className="absolute top-2 left-2 w-3 h-3 amongus-window rounded-sm"></div>
         </div>
-        
-        <div className="absolute bottom-16 right-10 w-20 h-18 bg-gray-600 border-2 border-gray-800">
-          <div className="w-full h-full bg-gray-500 border-b-2 border-gray-700"></div>
-          <div className="absolute top-1 left-1 w-2 h-2 bg-yellow-300"></div>
-        </div>
+
+        {/* Floating particles */}
+        <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-blue-400 rounded-full opacity-60 animate-pulse"></div>
+        <div className="absolute top-1/3 right-1/3 w-1 h-1 bg-cyan-300 rounded-full opacity-80 animate-pulse"></div>
+        <div className="absolute bottom-1/3 left-1/3 w-1.5 h-1.5 bg-blue-300 rounded-full opacity-70 animate-pulse"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-2 h-2 bg-cyan-400 rounded-full opacity-50 animate-pulse"></div>
       </div>
 
       {/* Main Content */}
       <div className="relative z-10 flex items-center justify-center h-full p-4">
-        <div className="simcity-panel p-8 max-w-md w-full">
-          <div className="text-center mb-6">
-            <div className="flex items-center justify-center mb-4">
-              <div className="w-12 h-12 bg-blue-600 border-2 border-gray-800 mr-3 flex items-center justify-center">
-                <div className="w-8 h-8 bg-yellow-300 border border-gray-800"></div>
+        <div className="amongus-panel p-8 max-w-lg w-full">
+          <div className="text-center mb-8">
+            <div className="flex items-center justify-center mb-6">
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full mr-4 flex items-center justify-center shadow-lg">
+                <div className="w-12 h-12 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
+                  <div className="w-8 h-8 bg-white rounded-full"></div>
+                </div>
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-black mb-1">AGENTVERSE</h1>
-                <p className="text-sm text-gray-700">CITY BUILDER</p>
+                <h1 className="text-4xl font-bold text-white mb-2 tracking-wider">AGENTVERSE</h1>
+                <p className="text-lg text-blue-300 font-semibold">SPACE STATION BUILDER</p>
               </div>
             </div>
           </div>
 
           <div className="text-center">
-            <div className="text-lg font-bold text-black mb-2">LOADING...</div>
-            <div className="text-sm text-gray-600">Redirecting to authentication</div>
+            <div className="text-xl font-bold text-white mb-3">INITIALIZING...</div>
+            <div className="text-blue-300 mb-4">Connecting to authentication system</div>
+            <div className="flex justify-center">
+              <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            </div>
           </div>
         </div>
       </div>

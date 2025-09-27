@@ -17,51 +17,47 @@ export default function Auth() {
   };
 
   return (
-    <div className="h-screen bg-gray-300 overflow-hidden relative">
-      {/* Enhanced Background - City Skyline Pattern */}
+    <div className="h-screen amongus-grid overflow-hidden relative">
+      {/* Among Us Style Background */}
       <div className="absolute inset-0">
-        {/* Base Grid */}
-        <div className="grid grid-cols-32 grid-rows-32 h-full w-full opacity-30">
-          {Array.from({ length: 32 * 32 }).map((_, i) => {
-            const x = i % 32;
-            const y = Math.floor(i / 32);
-            const isGrass = Math.random() > 0.6;
-            const isRoad = Math.random() > 0.9 && (x === 0 || x === 31 || y === 0 || y === 31);
-            return (
-              <div
-                key={i}
-                className={`border border-gray-400 ${
-                  isRoad ? 'bg-gray-600' : isGrass ? 'bg-green-400' : 'bg-gray-200'
-                }`}
-                style={{ width: '32px', height: '32px' }}
-              />
-            );
-          })}
+        {/* Space Station Buildings */}
+        <div className="absolute top-16 left-16 w-48 h-36 amongus-building rounded-lg">
+          <div className="w-full h-full bg-gradient-to-b from-gray-600 to-gray-700 rounded-lg"></div>
+          <div className="absolute top-3 left-3 w-4 h-4 amongus-window rounded-sm"></div>
+          <div className="absolute top-3 right-3 w-4 h-4 amongus-window rounded-sm"></div>
+          <div className="absolute bottom-3 left-3 w-4 h-4 amongus-window rounded-sm"></div>
+          <div className="absolute bottom-3 right-3 w-4 h-4 amongus-window rounded-sm"></div>
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4 h-4 amongus-window rounded-sm"></div>
         </div>
         
-        {/* Decorative Buildings */}
-        <div className="absolute top-10 left-10 w-32 h-20 bg-gray-600 border-2 border-gray-800">
-          <div className="w-full h-full bg-gray-500 border-b-2 border-gray-700"></div>
-          <div className="absolute top-1 left-1 w-2 h-2 bg-yellow-300"></div>
-          <div className="absolute top-1 right-1 w-2 h-2 bg-yellow-300"></div>
+        <div className="absolute top-24 right-20 w-40 h-28 amongus-building rounded-lg">
+          <div className="w-full h-full bg-gradient-to-b from-gray-600 to-gray-700 rounded-lg"></div>
+          <div className="absolute top-3 left-3 w-4 h-4 amongus-window rounded-sm"></div>
+          <div className="absolute top-3 right-3 w-4 h-4 amongus-window rounded-sm"></div>
+          <div className="absolute bottom-3 left-3 w-4 h-4 amongus-window rounded-sm"></div>
         </div>
         
-        <div className="absolute top-16 right-16 w-24 h-16 bg-gray-600 border-2 border-gray-800">
-          <div className="w-full h-full bg-gray-500 border-b-2 border-gray-700"></div>
-          <div className="absolute top-1 left-1 w-2 h-2 bg-yellow-300"></div>
+        <div className="absolute bottom-24 left-24 w-44 h-32 amongus-building rounded-lg">
+          <div className="w-full h-full bg-gradient-to-b from-gray-600 to-gray-700 rounded-lg"></div>
+          <div className="absolute top-3 left-3 w-4 h-4 amongus-window rounded-sm"></div>
+          <div className="absolute top-3 right-3 w-4 h-4 amongus-window rounded-sm"></div>
+          <div className="absolute bottom-3 left-3 w-4 h-4 amongus-window rounded-sm"></div>
+          <div className="absolute bottom-3 right-3 w-4 h-4 amongus-window rounded-sm"></div>
         </div>
         
-        <div className="absolute bottom-20 left-20 w-28 h-24 bg-gray-600 border-2 border-gray-800">
-          <div className="w-full h-full bg-gray-500 border-b-2 border-gray-700"></div>
-          <div className="absolute top-1 left-1 w-2 h-2 bg-yellow-300"></div>
-          <div className="absolute top-1 right-1 w-2 h-2 bg-yellow-300"></div>
-          <div className="absolute bottom-1 left-1 w-2 h-2 bg-yellow-300"></div>
+        <div className="absolute bottom-20 right-12 w-36 h-24 amongus-building rounded-lg">
+          <div className="w-full h-full bg-gradient-to-b from-gray-600 to-gray-700 rounded-lg"></div>
+          <div className="absolute top-3 left-3 w-4 h-4 amongus-window rounded-sm"></div>
+          <div className="absolute top-3 right-3 w-4 h-4 amongus-window rounded-sm"></div>
         </div>
-        
-        <div className="absolute bottom-16 right-10 w-20 h-18 bg-gray-600 border-2 border-gray-800">
-          <div className="w-full h-full bg-gray-500 border-b-2 border-gray-700"></div>
-          <div className="absolute top-1 left-1 w-2 h-2 bg-yellow-300"></div>
-        </div>
+
+        {/* Floating particles */}
+        <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-blue-400 rounded-full opacity-60 animate-pulse"></div>
+        <div className="absolute top-1/3 right-1/3 w-1 h-1 bg-cyan-300 rounded-full opacity-80 animate-pulse"></div>
+        <div className="absolute bottom-1/3 left-1/3 w-1.5 h-1.5 bg-blue-300 rounded-full opacity-70 animate-pulse"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-2 h-2 bg-cyan-400 rounded-full opacity-50 animate-pulse"></div>
+        <div className="absolute top-1/2 left-1/6 w-1 h-1 bg-purple-400 rounded-full opacity-60 animate-pulse"></div>
+        <div className="absolute bottom-1/2 right-1/6 w-1.5 h-1.5 bg-indigo-400 rounded-full opacity-70 animate-pulse"></div>
       </div>
 
       {/* Main Content */}
@@ -70,133 +66,141 @@ export default function Auth() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
             {/* Left Column - Game Preview */}
-            <div className="space-y-4">
+            <div className="space-y-6">
               {/* Title Panel */}
-              <div className="simcity-panel p-6 text-center">
-                <div className="flex items-center justify-center mb-3">
-                  <div className="w-12 h-12 bg-blue-600 border-2 border-gray-800 mr-3 flex items-center justify-center">
-                    <div className="w-8 h-8 bg-yellow-300 border border-gray-800"></div>
+              <div className="amongus-panel p-6 text-center">
+                <div className="flex items-center justify-center mb-4">
+                  <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full mr-4 flex items-center justify-center shadow-lg">
+                    <div className="w-12 h-12 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
+                      <div className="w-8 h-8 bg-white rounded-full"></div>
+                    </div>
                   </div>
                   <div>
-                    <h1 className="text-3xl font-bold text-black mb-1">AGENTVERSE</h1>
-                    <p className="text-sm text-gray-700">CITY BUILDER</p>
+                    <h1 className="text-4xl font-bold text-white mb-2 tracking-wider">AGENTVERSE</h1>
+                    <p className="text-lg text-blue-300 font-semibold">SPACE STATION BUILDER</p>
                   </div>
                 </div>
-                <div className="text-xs text-gray-600">
-                  BUILD • MANAGE • PROSPER
+                <div className="text-sm text-cyan-300 font-medium">
+                  BUILD • MANAGE • EXPLORE
                 </div>
               </div>
 
               {/* Game Preview Panel */}
-              <div className="simcity-panel p-4">
-                <h3 className="text-sm font-bold text-black mb-3 text-center">GAME PREVIEW</h3>
-                <div className="bg-gray-200 border-2 border-gray-400 p-4">
-                  {/* Mini City Preview */}
+              <div className="amongus-panel p-4">
+                <h3 className="text-lg font-bold text-white mb-4 text-center">STATION PREVIEW</h3>
+                <div className="bg-gray-700 border-2 border-gray-500 rounded-lg p-4">
+                  {/* Mini Station Preview */}
                   <div className="grid grid-cols-8 gap-1 mb-3">
                     {Array.from({ length: 64 }).map((_, i) => {
-                      const colors = ['bg-green-400', 'bg-gray-600', 'bg-blue-400', 'bg-yellow-300', 'bg-gray-200'];
+                      const colors = ['bg-blue-500', 'bg-gray-600', 'bg-purple-500', 'bg-cyan-400', 'bg-gray-700'];
                       const color = colors[Math.floor(Math.random() * colors.length)];
                       return (
-                        <div key={i} className={`w-4 h-4 border border-gray-500 ${color}`}></div>
+                        <div key={i} className={`w-4 h-4 border border-gray-400 rounded-sm ${color}`}></div>
                       );
                     })}
                   </div>
-                  <div className="text-xs text-gray-700 text-center">
-                    REAL-TIME CITY SIMULATION
+                  <div className="text-sm text-cyan-300 text-center font-medium">
+                    REAL-TIME SPACE STATION SIMULATION
                   </div>
                 </div>
               </div>
 
               {/* What You Can Do Panel */}
-              <div className="simcity-panel p-4">
-                <h3 className="text-sm font-bold text-black mb-3 text-center">WHAT YOU CAN DO</h3>
-                <div className="space-y-2 text-xs text-gray-700">
+              <div className="amongus-panel p-4">
+                <h3 className="text-lg font-bold text-white mb-4 text-center">STATION FEATURES</h3>
+                <div className="space-y-3 text-sm text-gray-300">
                   <div className="flex items-center">
-                    <div className="w-3 h-3 bg-green-400 border border-gray-600 mr-2"></div>
-                    <span>• Design residential neighborhoods with houses and apartments</span>
+                    <div className="w-4 h-4 bg-blue-500 border border-gray-400 rounded-sm mr-3"></div>
+                    <span>• Design living quarters and crew accommodations</span>
                   </div>
                   <div className="flex items-center">
-                    <div className="w-3 h-3 bg-blue-400 border border-gray-600 mr-2"></div>
-                    <span>• Build commercial districts with offices and shopping centers</span>
+                    <div className="w-4 h-4 bg-purple-500 border border-gray-400 rounded-sm mr-3"></div>
+                    <span>• Build research labs and scientific facilities</span>
                   </div>
                   <div className="flex items-center">
-                    <div className="w-3 h-3 bg-yellow-300 border border-gray-600 mr-2"></div>
-                    <span>• Create industrial zones with factories and warehouses</span>
+                    <div className="w-4 h-4 bg-cyan-400 border border-gray-400 rounded-sm mr-3"></div>
+                    <span>• Create engineering bays and maintenance areas</span>
                   </div>
                   <div className="flex items-center">
-                    <div className="w-3 h-3 bg-gray-600 border border-gray-600 mr-2"></div>
-                    <span>• Plan road networks and traffic systems</span>
+                    <div className="w-4 h-4 bg-gray-600 border border-gray-400 rounded-sm mr-3"></div>
+                    <span>• Plan corridor networks and transportation systems</span>
                   </div>
                   <div className="flex items-center">
-                    <div className="w-3 h-3 bg-green-600 border border-gray-600 mr-2"></div>
-                    <span>• Add parks, power lines, and utilities</span>
+                    <div className="w-4 h-4 bg-green-500 border border-gray-400 rounded-sm mr-3"></div>
+                    <span>• Add life support systems and power generators</span>
                   </div>
                   <div className="flex items-center">
-                    <div className="w-3 h-3 bg-red-400 border border-gray-600 mr-2"></div>
-                    <span>• Watch your city grow with animated traffic and citizens</span>
+                    <div className="w-4 h-4 bg-red-500 border border-gray-400 rounded-sm mr-3"></div>
+                    <span>• Watch your station grow with crew and automated systems</span>
                   </div>
                 </div>
               </div>
 
               {/* Game Features Panel */}
-              <div className="simcity-panel p-4">
-                <h3 className="text-sm font-bold text-black mb-3 text-center">KEY FEATURES</h3>
-                <div className="grid grid-cols-2 gap-3 text-xs text-gray-700">
+              <div className="amongus-panel p-4">
+                <h3 className="text-lg font-bold text-white mb-4 text-center">KEY FEATURES</h3>
+                <div className="grid grid-cols-2 gap-4 text-sm text-gray-300">
                   <div className="flex items-center">
-                    <div className="w-4 h-4 bg-green-400 border border-gray-600 mr-2"></div>
+                    <div className="w-4 h-4 bg-green-500 border border-gray-400 rounded-sm mr-3"></div>
                     PIXEL PERFECT
                   </div>
                   <div className="flex items-center">
-                    <div className="w-4 h-4 bg-blue-400 border border-gray-600 mr-2"></div>
+                    <div className="w-4 h-4 bg-blue-500 border border-gray-400 rounded-sm mr-3"></div>
                     REAL-TIME SIM
                   </div>
                   <div className="flex items-center">
-                    <div className="w-4 h-4 bg-yellow-300 border border-gray-600 mr-2"></div>
+                    <div className="w-4 h-4 bg-yellow-500 border border-gray-400 rounded-sm mr-3"></div>
                     SAVE/LOAD
                   </div>
                   <div className="flex items-center">
-                    <div className="w-4 h-4 bg-gray-600 border border-gray-600 mr-2"></div>
-                    TRAFFIC AI
+                    <div className="w-4 h-4 bg-purple-500 border border-gray-400 rounded-sm mr-3"></div>
+                    CREW AI
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Right Column - Auth */}
-            <div className="space-y-4">
+            <div className="space-y-6">
               {/* Auth Panel */}
-              <div className="simcity-panel p-6">
-                <h3 className="text-lg font-bold text-black mb-4 text-center">GET STARTED</h3>
+              <div className="amongus-panel p-6">
+                <h3 className="text-2xl font-bold text-white mb-6 text-center">GET STARTED</h3>
                 
                 {!ready ? (
                   <div className="text-center py-8">
-                    <div className="text-sm text-gray-600">Loading...</div>
+                    <div className="text-lg text-blue-300 mb-4">Initializing...</div>
+                    <div className="flex justify-center">
+                      <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    </div>
                   </div>
                 ) : authenticated ? (
                   <div className="text-center py-8">
-                    <div className="text-sm text-green-600 mb-4">Welcome back!</div>
-                    <div className="text-xs text-gray-600 mb-4">
+                    <div className="text-lg text-green-400 mb-4 font-semibold">Welcome back, Crewmate!</div>
+                    <div className="text-sm text-gray-300 mb-6">
                       {user?.email?.address || 'Connected'}
                     </div>
                     <button
                       onClick={logout}
-                      className="w-full simcity-button py-3 px-4 text-sm font-bold text-black hover:bg-yellow-300 focus:outline-none"
+                      className="w-full amongus-button py-3 px-4 text-sm font-bold text-white focus:outline-none"
                     >
-                      SIGN OUT
+                      DISCONNECT
                     </button>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-6">
                     <div className="text-center mb-6">
-                      <div className="text-sm text-gray-700 mb-2">
-                        Connect with your wallet or social account
+                      <div className="text-lg text-blue-300 mb-2 font-medium">
+                        Connect to the Space Station
+                      </div>
+                      <div className="text-sm text-gray-400">
+                        Use your wallet or social account to join
                       </div>
                     </div>
 
                     <button
                       onClick={handleLogin}
                       disabled={isLoading}
-                      className="w-full simcity-button py-3 px-4 text-sm font-bold text-black hover:bg-yellow-300 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full amongus-button py-4 px-6 text-lg font-bold text-white focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isLoading ? 'CONNECTING...' : 'CONNECT WALLET'}
                     </button>
@@ -206,38 +210,38 @@ export default function Auth() {
               </div>
 
               {/* Why Play Panel */}
-              <div className="simcity-panel p-4">
-                <h3 className="text-sm font-bold text-black mb-3 text-center">WHY PLAY AGENTVERSE?</h3>
-                <div className="space-y-2 text-xs text-gray-700">
-                  <div>• Nostalgic SimCity-style gameplay</div>
+              <div className="amongus-panel p-4">
+                <h3 className="text-lg font-bold text-white mb-4 text-center">WHY JOIN AGENTVERSE?</h3>
+                <div className="space-y-3 text-sm text-gray-300">
+                  <div>• Immersive space station building experience</div>
                   <div>• No downloads required - play in browser</div>
-                  <div>• Real-time city simulation with traffic</div>
-                  <div>• Save and share your cities</div>
-                  <div>• Perfect for quick city-building sessions</div>
+                  <div>• Real-time station simulation with crew AI</div>
+                  <div>• Save and share your space stations</div>
+                  <div>• Perfect for quick building sessions</div>
                 </div>
               </div>
 
               {/* Stats Panel */}
-              <div className="simcity-panel p-4">
+              <div className="amongus-panel p-4">
                 <div className="grid grid-cols-3 gap-4 text-center">
                   <div>
-                    <div className="text-lg font-bold text-black">1000+</div>
-                    <div className="text-xs text-gray-600">PLAYERS</div>
+                    <div className="text-xl font-bold text-white">1000+</div>
+                    <div className="text-sm text-blue-300">CREWMATES</div>
                   </div>
                   <div>
-                    <div className="text-lg font-bold text-black">50+</div>
-                    <div className="text-xs text-gray-600">CITIES</div>
+                    <div className="text-xl font-bold text-white">50+</div>
+                    <div className="text-sm text-blue-300">STATIONS</div>
                   </div>
                   <div>
-                    <div className="text-lg font-bold text-black">24/7</div>
-                    <div className="text-xs text-gray-600">ONLINE</div>
+                    <div className="text-xl font-bold text-white">24/7</div>
+                    <div className="text-sm text-blue-300">ONLINE</div>
                   </div>
                 </div>
               </div>
 
               {/* Footer Panel */}
-              <div className="simcity-panel p-3 text-center">
-                <p className="text-xs text-gray-700">© 2024 AGENTVERSE. BUILD YOUR DREAM CITY.</p>
+              <div className="amongus-panel p-3 text-center">
+                <p className="text-sm text-gray-400">© 2024 AGENTVERSE. BUILD YOUR DREAM SPACE STATION.</p>
               </div>
             </div>
           </div>

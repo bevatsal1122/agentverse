@@ -5,45 +5,70 @@
 @layer base {
   body {
     margin: 0;
-    font-family: 'MS Sans Serif', sans-serif;
-    font-size: 11px;
-    background-color: #c0c0c0;
-    color: #000000;
+    font-family: 'Arial', sans-serif;
+    font-size: 14px;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    color: #ffffff;
+    overflow-x: hidden;
   }
 }
 
 @layer components {
-  .simcity-button {
-    @apply border-2 border-solid bg-gray-200 text-black font-bold text-xs px-3 py-1 cursor-pointer;
-    border-color: #ffffff #808080 #808080 #ffffff;
-    box-shadow: inset 1px 1px 0px #dfdfdf, inset -1px -1px 0px #808080;
+  .amongus-button {
+    @apply border-2 border-solid bg-blue-500 text-white font-bold text-sm px-4 py-2 cursor-pointer rounded-lg;
+    border-color: #4a90e2 #2c5aa0 #2c5aa0 #4a90e2;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    background: linear-gradient(145deg, #4a90e2, #357abd);
+    transition: all 0.2s ease;
   }
   
-  .simcity-button:hover {
-    @apply bg-gray-300;
+  .amongus-button:hover {
+    background: linear-gradient(145deg, #5ba0f2, #4a90e2);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    transform: translateY(-1px);
   }
   
-  .simcity-button:active {
-    border-color: #808080 #ffffff #ffffff #808080;
-    box-shadow: inset -1px -1px 0px #dfdfdf, inset 1px 1px 0px #808080;
+  .amongus-button:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
   }
   
-  .simcity-button.selected {
-    border-color: #808080 #ffffff #ffffff #808080;
-    box-shadow: inset -1px -1px 0px #dfdfdf, inset 1px 1px 0px #808080;
-    @apply bg-gray-300;
+  .amongus-button.selected {
+    background: linear-gradient(145deg, #ff6b6b, #ee5a52);
+    border-color: #ff6b6b #cc5555 #cc5555 #ff6b6b;
   }
   
-  .simcity-toolbar {
-    @apply bg-gray-200 border-2 border-solid;
-    border-color: #ffffff #808080 #808080 #ffffff;
-    box-shadow: inset 1px 1px 0px #dfdfdf, inset -1px -1px 0px #808080;
+  .amongus-toolbar {
+    @apply bg-gray-800 border-2 border-solid rounded-lg;
+    border-color: #4a5568 #2d3748 #2d3748 #4a5568;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    background: linear-gradient(145deg, #2d3748, #1a202c);
   }
   
-  .simcity-panel {
-    @apply bg-gray-200 border-2 border-solid;
-    border-color: #808080 #ffffff #ffffff #808080;
-    box-shadow: inset -1px -1px 0px #dfdfdf, inset 1px 1px 0px #808080;
+  .amongus-panel {
+    @apply bg-gray-800 border-2 border-solid rounded-lg;
+    border-color: #4a5568 #2d3748 #2d3748 #4a5568;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+    background: linear-gradient(145deg, #2d3748, #1a202c);
+  }
+
+  .amongus-grid {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    background-image: 
+      linear-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  .amongus-building {
+    background: linear-gradient(145deg, #4a5568, #2d3748);
+    border: 2px solid #718096;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  }
+
+  .amongus-window {
+    background: #ffd700;
+    box-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
   }
 }
 
