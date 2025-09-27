@@ -1,8 +1,17 @@
 import { supabase } from "../lib/supabase";
 import { taskQueueService } from "./taskQueueService";
-import { memoryStorageService, AgentCommunication, AgentAction, AgentMetadata, Task } from "./memoryStorageService";
+import {
+  memoryStorageService,
+  AgentCommunication,
+  AgentAction,
+  AgentMetadata,
+  Task,
+} from "./memoryStorageService";
 import { persistentMemoryStorageService } from "./persistentMemoryStorageService";
-import { getAvailableBuildings, assignAgentToBuilding } from "../../src/maps/defaultMap";
+import {
+  getAvailableBuildings,
+  assignAgentToBuilding,
+} from "../../src/maps/defaultMap";
 import { startupInitializer } from "./startupInitializer";
 
 // Minimal database agent interface (only what's stored in DB)
@@ -11,6 +20,8 @@ interface DbAgent {
   name: string;
   owner_address: string;
   wallet_address?: string;
+  privy_wallet_address?: string;
+  user_id?: string;
   created_at: string;
 }
 
@@ -24,7 +35,7 @@ interface Agent extends DbAgent {
     preferences: Record<string, any>;
   };
   capabilities: string[];
-  status: 'active' | 'inactive' | 'busy' | 'offline';
+  status: "active" | "inactive" | "busy" | "offline";
   current_building_id?: string;
   assigned_building_ids: string[];
   avatar_url?: string;
@@ -57,8 +68,13 @@ export interface TaskCreationData {
   title: string;
   description: string;
   creator_agent_id: string;
-  task_type?: 'communication' | 'building_management' | 'resource_gathering' | 'collaboration' | 'custom';
-  priority?: 'low' | 'medium' | 'high' | 'urgent';
+  task_type?:
+    | "communication"
+    | "building_management"
+    | "resource_gathering"
+    | "collaboration"
+    | "custom";
+  priority?: "low" | "medium" | "high" | "urgent";
   requirements?: any;
   reward_amount?: number;
   reward_token?: string;
@@ -69,14 +85,14 @@ export interface MessageData {
   sender_agent_id: string;
   receiver_agent_id?: string;
   content: string;
-  message_type?: 'direct' | 'broadcast' | 'task_related' | 'system';
+  message_type?: "direct" | "broadcast" | "task_related" | "system";
   metadata?: any;
   task_id?: string;
 }
 
 export class AgentService {
   // ===== AGENT MANAGEMENT =====
-  
+
   async registerAgent(
     agentData: AgentRegistrationData
   ): Promise<{ success: boolean; data?: Agent; error?: string }> {
@@ -106,15 +122,20 @@ export class AgentService {
       // Auto-assign a building to the new agent
       const availableBuildings = getAvailableBuildings();
       let assignedBuildingId: string | null = null;
-      
+
       if (availableBuildings.length > 0) {
         // Prefer living_quarters for new agents, but assign any available building if none
-        const livingQuarters = availableBuildings.filter(b => b.type === 'living_quarters');
-        const buildingToAssign = livingQuarters.length > 0 ? livingQuarters[0] : availableBuildings[0];
-        
+        const livingQuarters = availableBuildings.filter(
+          (b) => b.type === "living_quarters"
+        );
+        const buildingToAssign =
+          livingQuarters.length > 0 ? livingQuarters[0] : availableBuildings[0];
+
         if (assignAgentToBuilding(buildingToAssign.id, dbData.id)) {
           assignedBuildingId = buildingToAssign.id;
-          console.log(`Auto-assigned building ${buildingToAssign.id} (${buildingToAssign.type}) to agent ${dbData.name}`);
+          console.log(
+            `Auto-assigned building ${buildingToAssign.id} (${buildingToAssign.type}) to agent ${dbData.name}`
+          );
         }
       }
 
@@ -124,7 +145,7 @@ export class AgentService {
         description: agentData.description,
         personality: agentData.personality,
         capabilities: agentData.capabilities,
-        status: 'active',
+        status: "active",
         current_building_id: assignedBuildingId || undefined,
         assigned_building_ids: assignedBuildingId ? [assignedBuildingId] : [],
         avatar_url: agentData.avatar_url,
@@ -141,11 +162,13 @@ export class AgentService {
       // Log the registration action in memory
       memoryStorageService.addAction({
         agent_id: dbData.id,
-        action_type: 'custom',
-        action_data: { 
-          type: 'agent_registered',
+        action_type: "custom",
+        action_data: {
+          type: "agent_registered",
           auto_assigned_building: assignedBuildingId,
-          building_type: assignedBuildingId ? availableBuildings.find(b => b.id === assignedBuildingId)?.type : null
+          building_type: assignedBuildingId
+            ? availableBuildings.find((b) => b.id === assignedBuildingId)?.type
+            : null,
         },
         building_id: assignedBuildingId || undefined,
         success: true,
@@ -154,7 +177,7 @@ export class AgentService {
       // Combine DB and memory data for return
       const fullAgent: Agent = {
         ...dbData,
-        ...agentMetadata
+        ...agentMetadata,
       };
 
       return { success: true, data: fullAgent };
@@ -162,7 +185,8 @@ export class AgentService {
       console.error("Error registering agent:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred",
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
   }
@@ -192,14 +216,17 @@ export class AgentService {
       // Combine with persistent memory data
       const fullAgents: Agent[] = [];
       for (const dbAgent of dbAgents || []) {
-        const metadata = await persistentMemoryStorageService.getAgentMetadataAsync(dbAgent.id);
-        
+        const metadata =
+          await persistentMemoryStorageService.getAgentMetadataAsync(
+            dbAgent.id
+          );
+
         // If no metadata in persistent storage, create default
         if (!metadata) {
           const defaultMetadata: AgentMetadata = {
             id: dbAgent.id,
             capabilities: [],
-            status: 'active',
+            status: "active",
             assigned_building_ids: [],
             experience_points: 0,
             level: 1,
@@ -208,7 +235,9 @@ export class AgentService {
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           };
-          await persistentMemoryStorageService.setAgentMetadataAsync(defaultMetadata);
+          await persistentMemoryStorageService.setAgentMetadataAsync(
+            defaultMetadata
+          );
           fullAgents.push({ ...dbAgent, ...defaultMetadata });
         } else {
           fullAgents.push({ ...dbAgent, ...metadata });
@@ -220,7 +249,8 @@ export class AgentService {
       console.error("Error fetching agents:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred",
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
   }
@@ -243,13 +273,13 @@ export class AgentService {
 
       // Get metadata from memory
       const metadata = memoryStorageService.getAgentMetadata(id);
-      
+
       // If no metadata in memory, create default
       if (!metadata) {
         const defaultMetadata: AgentMetadata = {
           id: dbAgent.id,
           capabilities: [],
-          status: 'active',
+          status: "active",
           assigned_building_ids: [],
           experience_points: 0,
           level: 1,
@@ -267,7 +297,8 @@ export class AgentService {
       console.error("Error fetching agent:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred",
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
   }
@@ -291,12 +322,12 @@ export class AgentService {
       // Combine with memory data
       const fullAgents: Agent[] = (dbAgents || []).map((dbAgent: DbAgent) => {
         const metadata = memoryStorageService.getAgentMetadata(dbAgent.id);
-        
+
         if (!metadata) {
           const defaultMetadata: AgentMetadata = {
             id: dbAgent.id,
             capabilities: [],
-            status: 'active',
+            status: "active",
             assigned_building_ids: [],
             experience_points: 0,
             level: 1,
@@ -317,7 +348,8 @@ export class AgentService {
       console.error("Error fetching agents by owner:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred",
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
   }
@@ -333,16 +365,24 @@ export class AgentService {
 
       // Only update database for essential fields
       if (updates.name !== undefined) dbUpdates.name = updates.name;
-      if (updates.wallet_address !== undefined) dbUpdates.wallet_address = updates.wallet_address;
+      if (updates.wallet_address !== undefined)
+        dbUpdates.wallet_address = updates.wallet_address;
 
       // Everything else goes to memory
       const memoryFields = [
-        'description', 'personality', 'capabilities', 'status', 
-        'current_building_id', 'assigned_building_ids', 'avatar_url', 
-        'experience_points', 'level', 'reputation_score'
+        "description",
+        "personality",
+        "capabilities",
+        "status",
+        "current_building_id",
+        "assigned_building_ids",
+        "avatar_url",
+        "experience_points",
+        "level",
+        "reputation_score",
       ] as const;
-      
-      memoryFields.forEach(field => {
+
+      memoryFields.forEach((field) => {
         if (updates[field] !== undefined) {
           (memoryUpdates as any)[field] = updates[field];
         }
@@ -379,7 +419,10 @@ export class AgentService {
       }
 
       // Update memory
-      const updatedMetadata = memoryStorageService.updateAgentMetadata(id, memoryUpdates);
+      const updatedMetadata = memoryStorageService.updateAgentMetadata(
+        id,
+        memoryUpdates
+      );
       if (!updatedMetadata) {
         return { success: false, error: "Agent not found in memory" };
       }
@@ -387,7 +430,7 @@ export class AgentService {
       // Combine for return
       const fullAgent: Agent = {
         ...dbData,
-        ...updatedMetadata
+        ...updatedMetadata,
       };
 
       return { success: true, data: fullAgent };
@@ -395,7 +438,8 @@ export class AgentService {
       console.error("Error updating agent:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred",
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
   }
@@ -418,7 +462,8 @@ export class AgentService {
       console.error("Error deleting agent:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred",
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
   }
@@ -429,48 +474,58 @@ export class AgentService {
   ): Promise<{ success: boolean; error?: string }> {
     try {
       // Validate that the building ID exists and is a valid building (not road/corridor)
-      const { getBuildingById } = await import('../../src/maps/defaultMap');
+      const { getBuildingById } = await import("../../src/maps/defaultMap");
       const building = getBuildingById(buildingId);
-      
+
       if (!building) {
         return { success: false, error: "Building not found" };
       }
 
       // Ensure only actual buildings can be assigned (not roads/corridors/water/space)
-      const validBuildingTypes = ['living_quarters', 'research_lab', 'engineering_bay', 'recreation', 'power_line'];
+      const validBuildingTypes = [
+        "living_quarters",
+        "research_lab",
+        "engineering_bay",
+        "recreation",
+        "power_line",
+      ];
       if (!validBuildingTypes.includes(building.type)) {
-        return { 
-          success: false, 
-          error: `Cannot assign ${building.type} to agent - only buildings are allowed, not roads or corridors` 
+        return {
+          success: false,
+          error: `Cannot assign ${building.type} to agent - only buildings are allowed, not roads or corridors`,
         };
       }
 
       // Check if building is already assigned to another agent
       if (building.assignedAgent && building.assignedAgent !== agentId) {
-        return { 
-          success: false, 
-          error: `Building ${buildingId} is already assigned to another agent` 
+        return {
+          success: false,
+          error: `Building ${buildingId} is already assigned to another agent`,
         };
       }
 
       // Get current agent metadata from persistent storage, create if doesn't exist
-      let metadata = await persistentMemoryStorageService.getAgentMetadataAsync(agentId);
+      let metadata = await persistentMemoryStorageService.getAgentMetadataAsync(
+        agentId
+      );
       if (!metadata) {
         // Create initial metadata for the agent
         const newMetadata = {
           id: agentId,
           assigned_building_ids: [],
           current_building_id: undefined,
-          status: 'active' as const,
+          status: "active" as const,
           experience_points: 0,
           level: 1,
           reputation_score: 0,
           capabilities: [],
           last_active: new Date().toISOString(),
           created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         };
-        metadata = await persistentMemoryStorageService.setAgentMetadataAsync(newMetadata);
+        metadata = await persistentMemoryStorageService.setAgentMetadataAsync(
+          newMetadata
+        );
         if (!metadata) {
           return { success: false, error: "Failed to create agent metadata" };
         }
@@ -480,7 +535,7 @@ export class AgentService {
       const currentBuildings = metadata.assigned_building_ids || [];
       if (!currentBuildings.includes(buildingId)) {
         const updatedBuildings = [...currentBuildings, buildingId];
-        
+
         // Update in persistent storage
         await persistentMemoryStorageService.updateAgentMetadataAsync(agentId, {
           assigned_building_ids: updatedBuildings,
@@ -494,11 +549,14 @@ export class AgentService {
         await persistentMemoryStorageService.addActionAsync({
           id: `action_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           agent_id: agentId,
-          action_type: 'building_assigned',
-          action_data: { building_id: buildingId, building_type: building.type },
+          action_type: "building_assigned",
+          action_data: {
+            building_id: buildingId,
+            building_type: building.type,
+          },
           building_id: buildingId,
           success: true,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
       }
 
@@ -507,7 +565,8 @@ export class AgentService {
       console.error("Error assigning building to agent:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred",
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
   }
@@ -520,7 +579,8 @@ export class AgentService {
   ): Promise<{ success: boolean; data?: Task; error?: string }> {
     return {
       success: false,
-      error: 'Old task creation is disabled. Use ChatGPT collaborative tasks only.'
+      error:
+        "Old task creation is disabled. Use ChatGPT collaborative tasks only.",
     };
   }
 
@@ -531,7 +591,8 @@ export class AgentService {
   }> {
     return {
       success: false,
-      error: 'Old task system is disabled. Use collaborative task status endpoints.'
+      error:
+        "Old task system is disabled. Use collaborative task status endpoints.",
     };
   }
 
@@ -541,13 +602,13 @@ export class AgentService {
   ): Promise<{ success: boolean; data?: Task; error?: string }> {
     return {
       success: false,
-      error: 'Old task assignment is disabled. Use collaborative task system.'
+      error: "Old task assignment is disabled. Use collaborative task system.",
     };
   }
 
   async updateTaskStatus(
     taskId: string,
-    status: 'pending' | 'assigned' | 'in_progress' | 'completed' | 'cancelled',
+    status: "pending" | "assigned" | "in_progress" | "completed" | "cancelled",
     completionData?: any
   ): Promise<{ success: boolean; data?: Task; error?: string }> {
     try {
@@ -569,10 +630,10 @@ export class AgentService {
       }
 
       // Log task completion in memory
-      if (status === 'completed' && updatedTask.assigned_agent_id) {
+      if (status === "completed" && updatedTask.assigned_agent_id) {
         memoryStorageService.addAction({
           agent_id: updatedTask.assigned_agent_id,
-          action_type: 'task_complete',
+          action_type: "task_complete",
           action_data: { task_id: taskId, completion_data: completionData },
           task_id: taskId,
           success: true,
@@ -584,7 +645,8 @@ export class AgentService {
       console.error("Error updating task status:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred",
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
   }
@@ -600,7 +662,7 @@ export class AgentService {
         sender_agent_id: messageData.sender_agent_id,
         receiver_agent_id: messageData.receiver_agent_id,
         content: messageData.content,
-        message_type: messageData.message_type || 'direct',
+        message_type: messageData.message_type || "direct",
         metadata: messageData.metadata,
         task_id: messageData.task_id,
         is_read: false,
@@ -609,11 +671,11 @@ export class AgentService {
       // Log the message action in memory
       memoryStorageService.addAction({
         agent_id: messageData.sender_agent_id,
-        action_type: 'message_sent',
-        action_data: { 
+        action_type: "message_sent",
+        action_data: {
           message_id: communication.id,
           receiver_id: messageData.receiver_agent_id,
-          message_type: messageData.message_type 
+          message_type: messageData.message_type,
         },
         target_agent_id: messageData.receiver_agent_id,
         task_id: messageData.task_id,
@@ -622,7 +684,7 @@ export class AgentService {
 
       // Update sender session
       memoryStorageService.updateAgentSession(messageData.sender_agent_id, {
-        current_activity: 'messaging'
+        current_activity: "messaging",
       });
 
       return { success: true, data: communication };
@@ -630,7 +692,8 @@ export class AgentService {
       console.error("Error sending message:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred",
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
   }
@@ -638,15 +701,23 @@ export class AgentService {
   async getMessagesForAgent(
     agentId: string,
     limit: number = 50
-  ): Promise<{ success: boolean; data?: AgentCommunication[]; error?: string }> {
+  ): Promise<{
+    success: boolean;
+    data?: AgentCommunication[];
+    error?: string;
+  }> {
     try {
-      const messages = memoryStorageService.getCommunicationsForAgent(agentId, limit);
+      const messages = memoryStorageService.getCommunicationsForAgent(
+        agentId,
+        limit
+      );
       return { success: true, data: messages };
     } catch (error) {
       console.error("Error fetching messages:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred",
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
   }
@@ -664,7 +735,8 @@ export class AgentService {
       console.error("Error marking message as read:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred",
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
   }
@@ -672,7 +744,7 @@ export class AgentService {
   // ===== ACTION LOGGING (IN-MEMORY) =====
 
   async logAgentAction(
-    actionData: Omit<AgentAction, 'id' | 'created_at'>
+    actionData: Omit<AgentAction, "id" | "created_at">
   ): Promise<{ success: boolean; error?: string }> {
     try {
       memoryStorageService.addAction(actionData);
@@ -681,7 +753,8 @@ export class AgentService {
       console.error("Error logging agent action:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred",
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
   }
@@ -697,7 +770,8 @@ export class AgentService {
       console.error("Error fetching agent actions:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred",
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
   }
@@ -716,7 +790,8 @@ export class AgentService {
   ): Promise<{ success: boolean; queuedTaskId?: string; error?: string }> {
     return {
       success: false,
-      error: 'Old task queue system is disabled. Use ChatGPT collaborative tasks only.'
+      error:
+        "Old task queue system is disabled. Use ChatGPT collaborative tasks only.",
     };
   }
 
@@ -736,41 +811,45 @@ export class AgentService {
       title: string;
       description: string;
     }
-  ): Promise<{ 
-    success: boolean; 
-    queuedTaskId?: string; 
+  ): Promise<{
+    success: boolean;
+    queuedTaskId?: string;
     targetAgentId?: string;
     aiRecommendation?: any;
-    error?: string 
+    error?: string;
   }> {
     return {
       success: false,
-      error: 'Old task queue system is disabled. Use ChatGPT collaborative tasks only.'
+      error:
+        "Old task queue system is disabled. Use ChatGPT collaborative tasks only.",
     };
   }
 
   // ===== BUILDING MANAGEMENT HELPERS =====
 
-  async getAgentBuildingInfo(agentId: string): Promise<{ 
-    success: boolean; 
-    data?: { 
-      currentBuildingId: string | null; 
-      assignedBuildingIds: string[]; 
-      buildingDetails?: any[] 
-    }; 
-    error?: string 
+  async getAgentBuildingInfo(agentId: string): Promise<{
+    success: boolean;
+    data?: {
+      currentBuildingId: string | null;
+      assignedBuildingIds: string[];
+      buildingDetails?: any[];
+    };
+    error?: string;
   }> {
     try {
       const agentResult = await this.getAgentById(agentId);
       if (!agentResult.success || !agentResult.data) {
-        return { success: false, error: 'Agent not found' };
+        return { success: false, error: "Agent not found" };
       }
 
       const agent = agentResult.data;
       const buildingDetails = [];
-      
+
       // Get details for assigned buildings
-      if (agent.assigned_building_ids && agent.assigned_building_ids.length > 0) {
+      if (
+        agent.assigned_building_ids &&
+        agent.assigned_building_ids.length > 0
+      ) {
         const { getBuildingById } = await import("../../src/maps/defaultMap");
         for (const buildingId of agent.assigned_building_ids) {
           const building = getBuildingById(buildingId);
@@ -785,18 +864,18 @@ export class AgentService {
         data: {
           currentBuildingId: agent.current_building_id || null,
           assignedBuildingIds: agent.assigned_building_ids || [],
-          buildingDetails
-        }
+          buildingDetails,
+        },
       };
     } catch (error) {
       console.error("Error getting agent building info:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred",
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
   }
-
 
   async updateAgentLastActive(
     agentId: string
@@ -805,7 +884,7 @@ export class AgentService {
       // Update only in memory (last_active is no longer in database)
       memoryStorageService.updateAgentSession(agentId, {});
       memoryStorageService.updateAgentMetadata(agentId, {
-        last_active: new Date().toISOString()
+        last_active: new Date().toISOString(),
       });
 
       return { success: true };
@@ -813,7 +892,8 @@ export class AgentService {
       console.error("Error updating agent last active:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred",
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
   }
@@ -834,14 +914,17 @@ export class AgentService {
       oneHourAgo.setHours(oneHourAgo.getHours() - 1);
       const cutoffTime = oneHourAgo.getTime();
 
-      const activeAgents = allAgents.data.filter(agent => {
-        return agent.status === 'active' && 
-               new Date(agent.last_active).getTime() > cutoffTime;
+      const activeAgents = allAgents.data.filter((agent) => {
+        return (
+          agent.status === "active" &&
+          new Date(agent.last_active).getTime() > cutoffTime
+        );
       });
 
       // Sort by last active time
-      activeAgents.sort((a, b) => 
-        new Date(b.last_active).getTime() - new Date(a.last_active).getTime()
+      activeAgents.sort(
+        (a, b) =>
+          new Date(b.last_active).getTime() - new Date(a.last_active).getTime()
       );
 
       return { success: true, data: activeAgents };
@@ -849,7 +932,8 @@ export class AgentService {
       console.error("Error fetching active agents:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred",
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
   }
@@ -874,7 +958,8 @@ export class AgentService {
       console.error("Error getting agent memory stats:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred",
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
   }
@@ -896,7 +981,8 @@ export class AgentService {
       console.error("Error getting memory usage:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred",
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
   }
@@ -913,7 +999,8 @@ export class AgentService {
       console.error("Error cleaning up old memory data:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred",
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
   }
@@ -926,13 +1013,14 @@ export class AgentService {
       console.error("Error getting active sessions:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred",
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
   }
 
   // ===== BUILDING ASSIGNMENT =====
-  
+
   async assignAgentToBuilding(
     agentId: string,
     buildingId: string
@@ -951,17 +1039,17 @@ export class AgentService {
       // Update building assignment in map
       const assignmentSuccess = assignAgentToBuilding(buildingId, agentId);
       if (!assignmentSuccess) {
-        return { success: false, error: 'Building assignment failed' };
+        return { success: false, error: "Building assignment failed" };
       }
 
       console.log(`✅ Assigned agent ${agentId} to building ${buildingId}`);
       return { success: true };
-
     } catch (error) {
-      console.error('Error assigning agent to building:', error);
+      console.error("Error assigning agent to building:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred'
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
   }
