@@ -4,6 +4,8 @@ import {
   erc20Abi,
   encodeFunctionData,
   parseUnits,
+  formatEther,
+  formatUnits,
 } from "viem";
 import { sepolia } from "viem/chains";
 
@@ -65,4 +67,69 @@ export async function transferErc20({
   ]);
 
   return kernelClient.sendTransaction({ callData }) as Promise<`0x${string}`>;
+}
+
+export async function getNativeBalance({
+  kernelClient,
+}: {
+  kernelClient: any;
+}) {
+  const publicClient = createPublicClient({
+    chain: sepolia,
+    transport: http(),
+  });
+
+  const balance = await publicClient.getBalance({
+    address: kernelClient.account.address,
+  });
+
+  return {
+    wei: balance,
+    eth: formatEther(balance),
+  };
+}
+
+export async function getErc20Balance({
+  kernelClient,
+  token,
+}: {
+  kernelClient: any;
+  token: `0x${string}`;
+}) {
+  const publicClient = createPublicClient({
+    chain: sepolia,
+    transport: http(),
+  });
+
+  const [balance, decimals, symbol, name] = await Promise.all([
+    publicClient.readContract({
+      address: token,
+      abi: erc20Abi,
+      functionName: "balanceOf",
+      args: [kernelClient.account.address],
+    }) as Promise<bigint>,
+    publicClient.readContract({
+      address: token,
+      abi: erc20Abi,
+      functionName: "decimals",
+    }) as Promise<number>,
+    publicClient.readContract({
+      address: token,
+      abi: erc20Abi,
+      functionName: "symbol",
+    }) as Promise<string>,
+    publicClient.readContract({
+      address: token,
+      abi: erc20Abi,
+      functionName: "name",
+    }) as Promise<string>,
+  ]);
+
+  return {
+    raw: balance,
+    formatted: formatUnits(balance, decimals),
+    decimals,
+    symbol,
+    name,
+  };
 }

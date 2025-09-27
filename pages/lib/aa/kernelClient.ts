@@ -1,10 +1,6 @@
 import { createPublicClient, createWalletClient, http, custom } from "viem";
 import { signerToEcdsaValidator } from "@zerodev/ecdsa-validator";
-import {
-  createZeroDevPaymasterClient,
-  createKernelAccountClient,
-  createKernelAccount,
-} from "@zerodev/sdk";
+import { createKernelAccountClient, createKernelAccount } from "@zerodev/sdk";
 import { getEntryPoint } from "@zerodev/sdk/constants";
 import { entryPoint07Address } from "viem/account-abstraction";
 import { getViemChain } from "../getViemChain";
@@ -13,12 +9,10 @@ import { CHAIN_ID_BY_KEY } from "../chain";
 import type { ConnectedWallet } from "@privy-io/react-auth";
 
 const PROJECT_ID = process.env.NEXT_PUBLIC_ZERODEV_PROJECT_ID!;
-const BASE_URL = process.env.NEXT_PUBLIC_ZERODEV_BASE!;
-const BUNDLER_URL = process.env.NEXT_PUBLIC_ZERODEV_BUNDLER_URL!;
 
-function paymasterRpc(chainId: number) {
-  // Keep selfFunded=true while you test; remove when sponsorship is configured.
-  return `${BASE_URL}/${PROJECT_ID}/chain/${chainId}?selfFunded=true`;
+/** ZeroDev bundler endpoint (no paymaster, self-funded) */
+function bundlerUrl(chainId: number) {
+  return `https://rpc.zerodev.app/api/v3/${PROJECT_ID}/chain/${chainId}`;
 }
 
 export async function createKernelClient(
@@ -26,12 +20,19 @@ export async function createKernelClient(
   chain: ChainType,
   walletIndex: bigint
 ) {
+  if (!PROJECT_ID) {
+    throw new Error("Missing NEXT_PUBLIC_ZERODEV_PROJECT_ID in .env.local");
+  }
+
   const chainId = CHAIN_ID_BY_KEY[chain];
   const viemChain = getViemChain(chain);
 
+  // Use a regular RPC for reads (Sepolia default)
+  const readRpc = viemChain.rpcUrls.default.http[0];
+
   const publicClient = createPublicClient({
     chain: viemChain,
-    transport: http(paymasterRpc(chainId)),
+    transport: http(readRpc),
   });
 
   const ethProvider = await privyWallet.getEthereumProvider();
@@ -51,23 +52,16 @@ export async function createKernelClient(
     plugins: { sudo: ecdsaValidator },
     entryPoint: { address: entryPoint07Address, version: "0.7" },
     kernelVersion: "0.3.3",
-    index: walletIndex, // deterministic
+    index: walletIndex, // deterministic per user/agent
   });
 
-  const paymasterClient = createZeroDevPaymasterClient({
-    chain: viemChain,
-    transport: http(paymasterRpc(chainId)),
-  });
-
+  // ✅ Self-funded: no paymaster. Bundler handles estimation; gas paid from Kernel balance.
   const kernelClient = createKernelAccountClient({
     account,
     chain: viemChain,
-    bundlerTransport: http(`${BUNDLER_URL}/${chainId}`),
-    paymaster: {
-      getPaymasterData: (userOperation) =>
-        paymasterClient.sponsorUserOperation({ userOperation }),
-    },
+    bundlerTransport: http(bundlerUrl(chainId)),
   });
 
+  console.log("✅ Kernel (self-funded) address:", account.address);
   return { kernelClient, accountAddress: account.address as `0x${string}` };
 }
