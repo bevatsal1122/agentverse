@@ -13,16 +13,20 @@ export default async function handler(
   const user = await privy
     .users()
     .getByEmailAddress({ address: "amitmanojgaikwad@gmail.com" });
-const wallet = user.linked_accounts.find((w) => w.connector_type === "embedded");
-console.log(wallet);
-const authorizationContext: AuthorizationContext = {
-    authorization_private_keys: ["wallet-auth:MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgczbbXBmmmb4tyVBUOxUntdG5hL9AUtKK+jHxxoj1NZahRANCAATtQZD/n6+4ZbFNjDHy6saXt9WtqvPI876PLQkT2dn2Za1YZUxFJoBfO77cabW1pXojUb0UGqsGGrha8dLPaawx"]
+  const wallet = user.linked_accounts.find(
+    (w) => w.connector_type === "embedded"
+  );
+  console.log(wallet);
+  const authorizationContext: AuthorizationContext = {
+    authorization_private_keys: [
+      "wallet-auth:MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgczbbXBmmmb4tyVBUOxUntdG5hL9AUtKK+jHxxoj1NZahRANCAATtQZD/n6+4ZbFNjDHy6saXt9WtqvPI876PLQkT2dn2Za1YZUxFJoBfO77cabW1pXojUb0UGqsGGrha8dLPaawx",
+    ],
   };
-  
 
   const message = "Hello, Ethereum.";
 
-  const response = await privy.wallets()
+  const response = await privy
+    .wallets()
     .ethereum()
     .sendTransaction(wallet?.id, {
       caip2: "eip155:421614",
@@ -33,9 +37,8 @@ const authorizationContext: AuthorizationContext = {
           chain_id: 421614,
         },
       },
-      authorization_context: authorizationContext
+      authorization_context: authorizationContext,
     });
-
 
   console.log(response);
 
