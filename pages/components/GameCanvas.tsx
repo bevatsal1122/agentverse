@@ -4,6 +4,7 @@ import { MapLoader } from '../../src/maps/mapLoader';
 import { playerController } from '../../src/game/player';
 import LiveFeed from './LiveFeed';
 import AgentsList from './AgentsList';
+import { useRouter } from 'next/router';
 
 
 interface GameCanvasProps {
@@ -20,6 +21,7 @@ interface TrafficElement {
 }
 
 const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
+  const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const [, forceUpdate] = useState({});
@@ -1478,6 +1480,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       {/* Game UI Overlay */}
       <div className="absolute top-4 right-4 flex flex-col space-y-3 z-10">
         {/* Agents List Button */}
+        <div className="flex space-x-3">
         <button
           onClick={() => setShowAgentsList(true)}
           className="amongus-button flex items-center space-x-2 text-sm font-bold tracking-wider"
@@ -1487,6 +1490,18 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
           </svg>
           <span>CREW</span>
         </button>
+
+        <button
+          onClick={() => router.push('/create-agent')}
+          className="amongus-button flex items-center space-x-2 text-sm font-bold tracking-wider"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          <span>AI Agent</span>
+        </button>
+        </div>
+        
       </div>
 
       <LiveFeed />

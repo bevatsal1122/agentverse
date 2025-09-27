@@ -88,7 +88,7 @@ const LiveFeed: React.FC<LiveFeedProps> = ({ className = '' }) => {
   };
 
   return (
-    <div className={`fixed top-4 right-4 bg-gray-800 border-2 border-gray-600 ${className}`} style={{ imageRendering: 'pixelated' }}>
+    <div className={`fixed top-16 right-4 bg-gray-800 border-2 border-gray-600 ${className}`} style={{ imageRendering: 'pixelated' }}>
       {/* Header */}
       <div 
         className="flex items-center justify-between p-2 border-b border-gray-400 cursor-pointer hover:bg-gray-700"
