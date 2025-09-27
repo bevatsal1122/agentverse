@@ -1,17 +1,37 @@
 import { TileType } from '../game/state';
 
+export interface BuildingInfo {
+  id: string;
+  type: string;
+  x: number;
+  y: number;
+  zone: string;
+  assignedAgent?: string;
+}
+
 export interface MapConfig {
   name: string;
   width: number;
   height: number;
   tiles: string[][];
+  buildings: BuildingInfo[];
 }
 
-// Helper function to create a clean, realistic city layout
-function createCityMap(): string[][] {
+// Helper function to create a clean, realistic city layout with building IDs
+function createCityMap(): { tiles: string[][], buildings: BuildingInfo[] } {
   const width = 25;
   const height = 25;
   const map: string[][] = Array.from({ length: height }, () => Array(width).fill('space'));
+  const buildings: BuildingInfo[] = [];
+  let buildingCounter = 1;
+  
+  // Helper function to add building with ID
+  const addBuilding = (x: number, y: number, type: string, zone: string) => {
+    const id = `B${buildingCounter.toString().padStart(3, '0')}`;
+    buildings.push({ id, type, x, y, zone });
+    map[y][x] = type;
+    buildingCounter++;
+  };
   
   // ===== STEP 1: CREATE CLEAN ROAD NETWORK (NO OVERLAPS) =====
   
@@ -83,16 +103,16 @@ function createCityMap(): string[][] {
     }
   });
   
-  // ===== STEP 3: FILL ZONES (ONLY IN EMPTY SPACES) =====
+  // ===== STEP 3: FILL ZONES WITH BUILDINGS (ONLY IN EMPTY SPACES) =====
   
   // HISTORIC DISTRICT (Northwest)
   for (let y = 0; y < 4; y++) {
     for (let x = 0; x < 6; x++) {
       if (map[y][x] === 'space') {
         if ((x + y) % 5 === 0) {
-          map[y][x] = 'recreation';
+          addBuilding(x, y, 'recreation', 'Historic District');
         } else {
-          map[y][x] = 'living_quarters';
+          addBuilding(x, y, 'living_quarters', 'Historic District');
         }
       }
     }
@@ -103,9 +123,9 @@ function createCityMap(): string[][] {
     for (let x = 7; x < 12; x++) {
       if (map[y][x] === 'space') {
         if ((x + y) % 7 === 0) {
-          map[y][x] = 'recreation';
+          addBuilding(x, y, 'recreation', 'Downtown Business');
         } else {
-          map[y][x] = 'research_lab';
+          addBuilding(x, y, 'research_lab', 'Downtown Business');
         }
       }
     }
@@ -116,9 +136,9 @@ function createCityMap(): string[][] {
     for (let x = 13; x < 18; x++) {
       if (map[y][x] === 'space') {
         if ((x + y) % 6 === 0) {
-          map[y][x] = 'recreation';
+          addBuilding(x, y, 'recreation', 'High-Rise District');
         } else {
-          map[y][x] = 'research_lab';
+          addBuilding(x, y, 'research_lab', 'High-Rise District');
         }
       }
     }
@@ -129,9 +149,9 @@ function createCityMap(): string[][] {
     for (let x = 19; x < 25; x++) {
       if (map[y][x] === 'space') {
         if ((x + y) % 4 === 0) {
-          map[y][x] = 'recreation';
+          addBuilding(x, y, 'recreation', 'Upscale Residential');
         } else {
-          map[y][x] = 'living_quarters';
+          addBuilding(x, y, 'living_quarters', 'Upscale Residential');
         }
       }
     }
@@ -142,9 +162,9 @@ function createCityMap(): string[][] {
     for (let x = 0; x < 6; x++) {
       if (map[y][x] === 'space') {
         if ((x + y) % 6 === 0) {
-          map[y][x] = 'recreation';
+          addBuilding(x, y, 'recreation', 'Middle-Class Residential');
         } else {
-          map[y][x] = 'living_quarters';
+          addBuilding(x, y, 'living_quarters', 'Middle-Class Residential');
         }
       }
     }
@@ -155,11 +175,11 @@ function createCityMap(): string[][] {
     for (let x = 0; x < 12; x++) {
       if (map[y][x] === 'space') {
         if (x % 4 === 0) {
-          map[y][x] = 'power_line';
+          addBuilding(x, y, 'power_line', 'Industrial District');
         } else if ((x + y) % 3 === 0) {
-          map[y][x] = 'engineering_bay';
+          addBuilding(x, y, 'engineering_bay', 'Industrial District');
         } else {
-          map[y][x] = 'living_quarters';
+          addBuilding(x, y, 'living_quarters', 'Industrial District');
         }
       }
     }
@@ -170,9 +190,9 @@ function createCityMap(): string[][] {
     for (let x = 13; x < 18; x++) {
       if (map[y][x] === 'space') {
         if ((x + y) % 5 === 0) {
-          map[y][x] = 'recreation';
+          addBuilding(x, y, 'recreation', 'Commercial District');
         } else {
-          map[y][x] = 'research_lab';
+          addBuilding(x, y, 'research_lab', 'Commercial District');
         }
       }
     }
@@ -183,9 +203,9 @@ function createCityMap(): string[][] {
     for (let x = 19; x < 25; x++) {
       if (map[y][x] === 'space') {
         if ((x + y) % 4 === 0) {
-          map[y][x] = 'recreation';
+          addBuilding(x, y, 'recreation', 'Suburban Area');
         } else {
-          map[y][x] = 'living_quarters';
+          addBuilding(x, y, 'living_quarters', 'Suburban Area');
         }
       }
     }
@@ -195,20 +215,62 @@ function createCityMap(): string[][] {
   for (let y = 11; y < 16; y++) {
     for (let x = 7; x < 12; x++) {
       if (map[y][x] === 'space') {
-        map[y][x] = 'recreation';
+        addBuilding(x, y, 'recreation', 'Central Park');
       }
     }
   }
   
-  return map;
+  return { tiles: map, buildings };
 }
+
+const cityData = createCityMap();
 
 export const defaultMap: MapConfig = {
   name: "Metro City",
   width: 25,
   height: 25,
-  tiles: createCityMap()
+  tiles: cityData.tiles,
+  buildings: cityData.buildings
 };
+
+// Helper functions for building management
+export function getBuildingById(buildingId: string): BuildingInfo | undefined {
+  return defaultMap.buildings.find(building => building.id === buildingId);
+}
+
+export function getBuildingsByZone(zone: string): BuildingInfo[] {
+  return defaultMap.buildings.filter(building => building.zone === zone);
+}
+
+export function getBuildingsByType(type: string): BuildingInfo[] {
+  return defaultMap.buildings.filter(building => building.type === type);
+}
+
+export function assignAgentToBuilding(buildingId: string, agentId: string): boolean {
+  const building = getBuildingById(buildingId);
+  if (building && !building.assignedAgent) {
+    building.assignedAgent = agentId;
+    return true;
+  }
+  return false;
+}
+
+export function unassignAgentFromBuilding(buildingId: string): boolean {
+  const building = getBuildingById(buildingId);
+  if (building && building.assignedAgent) {
+    building.assignedAgent = undefined;
+    return true;
+  }
+  return false;
+}
+
+export function getAvailableBuildings(): BuildingInfo[] {
+  return defaultMap.buildings.filter(building => !building.assignedAgent);
+}
+
+export function getBuildingsAssignedToAgent(agentId: string): BuildingInfo[] {
+  return defaultMap.buildings.filter(building => building.assignedAgent === agentId);
+}
 
 // Helper function to convert string to TileType
 export function stringToTileType(str: string): TileType {
