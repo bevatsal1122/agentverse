@@ -186,7 +186,7 @@ export default function Chat() {
   }
 
   return (
-    <div className="h-screen amongus-grid overflow-hidden relative">
+    <div className="h-screen amongus-grid overflow-hidden relative chat-screen">
       {/* Space Station Background Elements */}
       <div className="absolute inset-0">
         {/* Space Station Buildings */}
