@@ -580,35 +580,130 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     }));
   };
 
+  const drawAgentPath = (ctx: CanvasRenderingContext2D, agent: AIAgent, state: GameState) => {
+    if (!agent.currentPath || agent.currentPath.length < 2) return;
+    
+    // Draw path as connected line segments
+    ctx.strokeStyle = `${agent.color}80`; // Semi-transparent agent color
+    ctx.lineWidth = 3;
+    ctx.setLineDash([5, 5]); // Dashed line
+    ctx.lineCap = 'round';
+    
+    ctx.beginPath();
+    
+    for (let i = agent.pathIndex; i < agent.currentPath.length; i++) {
+      const node = agent.currentPath[i];
+      // Use world coordinates - camera transformation is already applied
+      const worldX = node.x * state.tileSize + state.tileSize / 2;
+      const worldY = node.y * state.tileSize + state.tileSize / 2;
+      
+      if (i === agent.pathIndex) {
+        // Start from agent's current position for the first segment
+        const agentWorldX = agent.x * state.tileSize + state.tileSize / 2;
+        const agentWorldY = agent.y * state.tileSize + state.tileSize / 2;
+        ctx.moveTo(agentWorldX, agentWorldY);
+        ctx.lineTo(worldX, worldY);
+      } else {
+        ctx.lineTo(worldX, worldY);
+      }
+    }
+    
+    ctx.stroke();
+    ctx.setLineDash([]); // Reset dash pattern
+    
+    // Draw path nodes as small circles
+    ctx.fillStyle = `${agent.color}40`; // Very transparent agent color
+    for (let i = agent.pathIndex + 1; i < agent.currentPath.length; i++) {
+      const node = agent.currentPath[i];
+      // Use world coordinates - camera transformation is already applied
+      const worldX = node.x * state.tileSize + state.tileSize / 2;
+      const worldY = node.y * state.tileSize + state.tileSize / 2;
+      
+      ctx.beginPath();
+      ctx.arc(worldX, worldY, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  };
+
+  const drawTargetBuildingIndicator = (ctx: CanvasRenderingContext2D, agent: AIAgent, state: GameState) => {
+    if (!agent.targetBuilding) return;
+    
+    // Use world coordinates - camera transformation is already applied
+    const buildingWorldX = agent.targetBuilding.x * state.tileSize;
+    const buildingWorldY = agent.targetBuilding.y * state.tileSize;
+    
+    // Pulsing highlight around target building
+    const time = Date.now() * 0.005;
+    const pulse = Math.sin(time) * 0.3 + 0.7; // Pulse between 0.4 and 1.0
+    
+    ctx.strokeStyle = `${agent.color}${Math.floor(pulse * 255).toString(16).padStart(2, '0')}`;
+    ctx.lineWidth = 4;
+    ctx.setLineDash([8, 4]);
+    
+    ctx.strokeRect(
+      buildingWorldX - 2, 
+      buildingWorldY - 2, 
+      state.tileSize + 4, 
+      state.tileSize + 4
+    );
+    
+    ctx.setLineDash([]);
+    
+    // Draw destination icon above the building
+    const iconX = buildingWorldX + state.tileSize / 2;
+    const iconY = buildingWorldY - 10;
+    
+    ctx.fillStyle = agent.color;
+    ctx.font = '16px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('🎯', iconX, iconY);
+    
+    // Draw building type text
+    ctx.font = '12px Arial';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.lineWidth = 2;
+    
+    const buildingName = getBuildingDisplayName(agent.targetBuilding.type);
+    ctx.strokeText(buildingName, iconX, iconY - 15);
+    ctx.fillText(buildingName, iconX, iconY - 15);
+  };
+
+  const getBuildingDisplayName = (type: TileType): string => {
+    switch (type) {
+      case TileType.RESEARCH_LAB: return 'Research Lab';
+      case TileType.ENGINEERING_BAY: return 'Engineering';
+      case TileType.LIVING_QUARTERS: return 'Housing';
+      case TileType.RECREATION: return 'Recreation';
+      default: return 'Building';
+    }
+  };
+
   const drawTraffic = (ctx: CanvasRenderingContext2D, state: GameState) => {
     trafficElements.forEach(element => {
-      const screenX = element.x + state.cameraPosition.x;
-      const screenY = element.y + state.cameraPosition.y;
+      // Use world coordinates - camera transformation is already applied
+      const worldX = element.x;
+      const worldY = element.y;
       
-      // Only draw if visible
-      if (screenX > -20 && screenX < window.innerWidth + 20 && 
-          screenY > -20 && screenY < window.innerHeight + 20) {
-        
-        ctx.fillStyle = element.color;
-        
-        if (element.type === 'car') {
-          // Draw car
-          if (element.direction === 'north' || element.direction === 'south') {
-            ctx.fillRect(screenX - 2, screenY - 4, 4, 8);
-          } else {
-            ctx.fillRect(screenX - 4, screenY - 2, 8, 4);
-          }
-        } else if (element.type === 'bus') {
-          // Draw bus (larger)
-          if (element.direction === 'north' || element.direction === 'south') {
-            ctx.fillRect(screenX - 3, screenY - 6, 6, 12);
-          } else {
-            ctx.fillRect(screenX - 6, screenY - 3, 12, 6);
-          }
-        } else if (element.type === 'pedestrian') {
-          // Draw pedestrian (small dot)
-          ctx.fillRect(screenX - 1, screenY - 1, 2, 2);
+      ctx.fillStyle = element.color;
+      
+      if (element.type === 'car') {
+        // Draw car
+        if (element.direction === 'north' || element.direction === 'south') {
+          ctx.fillRect(worldX - 2, worldY - 4, 4, 8);
+        } else {
+          ctx.fillRect(worldX - 4, worldY - 2, 8, 4);
         }
+      } else if (element.type === 'bus') {
+        // Draw bus (larger)
+        if (element.direction === 'north' || element.direction === 'south') {
+          ctx.fillRect(worldX - 3, worldY - 6, 6, 12);
+        } else {
+          ctx.fillRect(worldX - 6, worldY - 3, 12, 6);
+        }
+      } else if (element.type === 'pedestrian') {
+        // Draw pedestrian (small dot)
+        ctx.fillRect(worldX - 1, worldY - 1, 2, 2);
       }
     });
   };
@@ -622,13 +717,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // Fill with dark background (outside map area)
+    ctx.fillStyle = '#1a1a1a'; // Dark gray background
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
     // Render tileset background if available
     if (backgroundCanvas) {
       ctx.drawImage(backgroundCanvas, state.cameraPosition.x, state.cameraPosition.y);
-    } else {
-      // Fallback to grass background
-      ctx.fillStyle = '#228B22';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
     // Save context for transformations
@@ -643,18 +738,31 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     const viewportTop = Math.floor(-state.cameraPosition.y / state.tileSize) - 2;
     const viewportBottom = Math.floor((-state.cameraPosition.y + canvas.height) / state.tileSize) + 2;
 
-    // Render background grass for empty areas in viewport
-    for (let tileX = viewportLeft; tileX <= viewportRight; tileX++) {
-      for (let tileY = viewportTop; tileY <= viewportBottom; tileY++) {
+    // Define map boundaries (25x25 grid from defaultMap)
+    const mapWidth = 25;
+    const mapHeight = 25;
+    
+    // Draw map background within boundaries
+    ctx.fillStyle = '#228B22'; // Grass green background for map area
+    ctx.fillRect(0, 0, mapWidth * state.tileSize, mapHeight * state.tileSize);
+    
+    // Render background grass for empty areas within map boundaries only
+    for (let tileX = Math.max(0, viewportLeft); tileX <= Math.min(mapWidth - 1, viewportRight); tileX++) {
+      for (let tileY = Math.max(0, viewportTop); tileY <= Math.min(mapHeight - 1, viewportBottom); tileY++) {
         const x = tileX * state.tileSize;
         const y = tileY * state.tileSize;
         
-        // If no tile exists at this position, render grass
+        // If no tile exists at this position within map boundaries, render grass
         if (!state.mapData.has(`${tileX},${tileY}`)) {
           drawGrassTexture(ctx, x, y, state.tileSize);
         }
       }
     }
+    
+    // Draw map boundary
+    ctx.strokeStyle = '#333333';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(0, 0, mapWidth * state.tileSize, mapHeight * state.tileSize);
 
     // Render existing tiles
     state.mapData.forEach((tile) => {
@@ -1238,6 +1346,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     });
 
     // Render player with Minecraft-style sprite and walking animation
+    // Use world coordinates - camera transformation is already applied
     const playerX = state.playerPosition.pixelX + 8;
     const playerY = state.playerPosition.pixelY + 8;
     const playerSize = 48;
@@ -1301,24 +1410,35 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       ctx.fillRect(playerX + 24, playerY + 8 - headBob, 2, 2);
     }
 
+    // Draw agent paths first (so they appear behind agents)
+    // Note: Paths are drawn in world coordinates, so they will be transformed with the camera
+    state.aiAgents.forEach((agent) => {
+      if (agent.isFollowingPath && agent.currentPath && agent.currentPath.length > 1) {
+        drawAgentPath(ctx, agent, state);
+      }
+    });
+
     // Draw AI agents
     state.aiAgents.forEach((agent) => {
-      const screenX = (agent.x * state.tileSize) - state.cameraPosition.x;
-      const screenY = (agent.y * state.tileSize) - state.cameraPosition.y;
+      // Use world coordinates - camera transformation is already applied
+      const worldX = agent.x * state.tileSize;
+      const worldY = agent.y * state.tileSize;
       
-      // Only render agents in viewport
-      if (screenX > -state.tileSize && screenX < window.innerWidth + state.tileSize && 
-          screenY > -state.tileSize && screenY < window.innerHeight + state.tileSize) {
-        
+      ctx.save();
+      drawAIAgent(ctx, agent, worldX, worldY, state.tileSize);
+      ctx.restore();
+      
+      // Draw target building indicator if exists
+      if (agent.targetBuilding) {
         ctx.save();
-        drawAIAgent(ctx, agent, screenX, screenY, state.tileSize);
-        ctx.restore();
-        
-        // Draw chat bubble if exists
-        ctx.save();
-        drawChatBubble(ctx, agent, screenX, screenY, state.tileSize);
+        drawTargetBuildingIndicator(ctx, agent, state);
         ctx.restore();
       }
+      
+      // Draw chat bubble if exists
+      ctx.save();
+      drawChatBubble(ctx, agent, worldX, worldY, state.tileSize);
+      ctx.restore();
     });
 
     // Draw traffic elements

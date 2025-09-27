@@ -64,9 +64,19 @@ export class PlayerController {
       const newPixelX = currentPos.pixelX + this.velocity.x * deltaTime;
       const newPixelY = currentPos.pixelY + this.velocity.y * deltaTime;
       
+      // Apply map boundary constraints (25x25 grid, 32px tiles)
+      const tileSize = 32;
+      const mapWidth = 25;
+      const mapHeight = 25;
+      const maxPixelX = (mapWidth - 1) * tileSize;
+      const maxPixelY = (mapHeight - 1) * tileSize;
+      
+      const constrainedPixelX = Math.max(0, Math.min(maxPixelX, newPixelX));
+      const constrainedPixelY = Math.max(0, Math.min(maxPixelY, newPixelY));
+      
       // Only update state if position actually changed (reduces unnecessary updates)
-      if (Math.abs(newPixelX - currentPos.pixelX) > 0.5 || Math.abs(newPixelY - currentPos.pixelY) > 0.5) {
-        gameState.setPlayerPixelPosition(newPixelX, newPixelY);
+      if (Math.abs(constrainedPixelX - currentPos.pixelX) > 0.5 || Math.abs(constrainedPixelY - currentPos.pixelY) > 0.5) {
+        gameState.setPlayerPixelPosition(constrainedPixelX, constrainedPixelY);
       }
     }
   }
