@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@pixi/react": "^7.1.2",
+    "@privy-io/node": "^0.2.0",
     "@privy-io/react-auth": "^3.0.1",
     "@privy-io/wagmi": "^2.0.0",
     "@selfxyz/common": "^0.0.7",
