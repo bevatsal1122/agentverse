@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { gameState, Tool, TileType, GameState, Crewmate, CrewmateType, CrewmateActivity } from '../game/state';
 import { MapLoader } from '../maps/mapLoader';
 
+
 interface GameCanvasProps {
   selectedTool: Tool;
 }
@@ -20,7 +21,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const [, forceUpdate] = useState({});
   const [trafficElements, setTrafficElements] = useState<TrafficElement[]>([]);
+  const [backgroundCanvas, setBackgroundCanvas] = useState<HTMLCanvasElement | null>(null);
   const animationFrameRef = useRef<number>();
+
+  const initializeTilesetBackground = async () => {
+    if (!canvasRef.current) return;
+    
+  };
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -49,6 +56,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
 
     // Initialize camera to center on player
     gameState.initializeCamera();
+
+    // Initialize tileset background
+    initializeTilesetBackground();
 
     // Auto-load default map if no map is loaded
     const state = gameState.getState();
@@ -146,59 +156,74 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
   const getTileColor = (type: TileType): string => {
     switch (type) {
       case TileType.SPACE:
-        return '#0a0a1a'; // Deep space dark blue
+        return '#228B22'; // SimCity grass green
       case TileType.CORRIDOR:
-        return '#2a2a3a'; // Dark gray corridor
+        return '#404040'; // Dark asphalt
       case TileType.MAIN_CORRIDOR:
-        return '#1a1a2a'; // Darker main corridor
+        return '#505050'; // Medium asphalt
       case TileType.HIGHWAY:
-        return '#0f0f1f'; // Very dark main highway
+        return '#606060'; // Light asphalt
       case TileType.LIVING_QUARTERS:
-        return '#2a3a4a'; // Blue-gray quarters
+        return '#8B4513'; // Brown residential
       case TileType.RESEARCH_LAB:
-        return '#3a2a4a'; // Purple-gray research
+        return '#4169E1'; // Blue commercial
       case TileType.ENGINEERING_BAY:
-        return '#4a3a2a'; // Orange-gray engineering
+        return '#696969'; // Gray industrial
       case TileType.RECREATION:
-        return '#2a4a3a'; // Green-gray recreation
+        return '#228B22'; // Green parks
       case TileType.POWER_LINE:
-        return '#ffaa00'; // Bright orange power
+        return '#FFD700'; // Yellow power
       case TileType.WATER:
-        return '#1a3a5a'; // Deep blue water
+        return '#4682B4'; // Steel blue water
       default:
-        return '#0a0a1a'; // Default to space
+        return '#228B22'; // Default to grass
     }
   };
 
-  const drawSpaceTexture = (ctx: CanvasRenderingContext2D, x: number, y: number, size: number) => {
-    // Base space color
-    ctx.fillStyle = '#0a0a1a';
+  const drawGrassTexture = (ctx: CanvasRenderingContext2D, x: number, y: number, size: number) => {
+    // SimCity-style grass texture
+    ctx.fillStyle = '#228B22'; // Base grass green
     ctx.fillRect(x, y, size, size);
     
-    // Add star field pattern
-    ctx.fillStyle = '#ffffff';
-    // Bright stars
-    for (let sx = 0; sx < size; sx += 6) {
-      for (let sy = 0; sy < size; sy += 6) {
-        if ((sx + sy) % 12 === 0) {
-          ctx.fillRect(x + sx, y + sy, 1, 1);
+    // Add grass texture pattern
+    ctx.fillStyle = '#32CD32'; // Lighter grass
+    for (let gx = 0; gx < size; gx += 2) {
+      for (let gy = 0; gy < size; gy += 2) {
+        if ((gx + gy + x + y) % 4 === 0) {
+          ctx.fillRect(x + gx, y + gy, 1, 1);
         }
       }
     }
     
-    // Dimmer stars
-    ctx.fillStyle = '#666666';
-    for (let sx = 3; sx < size; sx += 8) {
-      for (let sy = 3; sy < size; sy += 8) {
-        if ((sx + sy) % 16 === 0) {
-          ctx.fillRect(x + sx, y + sy, 1, 1);
+    // Add darker grass spots for variation
+    ctx.fillStyle = '#1F7A1F';
+    for (let gx = 1; gx < size; gx += 4) {
+      for (let gy = 1; gy < size; gy += 4) {
+        if ((gx + gy + x + y) % 8 === 0) {
+          ctx.fillRect(x + gx, y + gy, 1, 1);
         }
       }
     }
+    
+    // Add subtle grid lines like SimCity
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+    ctx.fillRect(x, y, size, 1); // Top border
+    ctx.fillRect(x, y, 1, size); // Left border
   };
 
   const isCorridorType = (type: TileType | undefined): boolean => {
     return type === TileType.CORRIDOR || type === TileType.MAIN_CORRIDOR || type === TileType.HIGHWAY;
+  };
+
+  const lightenColor = (color: string, percent: number): string => {
+    const num = parseInt(color.replace("#", ""), 16);
+    const amt = Math.round(2.55 * percent);
+    const R = (num >> 16) + amt;
+    const G = (num >> 8 & 0x00FF) + amt;
+    const B = (num & 0x0000FF) + amt;
+    return "#" + (0x1000000 + (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 +
+      (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 +
+      (B < 255 ? B < 1 ? 0 : B : 255)).toString(16).slice(1);
   };
 
   const drawCrewmate = (ctx: CanvasRenderingContext2D, crewmate: Crewmate, x: number, y: number, tileSize: number) => {
@@ -264,23 +289,43 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
   };
 
   const drawRoadTile = (ctx: CanvasRenderingContext2D, x: number, y: number, size: number, state: GameState, tileX: number, tileY: number, roadType: TileType) => {
-    // Base road color based on type
-    let baseColor = '#404040';
-    let lineColor = '#FFFF00';
-    let edgeColor = '#606060';
+    // SimCity-style road colors
+    let baseColor = '#404040'; // Dark asphalt
+    let lineColor = '#FFFF00'; // Yellow lines
+    let edgeColor = '#2F2F2F'; // Darker edge
     
     if (roadType === TileType.MAIN_CORRIDOR) {
-      baseColor = '#2F2F2F';
-      lineColor = '#FFFFFF'; // White lines for main corridors
-      edgeColor = '#505050';
+      baseColor = '#505050'; // Medium asphalt
+      lineColor = '#FFFFFF'; // White lines
+      edgeColor = '#3F3F3F';
     } else if (roadType === TileType.HIGHWAY) {
-      baseColor = '#1C1C1C';
-      lineColor = '#FFFFFF'; // White lines for highways
-      edgeColor = '#404040';
+      baseColor = '#606060'; // Light asphalt
+      lineColor = '#FFFFFF'; // White lines
+      edgeColor = '#4F4F4F';
     }
     
+    // Draw base asphalt texture
     ctx.fillStyle = baseColor;
     ctx.fillRect(x, y, size, size);
+    
+    // Add asphalt texture
+    ctx.fillStyle = lightenColor(baseColor, 10);
+    for (let ax = 0; ax < size; ax += 3) {
+      for (let ay = 0; ay < size; ay += 3) {
+        if ((ax + ay + x + y) % 6 === 0) {
+          ctx.fillRect(x + ax, y + ay, 1, 1);
+        }
+      }
+    }
+    
+    ctx.fillStyle = lightenColor(baseColor, -10);
+    for (let ax = 1; ax < size; ax += 4) {
+      for (let ay = 1; ay < size; ay += 4) {
+        if ((ax + ay + x + y) % 8 === 0) {
+          ctx.fillRect(x + ax, y + ay, 1, 1);
+        }
+      }
+    }
     
     // Check adjacent tiles for road connections
     const hasRoadNorth = isCorridorType(state.mapData.get(`${tileX},${tileY - 1}`)?.type);
@@ -288,47 +333,45 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     const hasRoadEast = isCorridorType(state.mapData.get(`${tileX + 1},${tileY}`)?.type);
     const hasRoadWest = isCorridorType(state.mapData.get(`${tileX - 1},${tileY}`)?.type);
     
-    // Draw road markings based on type
+    // Draw SimCity-style road markings
     if (roadType === TileType.HIGHWAY) {
       // Highway with multiple lanes
       ctx.fillStyle = lineColor;
-      
       if (hasRoadNorth || hasRoadSouth) {
-        // Multiple vertical lines for highway
-        ctx.fillRect(x + size/3 - 1, y, 1, size);
-        ctx.fillRect(x + 2*size/3 - 1, y, 1, size);
+        // Double lane dividers
+        ctx.fillRect(x + size/3, y, 1, size);
+        ctx.fillRect(x + 2*size/3, y, 1, size);
       }
       if (hasRoadEast || hasRoadWest) {
-        // Multiple horizontal lines for highway
-        ctx.fillRect(x, y + size/3 - 1, size, 1);
-        ctx.fillRect(x, y + 2*size/3 - 1, size, 1);
+        // Double lane dividers
+        ctx.fillRect(x, y + size/3, size, 1);
+        ctx.fillRect(x, y + 2*size/3, size, 1);
       }
       
-      // Highway barriers
-      ctx.fillStyle = '#808080';
-      if (!hasRoadNorth) ctx.fillRect(x, y, size, 3);
-      if (!hasRoadSouth) ctx.fillRect(x, y + size - 3, size, 3);
-      if (!hasRoadEast) ctx.fillRect(x + size - 3, y, 3, size);
-      if (!hasRoadWest) ctx.fillRect(x, y, 3, size);
+      // Road edges
+      ctx.fillStyle = edgeColor;
+      if (!hasRoadNorth) ctx.fillRect(x, y, size, 2);
+      if (!hasRoadSouth) ctx.fillRect(x, y + size - 2, size, 2);
+      if (!hasRoadEast) ctx.fillRect(x + size - 2, y, 2, size);
+      if (!hasRoadWest) ctx.fillRect(x, y, 2, size);
       
     } else if (roadType === TileType.MAIN_CORRIDOR) {
-      // Main corridor with center divider
+      // Main road with center line
       ctx.fillStyle = lineColor;
-      
       if (hasRoadNorth || hasRoadSouth) {
-        // Dashed vertical line
+        // Dashed center line
         for (let i = 0; i < size; i += 6) {
-          ctx.fillRect(x + size/2 - 1, y + i, 2, 3);
+          ctx.fillRect(x + size/2, y + i, 1, 3);
         }
       }
       if (hasRoadEast || hasRoadWest) {
-        // Dashed horizontal line
+        // Dashed center line
         for (let i = 0; i < size; i += 6) {
-          ctx.fillRect(x + i, y + size/2 - 1, 3, 2);
+          ctx.fillRect(x + i, y + size/2, 3, 1);
         }
       }
       
-      // Main road edges
+      // Road edges
       ctx.fillStyle = edgeColor;
       if (!hasRoadNorth) ctx.fillRect(x, y, size, 2);
       if (!hasRoadSouth) ctx.fillRect(x, y + size - 2, size, 2);
@@ -338,22 +381,21 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     } else {
       // Regular road
       ctx.fillStyle = lineColor;
-      
       if (hasRoadNorth || hasRoadSouth) {
-        // Vertical line
-        ctx.fillRect(x + size/2 - 1, y, 2, size);
+        // Simple center line
+        ctx.fillRect(x + size/2, y, 1, size);
       }
       if (hasRoadEast || hasRoadWest) {
-        // Horizontal line
-        ctx.fillRect(x, y + size/2 - 1, size, 2);
+        // Simple center line
+        ctx.fillRect(x, y + size/2, size, 1);
       }
       
       // Road edges
       ctx.fillStyle = edgeColor;
-      if (!hasRoadNorth) ctx.fillRect(x, y, size, 2);
-      if (!hasRoadSouth) ctx.fillRect(x, y + size - 2, size, 2);
-      if (!hasRoadEast) ctx.fillRect(x + size - 2, y, 2, size);
-      if (!hasRoadWest) ctx.fillRect(x, y, 2, size);
+      if (!hasRoadNorth) ctx.fillRect(x, y, size, 1);
+      if (!hasRoadSouth) ctx.fillRect(x, y + size - 1, size, 1);
+      if (!hasRoadEast) ctx.fillRect(x + size - 1, y, 1, size);
+      if (!hasRoadWest) ctx.fillRect(x, y, 1, size);
     }
   };
 
@@ -460,9 +502,17 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     const ctx = ctxRef.current;
     const canvas = canvasRef.current;
 
-    // Clear canvas with space background
-    ctx.fillStyle = '#0a0a1a';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Render tileset background if available
+    if (backgroundCanvas) {
+      ctx.drawImage(backgroundCanvas, state.cameraPosition.x, state.cameraPosition.y);
+    } else {
+      // Fallback to grass background
+      ctx.fillStyle = '#228B22';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
 
     // Save context for transformations
     ctx.save();
@@ -482,14 +532,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
         const x = tileX * state.tileSize;
         const y = tileY * state.tileSize;
         
-        // If no tile exists at this position, render space
+        // If no tile exists at this position, render grass
         if (!state.mapData.has(`${tileX},${tileY}`)) {
-          drawSpaceTexture(ctx, x, y, state.tileSize);
-          
-          // Add subtle tile border
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(x, y, state.tileSize, state.tileSize);
+          drawGrassTexture(ctx, x, y, state.tileSize);
         }
       }
     }
@@ -507,7 +552,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
 
       // Special rendering for different tile types
       if (tile.type === TileType.SPACE) {
-        drawSpaceTexture(ctx, x, y, state.tileSize);
+        drawGrassTexture(ctx, x, y, state.tileSize);
       } else if (isCorridorType(tile.type)) {
         drawRoadTile(ctx, x, y, state.tileSize, state, tile.x, tile.y, tile.type);
       } else {
@@ -530,160 +575,209 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
           ctx.fillRect(x, y, state.tileSize, state.tileSize);
         }
 
-        // Add building sprites
+        // Add SimCity-style building sprites
         if (tile.type === TileType.LIVING_QUARTERS) {
-          // Create variety in living quarters based on position
-          const moduleType = (tile.x + tile.y) % 4;
+          // Create variety in residential buildings based on position
+          const buildingType = (tile.x + tile.y) % 4;
           
-          if (moduleType === 0) {
-            // Crew quarters module
-            ctx.fillStyle = '#2a3a4a'; // Module shadow
-            ctx.fillRect(x + 6, y + 16, 20, 12);
+          if (buildingType === 0) {
+            // Small house
+            // Shadow
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(x + 5, y + 18, 22, 12);
             
-            ctx.fillStyle = '#3a4a5a'; // Module body
-            ctx.fillRect(x + 5, y + 15, 20, 12);
+            // House base (brown)
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(x + 4, y + 16, 22, 12);
             
-            ctx.fillStyle = '#4a5a6a'; // Module top
-            ctx.fillRect(x + 4, y + 12, 22, 4);
+            // Roof (dark red)
+            ctx.fillStyle = '#A0522D';
+            ctx.fillRect(x + 2, y + 12, 26, 6);
             
-            // Glowing windows
-            ctx.fillStyle = '#ffd700'; // Golden windows
+            // Roof peak
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(x + 4, y + 10, 22, 4);
+            
+            // Windows (yellow)
+            ctx.fillStyle = '#FFFF99';
             ctx.fillRect(x + 8, y + 18, 3, 3);
             ctx.fillRect(x + 13, y + 18, 3, 3);
             ctx.fillRect(x + 18, y + 18, 3, 3);
             
-            // Door
-            ctx.fillStyle = '#6a7a8a'; // Door
-            ctx.fillRect(x + 14, y + 21, 4, 6);
+            // Door (dark brown)
+            ctx.fillStyle = '#654321';
+            ctx.fillRect(x + 13, y + 22, 4, 6);
             
-          } else if (moduleType === 1) {
-            // Family quarters module
-            ctx.fillStyle = '#2a3a4a'; // Shadow
-            ctx.fillRect(x + 4, y + 8, 24, 20);
+          } else if (buildingType === 1) {
+            // Medium house
+            // Shadow
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(x + 3, y + 14, 26, 16);
             
-            ctx.fillStyle = '#3a4a5a'; // Module body
-            ctx.fillRect(x + 3, y + 7, 24, 20);
+            // House base (tan)
+            ctx.fillStyle = '#D2B48C';
+            ctx.fillRect(x + 2, y + 12, 26, 16);
             
-            ctx.fillStyle = '#4a5a6a'; // Module top
-            ctx.fillRect(x + 2, y + 5, 26, 4);
+            // Roof (blue)
+            ctx.fillStyle = '#4682B4';
+            ctx.fillRect(x + 0, y + 8, 30, 6);
             
-            // Multiple windows pattern
-            ctx.fillStyle = '#ffd700'; // Golden windows
-            for (let wx = 0; wx < 4; wx++) {
-              for (let wy = 0; wy < 3; wy++) {
-                ctx.fillRect(x + 5 + wx * 4, y + 11 + wy * 4, 2, 2);
+            // Chimney
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(x + 22, y + 6, 4, 8);
+            
+            // Windows (yellow)
+            ctx.fillStyle = '#FFFF99';
+            ctx.fillRect(x + 6, y + 16, 3, 3);
+            ctx.fillRect(x + 12, y + 16, 3, 3);
+            ctx.fillRect(x + 18, y + 16, 3, 3);
+            ctx.fillRect(x + 6, y + 21, 3, 3);
+            ctx.fillRect(x + 18, y + 21, 3, 3);
+            
+            // Door (brown)
+            ctx.fillStyle = '#654321';
+            ctx.fillRect(x + 12, y + 20, 4, 8);
+            
+          } else if (buildingType === 2) {
+            // Large house
+            // Shadow
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(x + 1, y + 12, 30, 18);
+            
+            // House base (gray)
+            ctx.fillStyle = '#A9A9A9';
+            ctx.fillRect(x + 0, y + 10, 30, 18);
+            
+            // Roof (green)
+            ctx.fillStyle = '#228B22';
+            ctx.fillRect(x + 0, y + 6, 30, 6);
+            
+            // Multiple chimneys
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(x + 6, y + 4, 3, 8);
+            ctx.fillRect(x + 21, y + 4, 3, 8);
+            
+            // Windows (yellow)
+            ctx.fillStyle = '#FFFF99';
+            for (let i = 0; i < 5; i++) {
+              ctx.fillRect(x + 3 + i * 5, y + 14, 3, 3);
+              if (i !== 2) { // Skip middle for door
+                ctx.fillRect(x + 3 + i * 5, y + 20, 3, 3);
               }
             }
             
-            ctx.fillStyle = '#6a7a8a'; // Door
-            ctx.fillRect(x + 13, y + 21, 4, 6);
-            
-          } else if (moduleType === 2) {
-            // Luxury quarters module
-            ctx.fillStyle = '#2a3a4a'; // Shadow
-            ctx.fillRect(x + 2, y + 14, 28, 14);
-            
-            ctx.fillStyle = '#4a5a6a'; // Module body
-            ctx.fillRect(x + 1, y + 13, 28, 14);
-            
-            ctx.fillStyle = '#5a6a7a'; // Module top
-            ctx.fillRect(x + 0, y + 9, 30, 6);
-            
-            // Large luxury windows
-            ctx.fillStyle = '#ffd700'; // Golden windows
-            ctx.fillRect(x + 5, y + 17, 4, 4);
-            ctx.fillRect(x + 11, y + 17, 4, 4);
-            ctx.fillRect(x + 17, y + 17, 4, 4);
-            ctx.fillRect(x + 23, y + 17, 4, 4);
-            
-            ctx.fillStyle = '#6a7a8a'; // Door
-            ctx.fillRect(x + 13, y + 21, 4, 6);
+            // Door (dark brown)
+            ctx.fillStyle = '#654321';
+            ctx.fillRect(x + 13, y + 18, 4, 10);
             
           } else {
-            // Compact quarters module
-            ctx.fillStyle = '#2a3a4a'; // Shadow
-            ctx.fillRect(x + 3, y + 12, 26, 16);
+            // Apartment building
+            // Shadow
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(x + 3, y + 8, 26, 22);
             
-            ctx.fillStyle = '#3a4a5a'; // Module body
-            ctx.fillRect(x + 2, y + 11, 26, 16);
+            // Building base (brick red)
+            ctx.fillStyle = '#B22222';
+            ctx.fillRect(x + 2, y + 6, 26, 22);
             
-            ctx.fillStyle = '#4a5a6a'; // Module top
-            ctx.fillRect(x + 1, y + 9, 28, 4);
+            // Roof (dark gray)
+            ctx.fillStyle = '#2F2F2F';
+            ctx.fillRect(x + 1, y + 4, 28, 4);
             
-            // Compact windows
-            ctx.fillStyle = '#ffd700'; // Golden windows
-            ctx.fillRect(x + 5, y + 15, 6, 6);
-            ctx.fillRect(x + 19, y + 15, 6, 6);
+            // Windows in grid pattern (yellow)
+            ctx.fillStyle = '#FFFF99';
+            for (let wx = 0; wx < 4; wx++) {
+              for (let wy = 0; wy < 4; wy++) {
+                ctx.fillRect(x + 4 + wx * 5, y + 8 + wy * 4, 3, 2);
+              }
+            }
             
-            ctx.fillStyle = '#6a7a8a'; // Door
-            ctx.fillRect(x + 13, y + 21, 4, 6);
+            // Entrance (brown)
+            ctx.fillStyle = '#654321';
+            ctx.fillRect(x + 13, y + 24, 4, 4);
           }
           
         } else if (tile.type === TileType.RESEARCH_LAB) {
-          // Create variety in research lab modules
-          const labType = (tile.x * 3 + tile.y * 2) % 3;
+          // Create variety in commercial buildings
+          const buildingType = (tile.x * 3 + tile.y * 2) % 3;
           
-          if (labType === 0) {
-            // Main research tower
-            ctx.fillStyle = '#3a2a4a'; // Shadow
-            ctx.fillRect(x + 2, y + 6, 28, 22);
+          if (buildingType === 0) {
+            // Office building
+            // Shadow
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(x + 2, y + 6, 28, 24);
             
-            ctx.fillStyle = '#4a3a5a'; // Module body
-            ctx.fillRect(x + 1, y + 5, 28, 22);
+            // Building base (blue)
+            ctx.fillStyle = '#4169E1';
+            ctx.fillRect(x + 1, y + 4, 28, 24);
             
-            ctx.fillStyle = '#5a4a6a'; // Module top
-            ctx.fillRect(x + 1, y + 5, 28, 4);
+            // Roof (dark blue)
+            ctx.fillStyle = '#191970';
+            ctx.fillRect(x + 0, y + 2, 30, 4);
             
-            // Research lab windows with purple glow
-            ctx.fillStyle = '#aa88ff'; // Purple lit windows
+            // Windows in grid pattern (yellow)
+            ctx.fillStyle = '#FFFF99';
             for (let wx = 0; wx < 5; wx++) {
-              for (let wy = 0; wy < 4; wy++) {
-                if ((wx + wy) % 2 === 0) { // Checkerboard pattern
-                  ctx.fillRect(x + 3 + wx * 4, y + 9 + wy * 4, 2, 2);
-                }
+              for (let wy = 0; wy < 5; wy++) {
+                ctx.fillRect(x + 3 + wx * 4, y + 6 + wy * 4, 3, 2);
               }
             }
             
-          } else if (labType === 1) {
-            // Laboratory complex
-            ctx.fillStyle = '#3a2a4a'; // Shadow
-            ctx.fillRect(x + 1, y + 16, 30, 12);
+            // Entrance (dark blue)
+            ctx.fillStyle = '#000080';
+            ctx.fillRect(x + 13, y + 24, 4, 4);
             
-            ctx.fillStyle = '#4a3a5a'; // Module body
-            ctx.fillRect(x + 0, y + 15, 30, 12);
+          } else if (buildingType === 1) {
+            // Shopping center
+            // Shadow
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(x + 1, y + 16, 30, 14);
             
-            ctx.fillStyle = '#5a4a6a'; // Module top
-            ctx.fillRect(x + 0, y + 13, 30, 4);
+            // Building base (cyan)
+            ctx.fillStyle = '#00CED1';
+            ctx.fillRect(x + 0, y + 14, 30, 14);
             
-            // Lab equipment windows
-            ctx.fillStyle = '#aa88ff'; // Purple lab windows
-            ctx.fillRect(x + 2, y + 19, 8, 6);
-            ctx.fillRect(x + 12, y + 19, 8, 6);
-            ctx.fillRect(x + 22, y + 19, 6, 6);
+            // Roof (teal)
+            ctx.fillStyle = '#008B8B';
+            ctx.fillRect(x + 0, y + 12, 30, 4);
             
-            // Lab equipment indicators
-            ctx.fillStyle = '#ff88aa'; // Pink equipment lights
-            ctx.fillRect(x + 3, y + 17, 6, 2);
-            ctx.fillRect(x + 13, y + 17, 6, 2);
+            // Store windows (yellow)
+            ctx.fillStyle = '#FFFF99';
+            ctx.fillRect(x + 2, y + 18, 8, 6);
+            ctx.fillRect(x + 12, y + 18, 8, 6);
+            ctx.fillRect(x + 22, y + 18, 6, 6);
+            
+            // Store signs (red)
+            ctx.fillStyle = '#FF0000';
+            ctx.fillRect(x + 3, y + 16, 6, 2);
+            ctx.fillRect(x + 13, y + 16, 6, 2);
+            ctx.fillRect(x + 23, y + 16, 4, 2);
             
           } else {
-            // Advanced research module
-            ctx.fillStyle = '#3a2a4a'; // Shadow
-            ctx.fillRect(x + 3, y + 4, 26, 24);
+            // High-rise office
+            // Shadow
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(x + 3, y + 2, 26, 28);
             
-            ctx.fillStyle = '#4a3a5a'; // Module body
-            ctx.fillRect(x + 2, y + 3, 26, 24);
+            // Building base (purple)
+            ctx.fillStyle = '#9370DB';
+            ctx.fillRect(x + 2, y + 0, 26, 28);
             
-            ctx.fillStyle = '#5a4a6a'; // Module top
-            ctx.fillRect(x + 2, y + 3, 26, 3);
+            // Roof (dark purple)
+            ctx.fillStyle = '#4B0082';
+            ctx.fillRect(x + 1, y + 0, 28, 3);
             
-            // Advanced lab equipment
-            ctx.fillStyle = '#aa88ff'; // Purple equipment
+            // Windows in dense grid (yellow)
+            ctx.fillStyle = '#FFFF99';
             for (let gx = 0; gx < 6; gx++) {
-              for (let gy = 0; gy < 6; gy++) {
-                ctx.fillRect(x + 4 + gx * 3, y + 7 + gy * 3, 2, 2);
+              for (let gy = 0; gy < 7; gy++) {
+                ctx.fillRect(x + 4 + gx * 3, y + 4 + gy * 3, 2, 2);
               }
             }
+            
+            // Entrance (dark purple)
+            ctx.fillStyle = '#4B0082';
+            ctx.fillRect(x + 13, y + 24, 4, 4);
           }
           
         } else if (tile.type === TileType.ENGINEERING_BAY) {
@@ -692,14 +786,17 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
           
           if (buildingType === 0) {
             // Heavy factory with smokestacks
-            ctx.fillStyle = '#444444'; // Shadow
-            ctx.fillRect(x + 2, y + 9, 28, 20);
+            // Shadow
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(x + 2, y + 12, 28, 18);
             
-            ctx.fillStyle = '#696969'; // Factory body
-            ctx.fillRect(x + 1, y + 8, 28, 20);
+            // Factory body (gray)
+            ctx.fillStyle = '#696969';
+            ctx.fillRect(x + 1, y + 10, 28, 18);
             
-            ctx.fillStyle = '#2F4F4F'; // Factory roof
-            ctx.fillRect(x + 1, y + 8, 28, 6);
+            // Factory roof (dark gray)
+            ctx.fillStyle = '#2F2F2F';
+            ctx.fillRect(x + 0, y + 8, 30, 4);
             
             // Multiple smokestacks
             ctx.fillStyle = '#A9A9A9';
@@ -708,167 +805,153 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
             ctx.fillRect(x + 20, y + 3, 3, 7);
             ctx.fillRect(x + 26, y + 2, 3, 8);
             
-            // Smoke
+            // Smoke (light gray)
             ctx.fillStyle = '#D3D3D3';
             ctx.fillRect(x + 7, y + 0, 2, 3);
             ctx.fillRect(x + 13, y + 0, 2, 2);
             ctx.fillRect(x + 21, y + 1, 2, 3);
             ctx.fillRect(x + 27, y + 0, 2, 3);
             
-            // Factory windows
-            ctx.fillStyle = '#FF4500';
-            ctx.fillRect(x + 4, y + 16, 3, 3);
-            ctx.fillRect(x + 12, y + 16, 3, 3);
-            ctx.fillRect(x + 20, y + 16, 3, 3);
+            // Factory windows (orange glow)
+            ctx.fillStyle = '#FFA500';
+            ctx.fillRect(x + 4, y + 14, 3, 3);
+            ctx.fillRect(x + 12, y + 14, 3, 3);
+            ctx.fillRect(x + 20, y + 14, 3, 3);
             
           } else if (buildingType === 1) {
-            // Warehouse/logistics center
-            ctx.fillStyle = '#555555'; // Shadow
-            ctx.fillRect(x + 1, y + 13, 30, 16);
+            // Warehouse
+            // Shadow
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(x + 1, y + 16, 30, 14);
             
-            ctx.fillStyle = '#8B4513'; // Brown warehouse
-            ctx.fillRect(x + 0, y + 12, 30, 16);
+            // Warehouse body (brown)
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(x + 0, y + 14, 30, 14);
             
-            ctx.fillStyle = '#654321'; // Dark brown roof
-            ctx.fillRect(x + 0, y + 10, 30, 4);
+            // Roof (dark brown)
+            ctx.fillStyle = '#654321';
+            ctx.fillRect(x + 0, y + 12, 30, 4);
             
-            // Loading docks
-            ctx.fillStyle = '#2F4F4F'; // Dark loading areas
-            ctx.fillRect(x + 2, y + 20, 6, 8);
-            ctx.fillRect(x + 12, y + 20, 6, 8);
-            ctx.fillRect(x + 22, y + 20, 6, 8);
+            // Loading docks (dark gray)
+            ctx.fillStyle = '#2F2F2F';
+            ctx.fillRect(x + 2, y + 22, 6, 6);
+            ctx.fillRect(x + 12, y + 22, 6, 6);
+            ctx.fillRect(x + 22, y + 22, 6, 6);
             
-            // Small office section
-            ctx.fillStyle = '#87CEEB'; // Office windows
-            ctx.fillRect(x + 26, y + 16, 2, 2);
-            ctx.fillRect(x + 26, y + 20, 2, 2);
+            // Office section (light blue)
+            ctx.fillStyle = '#87CEEB';
+            ctx.fillRect(x + 26, y + 18, 3, 6);
             
           } else {
-            // Modern manufacturing plant
-            ctx.fillStyle = '#333333'; // Shadow
-            ctx.fillRect(x + 3, y + 11, 26, 18);
+            // Power plant
+            // Shadow
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(x + 3, y + 14, 26, 16);
             
-            ctx.fillStyle = '#4682B4'; // Steel blue modern
-            ctx.fillRect(x + 2, y + 10, 26, 18);
+            // Plant body (steel blue)
+            ctx.fillStyle = '#4682B4';
+            ctx.fillRect(x + 2, y + 12, 26, 16);
             
-            ctx.fillStyle = '#2F4F4F'; // Flat industrial roof
-            ctx.fillRect(x + 1, y + 8, 28, 4);
+            // Roof (dark gray)
+            ctx.fillStyle = '#2F2F2F';
+            ctx.fillRect(x + 1, y + 10, 28, 4);
             
-            // Modern industrial features
-            ctx.fillStyle = '#A9A9A9'; // Ventilation systems
-            ctx.fillRect(x + 8, y + 6, 6, 4);
-            ctx.fillRect(x + 18, y + 6, 6, 4);
+            // Cooling towers
+            ctx.fillStyle = '#A9A9A9';
+            ctx.fillRect(x + 8, y + 4, 6, 8);
+            ctx.fillRect(x + 18, y + 4, 6, 8);
             
-            // Clean industrial windows
+            // Steam (white)
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(x + 10, y + 2, 2, 4);
+            ctx.fillRect(x + 20, y + 2, 2, 4);
+            
+            // Industrial windows (blue)
             ctx.fillStyle = '#87CEEB';
             for (let iw = 0; iw < 5; iw++) {
-              ctx.fillRect(x + 4 + iw * 4, y + 14, 2, 4);
-              ctx.fillRect(x + 4 + iw * 4, y + 20, 2, 4);
+              ctx.fillRect(x + 4 + iw * 4, y + 16, 2, 3);
+              ctx.fillRect(x + 4 + iw * 4, y + 22, 2, 3);
             }
           }
           
         } else if (tile.type === TileType.RECREATION) {
-          // Create variety in park designs
+          // SimCity-style parks
           const parkType = (tile.x + tile.y * 2) % 4;
           
           if (parkType === 0) {
-            // Dense forest park
-            ctx.fillStyle = '#006400'; // Dark green base
+            // Dense tree park
+            // Base grass
+            ctx.fillStyle = '#228B22';
             ctx.fillRect(x, y, state.tileSize, state.tileSize);
             
-            // Multiple trees
-            for (let tx = 0; tx < 2; tx++) {
-              for (let ty = 0; ty < 2; ty++) {
-                const treeX = x + 6 + tx * 10;
-                const treeY = y + 6 + ty * 10;
-                
-                // Tree trunk
-                ctx.fillStyle = '#8B4513';
-                ctx.fillRect(treeX + 4, treeY + 7, 2, 4);
-                
-                // Tree foliage (larger)
-                ctx.fillStyle = '#228B22';
-                ctx.fillRect(treeX + 1, treeY + 1, 8, 8);
-                ctx.fillStyle = '#32CD32';
-                ctx.fillRect(treeX + 2, treeY + 2, 6, 6);
+            // Add grass texture
+            ctx.fillStyle = '#32CD32';
+            for (let gx = 0; gx < state.tileSize; gx += 2) {
+              for (let gy = 0; gy < state.tileSize; gy += 2) {
+                if ((gx + gy + x + y) % 4 === 0) {
+                  ctx.fillRect(x + gx, y + gy, 1, 1);
+                }
               }
             }
             
-          } else if (parkType === 1) {
-            // Playground park
-            ctx.fillStyle = '#228B22'; // Medium green base
-            ctx.fillRect(x, y, state.tileSize, state.tileSize);
-            
-            // Playground equipment
-            ctx.fillStyle = '#FF0000'; // Red playground equipment
-            ctx.fillRect(x + 8, y + 8, 6, 4);
-            ctx.fillRect(x + 18, y + 12, 4, 6);
-            
-            ctx.fillStyle = '#0000FF'; // Blue equipment
-            ctx.fillRect(x + 12, y + 18, 8, 3);
-            
-            // Small trees around playground
-            ctx.fillStyle = '#8B4513';
-            ctx.fillRect(x + 4, y + 22, 1, 3);
-            ctx.fillRect(x + 26, y + 6, 1, 3);
-            
-            ctx.fillStyle = '#32CD32';
-            ctx.fillRect(x + 2, y + 18, 4, 4);
-            ctx.fillRect(x + 24, y + 4, 4, 4);
-            
-          } else if (parkType === 2) {
-            // Garden park with flowers
-            ctx.fillStyle = '#32CD32'; // Light green base
-            ctx.fillRect(x, y, state.tileSize, state.tileSize);
-            
-            // Flower beds
-            ctx.fillStyle = '#FF69B4'; // Pink flowers
-            ctx.fillRect(x + 4, y + 4, 4, 4);
-            ctx.fillRect(x + 20, y + 8, 4, 4);
-            ctx.fillRect(x + 12, y + 20, 4, 4);
-            
-            ctx.fillStyle = '#FFD700'; // Yellow flowers
-            ctx.fillRect(x + 8, y + 12, 3, 3);
-            ctx.fillRect(x + 18, y + 18, 3, 3);
-            
-            ctx.fillStyle = '#FF0000'; // Red flowers
-            ctx.fillRect(x + 24, y + 24, 3, 3);
-            
-            // Garden paths
-            ctx.fillStyle = '#D2B48C'; // Tan path
-            ctx.fillRect(x + 0, y + 14, 32, 2);
-            ctx.fillRect(x + 14, y + 0, 2, 32);
+            // Simple square trees
+            for (let tx = 0; tx < 2; tx++) {
+              for (let ty = 0; ty < 2; ty++) {
+                const treeX = x + 6 + tx * 12;
+                const treeY = y + 6 + ty * 12;
+                
+                // Tree trunk (brown)
+                ctx.fillStyle = '#8B4513';
+                ctx.fillRect(treeX + 4, treeY + 8, 2, 4);
+                
+                // Tree foliage (dark green)
+                ctx.fillStyle = '#006400';
+                ctx.fillRect(treeX + 1, treeY + 2, 8, 8);
+                
+                // Tree highlights (bright green)
+                ctx.fillStyle = '#228B22';
+                ctx.fillRect(treeX + 2, treeY + 3, 6, 6);
+              }
+            }
             
           } else {
-            // Central plaza park
-            ctx.fillStyle = '#228B22'; // Medium green
+            // Simple grass park
+            // Base grass
+            ctx.fillStyle = '#228B22';
             ctx.fillRect(x, y, state.tileSize, state.tileSize);
             
-            // Central fountain
-            ctx.fillStyle = '#4169E1'; // Blue water
-            ctx.fillRect(x + 12, y + 12, 8, 8);
+            // Add grass texture
+            ctx.fillStyle = '#32CD32';
+            for (let gx = 0; gx < state.tileSize; gx += 3) {
+              for (let gy = 0; gy < state.tileSize; gy += 3) {
+                if ((gx + gy + x + y) % 6 === 0) {
+                  ctx.fillRect(x + gx, y + gy, 1, 1);
+                }
+              }
+            }
             
-            ctx.fillStyle = '#D3D3D3'; // Light gray fountain edge
-            ctx.fillRect(x + 11, y + 11, 10, 1);
-            ctx.fillRect(x + 11, y + 20, 10, 1);
-            ctx.fillRect(x + 11, y + 11, 1, 10);
-            ctx.fillRect(x + 20, y + 11, 1, 10);
-            
-            // Benches around fountain
-            ctx.fillStyle = '#8B4513'; // Brown benches
-            ctx.fillRect(x + 6, y + 15, 3, 1);
-            ctx.fillRect(x + 23, y + 15, 3, 1);
-            ctx.fillRect(x + 15, y + 6, 1, 3);
-            ctx.fillRect(x + 15, y + 23, 1, 3);
-            
-            // Corner trees
-            ctx.fillStyle = '#8B4513';
-            ctx.fillRect(x + 3, y + 26, 2, 3);
-            ctx.fillRect(x + 27, y + 3, 2, 3);
-            
-            ctx.fillStyle = '#228B22';
-            ctx.fillRect(x + 1, y + 22, 6, 6);
-            ctx.fillRect(x + 25, y + 1, 6, 6);
+            // Simple fountain or feature in center
+            if (parkType === 1) {
+              // Small fountain
+              ctx.fillStyle = '#4682B4';
+              ctx.fillRect(x + 12, y + 12, 8, 8);
+              ctx.fillStyle = '#87CEEB';
+              ctx.fillRect(x + 13, y + 13, 6, 6);
+            } else if (parkType === 2) {
+              // Flower bed
+              ctx.fillStyle = '#FF69B4';
+              ctx.fillRect(x + 10, y + 10, 12, 12);
+              ctx.fillStyle = '#FFD700';
+              ctx.fillRect(x + 12, y + 12, 8, 8);
+            } else {
+              // Single tree
+              ctx.fillStyle = '#8B4513';
+              ctx.fillRect(x + 14, y + 18, 4, 6);
+              ctx.fillStyle = '#006400';
+              ctx.fillRect(x + 10, y + 10, 12, 12);
+              ctx.fillStyle = '#228B22';
+              ctx.fillRect(x + 12, y + 12, 8, 8);
+            }
           }
           
         } else if (tile.type === TileType.POWER_LINE) {
