@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import Link from 'next/link';
+import React, { useState } from "react";
+import Link from "next/link";
 
 interface TokenForm {
   name: string;
@@ -9,33 +9,37 @@ interface TokenForm {
 }
 
 const categories = [
-  'Utility',
-  'DeFi',
-  'Gaming',
-  'NFT',
-  'Infrastructure',
-  'Social',
-  'AI/ML',
-  'Other'
+  "Utility",
+  "DeFi",
+  "Gaming",
+  "NFT",
+  "Infrastructure",
+  "Social",
+  "AI/ML",
+  "Other",
 ];
 
 export default function CreateToken() {
   const [form, setForm] = useState<TokenForm>({
-    name: '',
-    description: '',
-    category: '',
-    pythonCode: ''
+    name: "",
+    description: "",
+    category: "",
+    pythonCode: "",
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
+  ) => {
     const { name, value } = e.target;
-    setForm(prev => ({
+    setForm((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
@@ -44,14 +48,14 @@ export default function CreateToken() {
     setIsSubmitting(true);
     setError(null);
     setSuccess(null);
-    
+
     try {
-      console.log('Submitting agent:', form);
-      
-      const response = await fetch('/api/create-agent', {
-        method: 'POST',
+      console.log("Submitting agent:", form);
+
+      const response = await fetch("/api/create-agent", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(form),
       });
@@ -59,30 +63,36 @@ export default function CreateToken() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || data.details || 'Failed to create agent');
+        throw new Error(data.error || data.details || "Failed to create agent");
       }
 
       // Success!
-      setSuccess(`Agent "${data.agent.name}" created successfully! Address: ${data.agent.address}`);
-      console.log('Agent created successfully:', data);
-      
+      setSuccess(
+        `Agent "${data.agent.name}" created successfully! Address: ${
+          data.agent.address
+        }. Database ID: ${data.agent.databaseId || "Not saved to database"}`
+      );
+      console.log("Agent created successfully:", data);
+
       // Reset form
       setForm({
-        name: '',
-        description: '',
-        category: '',
-        pythonCode: ''
+        name: "",
+        description: "",
+        category: "",
+        pythonCode: "",
       });
     } catch (error) {
-      console.error('Error creating agent:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error("Error creating agent:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred";
       setError(`Error creating agent: ${errorMessage}`);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const isFormValid = form.name && form.description && form.category && form.pythonCode;
+  const isFormValid =
+    form.name && form.description && form.category && form.pythonCode;
 
   return (
     <div className="min-h-screen amongus-grid overflow-hidden relative p-4">
@@ -96,20 +106,20 @@ export default function CreateToken() {
           <div className="absolute bottom-2 left-2 w-3 h-3 amongus-window rounded-sm"></div>
           <div className="absolute bottom-2 right-2 w-3 h-3 amongus-window rounded-sm"></div>
         </div>
-        
+
         <div className="absolute top-32 right-24 w-32 h-24 amongus-building rounded-lg">
           <div className="w-full h-full bg-gradient-to-b from-gray-600 to-gray-700 rounded-lg"></div>
           <div className="absolute top-2 left-2 w-3 h-3 amongus-window rounded-sm"></div>
           <div className="absolute top-2 right-2 w-3 h-3 amongus-window rounded-sm"></div>
         </div>
-        
+
         <div className="absolute bottom-32 left-32 w-36 h-28 amongus-building rounded-lg">
           <div className="w-full h-full bg-gradient-to-b from-gray-600 to-gray-700 rounded-lg"></div>
           <div className="absolute top-2 left-2 w-3 h-3 amongus-window rounded-sm"></div>
           <div className="absolute top-2 right-2 w-3 h-3 amongus-window rounded-sm"></div>
           <div className="absolute bottom-2 left-2 w-3 h-3 amongus-window rounded-sm"></div>
         </div>
-        
+
         <div className="absolute bottom-24 right-16 w-28 h-20 amongus-building rounded-lg">
           <div className="w-full h-full bg-gradient-to-b from-gray-600 to-gray-700 rounded-lg"></div>
           <div className="absolute top-2 left-2 w-3 h-3 amongus-window rounded-sm"></div>
@@ -126,9 +136,20 @@ export default function CreateToken() {
       <div className="relative z-10 amongus-panel p-4 mb-4">
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-bold text-white">Create Agent</h1>
-          <Link href="/" className="amongus-button text-white hover:text-blue-300 transition-colors">
-            ← Back to Game
-          </Link>
+          <div className="flex space-x-2">
+            <Link
+              href="/dashboard"
+              className="simcity-button px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white"
+            >
+              ← Dashboard
+            </Link>
+            <Link
+              href="/"
+              className="simcity-button px-4 py-2 text-sm bg-gray-600 hover:bg-gray-500 text-white"
+            >
+              ← Home
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -145,14 +166,23 @@ export default function CreateToken() {
           {/* Success Message */}
           {success && (
             <div className="mb-4 p-3 bg-green-900 bg-opacity-80 border border-green-400 text-green-300 rounded-lg shadow-lg">
-              {success}
+              <div className="mb-2">{success}</div>
+              <Link
+                href="/dashboard"
+                className="simcity-button px-3 py-1 text-xs bg-green-600 hover:bg-green-500 text-white inline-block"
+              >
+                View Dashboard
+              </Link>
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Name Field */}
             <div>
-              <label htmlFor="name" className="block text-sm font-bold mb-2 text-blue-300">
+              <label
+                htmlFor="name"
+                className="block text-sm font-bold mb-2 text-blue-300"
+              >
                 Agent Name *
               </label>
               <input
@@ -169,7 +199,10 @@ export default function CreateToken() {
 
             {/* Description Field */}
             <div>
-              <label htmlFor="description" className="block text-sm font-bold mb-2 text-blue-300">
+              <label
+                htmlFor="description"
+                className="block text-sm font-bold mb-2 text-blue-300"
+              >
                 Description *
               </label>
               <textarea
@@ -186,7 +219,10 @@ export default function CreateToken() {
 
             {/* Category Field */}
             <div>
-              <label htmlFor="category" className="block text-sm font-bold mb-2 text-blue-300">
+              <label
+                htmlFor="category"
+                className="block text-sm font-bold mb-2 text-blue-300"
+              >
                 Category *
               </label>
               <select
@@ -197,9 +233,15 @@ export default function CreateToken() {
                 className="w-full p-2 border-2 border-blue-400 bg-gray-800 text-white rounded-lg focus:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               >
-                <option value="" className="bg-gray-800 text-white">Select a category</option>
-                {categories.map(category => (
-                  <option key={category} value={category} className="bg-gray-800 text-white">
+                <option value="" className="bg-gray-800 text-white">
+                  Select a category
+                </option>
+                {categories.map((category) => (
+                  <option
+                    key={category}
+                    value={category}
+                    className="bg-gray-800 text-white"
+                  >
                     {category}
                   </option>
                 ))}
@@ -208,7 +250,10 @@ export default function CreateToken() {
 
             {/* Python Code Field */}
             <div>
-              <label htmlFor="pythonCode" className="block text-sm font-bold mb-2 text-blue-300">
+              <label
+                htmlFor="pythonCode"
+                className="block text-sm font-bold mb-2 text-blue-300"
+              >
                 Python Code *
               </label>
               <textarea
@@ -218,17 +263,17 @@ export default function CreateToken() {
                 onChange={handleInputChange}
                 rows={12}
                 className="w-full p-2 border-2 border-blue-400 bg-gray-800 text-white font-mono text-xs rounded-lg resize-none focus:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
-                placeholder="# Enter your uAgents Python code here
+                placeholder='# Enter your uAgents Python code here
 from uagents import Agent, Context
 
-agent = Agent(name=&quot;my-agent&quot;)
+agent = Agent(name="my-agent")
 
-@agent.on_event(&quot;startup&quot;)
+@agent.on_event("startup")
 async def on_start(ctx: Context):
-    ctx.logger.info(&quot;Agent is up!&quot;)
+    ctx.logger.info("Agent is up!")
 
-if __name__ == &quot;__main__&quot;:
-    agent.run()"
+if __name__ == "__main__":
+    agent.run()'
                 required
               />
             </div>
@@ -239,12 +284,12 @@ if __name__ == &quot;__main__&quot;:
                 type="submit"
                 disabled={!isFormValid || isSubmitting}
                 className={`amongus-button px-8 py-2 text-sm font-bold text-white border-2 border-blue-400 bg-gradient-to-b from-blue-600 to-blue-700 rounded-lg shadow-lg transition-all ${
-                  !isFormValid || isSubmitting 
-                    ? 'opacity-50 cursor-not-allowed' 
-                    : 'hover:from-blue-500 hover:to-blue-600 hover:shadow-xl'
+                  !isFormValid || isSubmitting
+                    ? "opacity-50 cursor-not-allowed"
+                    : "hover:from-blue-500 hover:to-blue-600 hover:shadow-xl"
                 }`}
               >
-                {isSubmitting ? 'Creating Agent...' : 'Create Agent'}
+                {isSubmitting ? "Creating Agent..." : "Create Agent"}
               </button>
             </div>
           </form>
