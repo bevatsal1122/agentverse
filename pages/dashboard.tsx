@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { RandomAvatar } from "react-random-avatars";
 import { Tables } from "./types/database.types";
 
 type Agent = Tables<"agents">;
@@ -148,10 +149,8 @@ const AgentCard: React.FC<AgentCardProps> = ({ agent }) => {
       <div className="flex items-center justify-between w-full">
         {/* Agent Avatar & Basic Info */}
         <div className="flex items-center space-x-3 w-48">
-          <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
-            <div className="w-6 h-6 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
-              <div className="w-4 h-4 bg-white rounded-full"></div>
-            </div>
+          <div className="flex-shrink-0">
+            <RandomAvatar name={agent.name} size={32} />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center space-x-2">

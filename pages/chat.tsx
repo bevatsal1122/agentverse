@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
+import { RandomAvatar } from "react-random-avatars";
 
 interface Message {
   id: string;
@@ -229,10 +230,8 @@ export default function Chat() {
         <div className="sticky top-0 z-20 amongus-panel p-4 mb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full mr-3 flex items-center justify-center">
-                <div className="w-7 h-7 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
-                  <div className="w-4 h-4 bg-white rounded-full"></div>
-                </div>
+              <div className="mr-3">
+                <RandomAvatar name={agentName} size={40} />
               </div>
               <div>
                 <h1 className="text-lg font-bold text-white">
@@ -264,6 +263,11 @@ export default function Chat() {
                   message.sender === "user" ? "justify-end" : "justify-start"
                 }`}
               >
+                {message.sender === "agent" && (
+                  <div className="flex-shrink-0 mr-2">
+                    <RandomAvatar name={agentName} size={24} />
+                  </div>
+                )}
                 <div
                   className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
                     message.sender === "user"
@@ -276,10 +280,18 @@ export default function Chat() {
                     {formatTime(message.timestamp)}
                   </div>
                 </div>
+                {message.sender === "user" && (
+                  <div className="flex-shrink-0 ml-2">
+                    <RandomAvatar name="User" size={24} />
+                  </div>
+                )}
               </div>
             ))}
             {isLoading && (
               <div className="flex justify-start">
+                <div className="flex-shrink-0 mr-2">
+                  <RandomAvatar name={agentName} size={24} />
+                </div>
                 <div className="bg-gray-700 text-gray-100 px-4 py-2 rounded-lg">
                   <div className="flex items-center space-x-2">
                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
