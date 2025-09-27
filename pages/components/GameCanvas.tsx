@@ -758,6 +758,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
   const drawPlayerPath = (ctx: CanvasRenderingContext2D, state: GameState) => {
     if (!state.playerPath || state.playerPath.length < 2) return;
     
+    // Only draw remaining path segments (from current position onwards)
+    const startIndex = Math.max(0, state.playerPathIndex);
+    const remainingPath = state.playerPath.slice(startIndex);
+    
+    if (remainingPath.length < 1) return; // No remaining path to draw
+    
     // Player path - bright blue highlighted path
     ctx.strokeStyle = '#00BFFF'; // Bright blue color for player path
     ctx.lineWidth = 6;
@@ -770,30 +776,26 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     
     ctx.beginPath();
     
-    for (let i = 0; i < state.playerPath.length; i++) {
-      const node = state.playerPath[i];
-      // Use world coordinates - camera transformation is already applied
+    // Start from player's current position
+    const playerWorldX = state.playerPosition.x * state.tileSize + state.tileSize / 2;
+    const playerWorldY = state.playerPosition.y * state.tileSize + state.tileSize / 2;
+    ctx.moveTo(playerWorldX, playerWorldY);
+    
+    // Draw line to remaining path nodes
+    for (let i = 0; i < remainingPath.length; i++) {
+      const node = remainingPath[i];
       const worldX = node.x * state.tileSize + state.tileSize / 2;
       const worldY = node.y * state.tileSize + state.tileSize / 2;
-      
-      if (i === 0) {
-        // Start from player's current position for the first segment
-        const playerWorldX = state.playerPosition.x * state.tileSize + state.tileSize / 2;
-        const playerWorldY = state.playerPosition.y * state.tileSize + state.tileSize / 2;
-        ctx.moveTo(playerWorldX, playerWorldY);
-        ctx.lineTo(worldX, worldY);
-      } else {
-        ctx.lineTo(worldX, worldY);
-      }
+      ctx.lineTo(worldX, worldY);
     }
     
     ctx.stroke();
     ctx.setLineDash([]); // Reset dash pattern
     ctx.shadowBlur = 0; // Reset shadow
     
-    // Draw path nodes with enhanced highlighting
-    for (let i = 0; i < state.playerPath.length; i++) {
-      const node = state.playerPath[i];
+    // Draw path nodes with enhanced highlighting (only remaining nodes)
+    for (let i = 0; i < remainingPath.length; i++) {
+      const node = remainingPath[i];
       const worldX = node.x * state.tileSize + state.tileSize / 2;
       const worldY = node.y * state.tileSize + state.tileSize / 2;
       
@@ -805,13 +807,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       ctx.arc(worldX, worldY, 4, 0, Math.PI * 2);
       ctx.fill();
       
-      // Draw node number
+      // Draw node number (adjusted for remaining path)
       ctx.fillStyle = '#FFFFFF';
       ctx.font = 'bold 10px Arial';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.shadowBlur = 0;
-      ctx.fillText((i + 1).toString(), worldX, worldY);
+      ctx.fillText((startIndex + i + 1).toString(), worldX, worldY);
     }
     
     ctx.shadowBlur = 0; // Reset shadow
