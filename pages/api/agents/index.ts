@@ -10,9 +10,13 @@ export default async function handler(
       const result = await agentService.getAgents();
       
       if (result.success) {
-        return res.status(200).json(result.data);
+        return res.status(200).json({
+          success: true,
+          agents: result.data
+        });
       } else {
         return res.status(500).json({ 
+          success: false,
           error: 'Failed to fetch agents',
           details: result.error 
         });
@@ -20,6 +24,7 @@ export default async function handler(
     } catch (error) {
       console.error('Error fetching agents:', error);
       return res.status(500).json({ 
+        success: false,
         error: 'Internal server error' 
       });
     }

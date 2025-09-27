@@ -14,6 +14,8 @@ export class PlayerController {
   // Collision system disabled
   private lastTime = 0;
   private cameraKeys: Set<string> = new Set(); // Track camera control keys
+  private keydownListener: ((e: KeyboardEvent) => void) | null = null;
+  private keyupListener: ((e: KeyboardEvent) => void) | null = null;
 
   constructor() {
     // Don't initialize immediately - wait for client-side
@@ -47,7 +49,7 @@ export class PlayerController {
     
     console.log('Setting up camera control keyboard listeners...');
     
-    window.addEventListener('keydown', (e) => {
+    this.keydownListener = (e) => {
       // Track camera control keys
       if (['KeyW', 'KeyS', 'KeyA', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyR', 'KeyT'].includes(e.code)) {
         e.preventDefault();
@@ -65,15 +67,18 @@ export class PlayerController {
           console.log('Player: Starting hardcoded test path');
         }
       }
-    });
+    };
 
-    window.addEventListener('keyup', (e) => {
+    this.keyupListener = (e) => {
       // Remove camera control keys when released
       if (['KeyW', 'KeyS', 'KeyA', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyR', 'KeyT'].includes(e.code)) {
         e.preventDefault();
         this.cameraKeys.delete(e.code);
       }
-    });
+    };
+
+    window.addEventListener('keydown', this.keydownListener);
+    window.addEventListener('keyup', this.keyupListener);
 
     console.log('Camera control keyboard listeners set up successfully');
   }
@@ -148,7 +153,19 @@ export class PlayerController {
 
 
   destroy() {
-    // Cleanup if needed
+    console.log('PlayerController: Cleaning up keyboard listeners...');
+    
+    if (typeof window !== 'undefined' && this.keydownListener && this.keyupListener) {
+      window.removeEventListener('keydown', this.keydownListener);
+      window.removeEventListener('keyup', this.keyupListener);
+      this.keydownListener = null;
+      this.keyupListener = null;
+    }
+    
+    this.cameraKeys.clear();
+    this.isInitialized = false;
+    
+    console.log('PlayerController: Cleanup complete');
   }
 }
 

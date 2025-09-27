@@ -27,7 +27,11 @@ export default function Game() {
         // Force re-render when game state changes
       });
 
-      return unsubscribe;
+      return () => {
+        // Cleanup when component unmounts or dependencies change
+        unsubscribe();
+        playerController.destroy();
+      };
     }
   }, [ready, authenticated]);
 
