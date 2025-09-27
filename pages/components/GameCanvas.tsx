@@ -55,6 +55,15 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       if (result.success) {
         // Task generation handles agent movement internally, no need to reload agents
         console.log('Task generated successfully, agents will move sequentially');
+        
+        // Set path to the specific agent that was assigned the task
+        // The server calculates the path but we need to set it on the client side
+        try {
+          gameState.setPathToRandomAgent();
+          console.log('🎮 Avatar path set to target agent');
+        } catch (error) {
+          console.log('🎮 Could not set avatar path:', error);
+        }
       }
     } catch (error) {
       console.error('Error generating collaborative task:', error);

@@ -846,6 +846,10 @@ class GameStateManager {
     this.state.playerPathIndex = 0;
     this.state.isPlayerFollowingPath = true;
     
+    // Disable camera following during path movement to prevent glitchy camera movement
+    this.state.isManualCameraControl = true;
+    console.log('📷 Camera following disabled during path movement');
+    
     console.log(`🎯 Player path set: ${filteredPath.length} nodes, starting at (${currentTileX}, ${currentTileY}) pixel(${currentPos.pixelX}, ${currentPos.pixelY})`);
     if (filteredPath.length > 0) {
       console.log(`🎯 First target: (${filteredPath[0].x}, ${filteredPath[0].y}) pixel(${filteredPath[0].x * this.state.tileSize}, ${filteredPath[0].y * this.state.tileSize})`);
@@ -880,10 +884,76 @@ class GameStateManager {
     this.setPlayerPath(testPath);
   }
 
+  // Set path to a random agent for automatic movement
+  setPathToRandomAgent() {
+    const agents = Array.from(this.state.aiAgents.values());
+    if (!agents || agents.length === 0) {
+      console.log('🎯 No agents available for random path');
+      return;
+    }
+
+    // Get a random agent
+    const randomAgent = agents[Math.floor(Math.random() * agents.length)];
+    
+    // Use the agent's current position as the target
+    const targetX = randomAgent.x;
+    const targetY = randomAgent.y;
+    
+    console.log(`🎯 Setting path to random agent ${randomAgent.name} at (${targetX}, ${targetY})`);
+    
+    // Calculate path to the target position
+    const currentPos = this.state.playerPosition;
+    const currentTileX = Math.round(currentPos.pixelX / this.state.tileSize);
+    const currentTileY = Math.round(currentPos.pixelY / this.state.tileSize);
+    
+    const path = this.pathfinder.findPath(
+      currentTileX, currentTileY, targetX, targetY
+    );
+    
+    if (path && path.nodes && path.nodes.length > 0) {
+      console.log(`🗺️ Pathfinding result: Found path with ${path.nodes.length} nodes`);
+      this.setPlayerPath(path.nodes);
+    } else {
+      console.log('🗺️ No path found, using fallback pathfinding');
+      // Fallback: create a simple path
+      const fallbackPath = this.createFallbackPath(currentTileX, currentTileY, targetX, targetY);
+      if (fallbackPath.length > 0) {
+        console.log(`🔄 Using fallback pathfinding from (${currentTileX}, ${currentTileY}) to (${targetX}, ${targetY})`);
+        console.log(`✅ Fallback path created with ${fallbackPath.length} nodes: ${fallbackPath.map(p => `(${p.x},${p.y})`).join(' -> ')}`);
+        this.setPlayerPath(fallbackPath);
+      }
+    }
+  }
+
+  // Create a simple fallback path when pathfinding fails
+  private createFallbackPath(startX: number, startY: number, endX: number, endY: number): Array<{x: number, y: number}> {
+    const path: Array<{x: number, y: number}> = [];
+    let currentX = startX;
+    let currentY = startY;
+    
+    // Move horizontally first, then vertically
+    while (currentX !== endX) {
+      currentX += currentX < endX ? 1 : -1;
+      path.push({ x: currentX, y: currentY });
+    }
+    
+    while (currentY !== endY) {
+      currentY += currentY < endY ? 1 : -1;
+      path.push({ x: currentX, y: currentY });
+    }
+    
+    return path;
+  }
+
   clearPlayerPath() {
     this.state.playerPath = undefined;
     this.state.playerPathIndex = 0;
     this.state.isPlayerFollowingPath = false;
+    
+    // Re-enable camera following when path is completed
+    this.state.isManualCameraControl = false;
+    console.log('📷 Camera following re-enabled after path completion');
+    
     this.notifyListeners();
   }
 
@@ -891,6 +961,7 @@ class GameStateManager {
     if (!this.state.isPlayerFollowingPath || !this.state.playerPath || this.state.playerPath.length === 0) {
       return;
     }
+
 
     const currentPos = this.state.playerPosition;
     const currentTileX = Math.round(currentPos.pixelX / this.state.tileSize);
@@ -1026,8 +1097,10 @@ class GameStateManager {
     
     console.log(`📍 Player position updated: tile(${tileX}, ${tileY}) pixel(${constrainedPixelX.toFixed(1)}, ${constrainedPixelY.toFixed(1)})`);
     
-    // Update camera based on current follow mode
-    this.updateCamera();
+    // Only update camera if not following a path (to prevent glitchy camera movement)
+    if (!this.state.isPlayerFollowingPath) {
+      this.updateCamera();
+    }
     this.notifyListeners();
   }
 
@@ -1218,7 +1291,10 @@ class GameStateManager {
   }
 
   resetCameraToPlayer() {
-    this.state.isManualCameraControl = false; // Disable manual control, return to auto-follow
+    // Only reset manual control if player is not following a path
+    if (!this.state.isPlayerFollowingPath) {
+      this.state.isManualCameraControl = false; // Disable manual control, return to auto-follow
+    }
     
     if (typeof window === 'undefined') {
       this.state.cameraPosition.x = 12;

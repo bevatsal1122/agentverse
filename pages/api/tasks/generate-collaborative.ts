@@ -252,13 +252,9 @@ export default async function handler(
               console.log(`🗺️ Pathfinding result:`, path ? `Found path with ${path.nodes.length} nodes` : 'No path found');
               
               if (path && path.nodes.length > 0) {
-                // Set player path for visualization and movement
-                console.log(`🚀 Setting player path to child agent ${childAgent?.name || childAgentId} (${i + 1}/${task.subtasks.length})`);
-                
-                // Set the calculated path for the player
-                gameState.setPlayerPath(path.nodes);
-                
-                console.log(`🗺️ Player avatar path set to child agent ${childAgent?.name || childAgentId} (${i + 1}/${task.subtasks.length}) at building ${building.id} (${building.x}, ${building.y})`);
+                // Calculate path for client-side use (don't set on server)
+                console.log(`🚀 Calculated path to child agent ${childAgent?.name || childAgentId} (${i + 1}/${task.subtasks.length})`);
+                console.log(`🗺️ Path calculated for child agent ${childAgent?.name || childAgentId} (${i + 1}/${task.subtasks.length}) at building ${building.id} (${building.x}, ${building.y})`);
                 console.log(`📍 Path has ${path.nodes.length} nodes:`, path.nodes.map(node => `(${node.x},${node.y})`).join(' -> '));
                 
                 // Log this movement action
