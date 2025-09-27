@@ -49,7 +49,7 @@ export class PlayerController {
     
     window.addEventListener('keydown', (e) => {
       // Track camera control keys
-      if (['KeyW', 'KeyS', 'KeyA', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyR'].includes(e.code)) {
+      if (['KeyW', 'KeyS', 'KeyA', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyR', 'KeyT'].includes(e.code)) {
         e.preventDefault();
         this.cameraKeys.add(e.code);
         
@@ -58,12 +58,18 @@ export class PlayerController {
           gameState.resetCameraToPlayer();
           console.log('Camera: Reset to player');
         }
+        
+        // Handle T key (test path) immediately
+        if (e.code === 'KeyT') {
+          gameState.setHardcodedTestPath();
+          console.log('Player: Starting hardcoded test path');
+        }
       }
     });
 
     window.addEventListener('keyup', (e) => {
       // Remove camera control keys when released
-      if (['KeyW', 'KeyS', 'KeyA', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyR'].includes(e.code)) {
+      if (['KeyW', 'KeyS', 'KeyA', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyR', 'KeyT'].includes(e.code)) {
         e.preventDefault();
         this.cameraKeys.delete(e.code);
       }

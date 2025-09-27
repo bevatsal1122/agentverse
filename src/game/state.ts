@@ -150,7 +150,7 @@ class GameStateManager {
     screenWidth: 1024, // Default screen width
     screenHeight: 768, // Default screen height
     crewmates: new Map(),
-    lastCrewmateUpdate: 0,
+    lastCrewmateUpdate: Date.now(),
     aiAgents: new Map(),
     chatMessages: [],
     maxChatMessages: 100,
@@ -539,6 +539,9 @@ class GameStateManager {
     const deltaTime = now - this.state.lastCrewmateUpdate;
     this.state.lastCrewmateUpdate = now;
 
+    // Clamp deltaTime to reasonable values (max 100ms = 0.1s)
+    const clampedDeltaTime = Math.min(deltaTime, 100);
+
     // Clear old chat messages
     if (now % 30000 < 100) { // Every 30 seconds
       this.clearOldChatMessages();
@@ -547,7 +550,7 @@ class GameStateManager {
     // No longer automatically spawn random agents - only real agents from backend should appear
 
     // Update player path following (convert deltaTime from ms to seconds)
-    this.updatePlayerPathFollowing(deltaTime / 1000);
+    this.updatePlayerPathFollowing(clampedDeltaTime / 1000);
 
     for (const [id, agent] of Array.from(this.state.aiAgents.entries())) {
       this.updateAIAgentBehavior(agent, deltaTime, now);
@@ -829,8 +832,25 @@ class GameStateManager {
     this.state.playerPath = path;
     this.state.playerPathIndex = 0;
     this.state.isPlayerFollowingPath = true;
-    console.log(`🎯 Player path set with ${path.length} nodes - starting algorithmic movement`);
     this.notifyListeners();
+  }
+
+  // Hardcoded test path for immediate testing
+  setHardcodedTestPath() {
+    const testPath = [
+      { x: 12, y: 12 }, // Start at player position
+      { x: 13, y: 12 }, // Move right
+      { x: 14, y: 12 }, // Move right
+      { x: 14, y: 13 }, // Move down
+      { x: 14, y: 14 }, // Move down
+      { x: 13, y: 14 }, // Move left
+      { x: 12, y: 14 }, // Move left
+      { x: 12, y: 13 }, // Move up
+      { x: 12, y: 12 }  // Back to start
+    ];
+    
+    console.log(`🎯 Setting hardcoded test path with ${testPath.length} nodes`);
+    this.setPlayerPath(testPath);
   }
 
   clearPlayerPath() {
@@ -844,6 +864,8 @@ class GameStateManager {
     if (!this.state.isPlayerFollowingPath || !this.state.playerPath || this.state.playerPath.length === 0) {
       return;
     }
+
+    console.log(`🔄 Player path following: deltaTime=${deltaTime.toFixed(3)}s, pathIndex=${this.state.playerPathIndex}/${this.state.playerPath.length}`);
 
     const currentPos = this.state.playerPosition;
     const pathIndex = this.state.playerPathIndex;
@@ -880,6 +902,8 @@ class GameStateManager {
       
       const newPixelX = currentPos.pixelX + moveX;
       const newPixelY = currentPos.pixelY + moveY;
+      
+      console.log(`🚶 Player moving: from (${currentPos.pixelX.toFixed(1)}, ${currentPos.pixelY.toFixed(1)}) to (${newPixelX.toFixed(1)}, ${newPixelY.toFixed(1)}) - distance: ${distance.toFixed(1)}px, moveDistance: ${moveDistance.toFixed(1)}px`);
       
       // Update player position and animation
       this.setPlayerPixelPosition(newPixelX, newPixelY);
@@ -922,6 +946,8 @@ class GameStateManager {
       animationFrame: this.state.playerPosition.animationFrame,
       direction: this.state.playerPosition.direction
     };
+    
+    console.log(`📍 Player position updated: tile(${tileX}, ${tileY}) pixel(${constrainedPixelX.toFixed(1)}, ${constrainedPixelY.toFixed(1)})`);
     
     // Update camera based on current follow mode
     this.updateCamera();
