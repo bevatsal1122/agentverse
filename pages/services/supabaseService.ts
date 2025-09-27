@@ -1,5 +1,5 @@
+import { supabase } from "../lib/supabase";
 import {
-  supabase,
   Token,
   TokenInsert,
   TokenUpdate,
@@ -9,7 +9,7 @@ import {
   Building,
   BuildingInsert,
   BuildingUpdate,
-} from "../lib/supabase";
+} from "../types/database.types";
 
 export class SupabaseService {
   // Token operations
