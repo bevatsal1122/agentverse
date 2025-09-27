@@ -27,6 +27,9 @@ export interface Position {
   y: number;
   pixelX: number;
   pixelY: number;
+  isMoving: boolean;
+  animationFrame: number;
+  direction: 'left' | 'right' | 'up' | 'down';
 }
 
 export interface Tile {
@@ -85,10 +88,10 @@ class GameStateManager {
   private state: GameState = {
     selectedTool: Tool.SELECT,
     mapData: new Map(),
-    playerPosition: { x: 5, y: 5, pixelX: 160, pixelY: 160 }, // Start at center of a 10x10 grid
+    playerPosition: { x: 5, y: 5, pixelX: 320, pixelY: 320, isMoving: false, animationFrame: 0, direction: 'right' }, // Start at center of a 10x10 grid
     cameraPosition: { x: 0, y: 0 }, // Will be updated when window is available
-    gridSize: 32,
-    tileSize: 32,
+    gridSize: 64,
+    tileSize: 64,
     crewmates: new Map(),
     lastCrewmateUpdate: 0
   };
@@ -357,7 +360,10 @@ class GameStateManager {
       x, 
       y, 
       pixelX: pixelX ?? this.state.playerPosition.pixelX, 
-      pixelY: pixelY ?? this.state.playerPosition.pixelY 
+      pixelY: pixelY ?? this.state.playerPosition.pixelY,
+      isMoving: this.state.playerPosition.isMoving,
+      animationFrame: this.state.playerPosition.animationFrame,
+      direction: this.state.playerPosition.direction
     };
     this.notifyListeners();
   }
@@ -371,13 +377,27 @@ class GameStateManager {
       x: tileX, 
       y: tileY, 
       pixelX, 
-      pixelY 
+      pixelY,
+      isMoving: this.state.playerPosition.isMoving,
+      animationFrame: this.state.playerPosition.animationFrame,
+      direction: this.state.playerPosition.direction
     };
     this.notifyListeners();
   }
 
   setCameraPosition(x: number, y: number) {
     this.state.cameraPosition = { x, y };
+    this.notifyListeners();
+  }
+
+  updatePlayerAnimation(isMoving: boolean, direction?: 'left' | 'right' | 'up' | 'down') {
+    if (isMoving) {
+      this.state.playerPosition.animationFrame = (this.state.playerPosition.animationFrame + 1) % 8;
+    }
+    this.state.playerPosition.isMoving = isMoving;
+    if (direction) {
+      this.state.playerPosition.direction = direction;
+    }
     this.notifyListeners();
   }
 

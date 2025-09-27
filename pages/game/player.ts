@@ -1,9 +1,18 @@
 import { gameState, Position } from './state';
+// Collision system temporarily disabled for new city map
+
+const X_VELOCITY = 200;
+const JUMP_POWER = 250;
+const GRAVITY = 580;
 
 export class PlayerController {
   private keys: Set<string> = new Set();
   private moveSpeed = 8; // pixels per frame
   private isInitialized = false;
+  private velocity = { x: 0, y: 0 };
+  private isOnGround = false;
+  // Collision system disabled
+  private lastTime = 0;
 
   constructor() {
     // Don't initialize immediately - wait for client-side
@@ -12,7 +21,12 @@ export class PlayerController {
   initialize() {
     if (this.isInitialized || typeof window === 'undefined') return;
     this.isInitialized = true;
+    this.setupCollisionSystem();
     this.setupKeyboardListeners();
+  }
+
+  private setupCollisionSystem() {
+    // Collision system disabled for new city map
   }
 
   private setupKeyboardListeners() {
@@ -32,50 +46,65 @@ export class PlayerController {
 
   private gameLoop() {
     if (typeof window === 'undefined') return;
-    this.handleMovement();
+    const currentTime = performance.now();
+    const deltaTime = this.lastTime ? (currentTime - this.lastTime) / 1000 : 0;
+    this.lastTime = currentTime;
+    
+    this.handlePhysicsMovement(deltaTime);
     requestAnimationFrame(() => this.gameLoop());
   }
 
-  private handleMovement() {
+  private handlePhysicsMovement(deltaTime: number) {
+    if (!deltaTime) return;
+    
     const state = gameState.getState();
     const currentPos = state.playerPosition;
-    const tileSize = state.tileSize;
     
-    let newPixelX = currentPos.pixelX;
-    let newPixelY = currentPos.pixelY;
-    let hasMoved = false;
-
-    // Check movement keys and move pixel by pixel
-    if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) {
-      newPixelY -= this.moveSpeed;
-      hasMoved = true;
-    }
-    if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) {
-      newPixelY += this.moveSpeed;
-      hasMoved = true;
-    }
-    if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) {
-      newPixelX -= this.moveSpeed;
-      hasMoved = true;
-    }
-    if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) {
-      newPixelX += this.moveSpeed;
-      hasMoved = true;
-    }
-
-    // Only update position if there was movement
-    if (hasMoved) {
-      // Only ensure grass occasionally to reduce performance impact
-      if (Math.abs(newPixelX - currentPos.pixelX) > 32 || Math.abs(newPixelY - currentPos.pixelY) > 32) {
-        const newTileX = Math.floor(newPixelX / tileSize);
-        const newTileY = Math.floor(newPixelY / tileSize);
-        gameState.ensureGrassAround(newTileX, newTileY, 10);
-      }
-      
-      gameState.setPlayerPixelPosition(newPixelX, newPixelY);
-      this.updateCamera(newPixelX, newPixelY);
-    }
+    // Handle input
+    this.handleInput();
+    
+    // Simple direct movement (no physics for city map)
+    const newPixelX = currentPos.pixelX + this.velocity.x * deltaTime;
+    const newPixelY = currentPos.pixelY + this.velocity.y * deltaTime;
+    gameState.setPlayerPixelPosition(newPixelX, newPixelY);
+    
+    // Update camera
+    this.updateCamera(newPixelX, newPixelY);
   }
+
+  private handleInput() {
+    this.velocity.x = 0;
+    this.velocity.y = 0;
+    let isMoving = false;
+    let direction: 'left' | 'right' | 'up' | 'down' | undefined;
+
+    if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) {
+      this.velocity.x = X_VELOCITY;
+      isMoving = true;
+      direction = 'right';
+    } else if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) {
+      this.velocity.x = -X_VELOCITY;
+      isMoving = true;
+      direction = 'left';
+    }
+
+    if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) {
+      this.velocity.y = -X_VELOCITY;
+      isMoving = true;
+      direction = 'up';
+    } else if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) {
+      this.velocity.y = X_VELOCITY;
+      isMoving = true;
+      direction = 'down';
+    }
+
+    // Update player animation
+    gameState.updatePlayerAnimation(isMoving, direction);
+  }
+
+
+
+
 
 
   private updateCamera(playerPixelX: number, playerPixelY: number) {

@@ -7,74 +7,124 @@ export interface MapConfig {
   tiles: string[][];
 }
 
+// Helper function to create a realistic city layout
+function createCityMap(): string[][] {
+  const width = 50;
+  const height = 50;
+  const map: string[][] = Array.from({ length: height }, () => Array(width).fill('space'));
+  
+  // Create major highway grid
+  for (let x = 0; x < width; x++) {
+    map[12][x] = 'highway';  // North highway
+    map[25][x] = 'highway';  // Central highway
+    map[37][x] = 'highway';  // South highway
+  }
+  
+  for (let y = 0; y < height; y++) {
+    map[y][15] = 'main_corridor';  // West corridor
+    map[y][30] = 'main_corridor';  // East corridor
+  }
+  
+  // Local street grid
+  for (let x = 6; x < width; x += 9) {
+    for (let y = 0; y < height; y++) {
+      if (map[y][x] === 'space') {
+        map[y][x] = 'corridor';
+      }
+    }
+  }
+  
+  for (let y = 6; y < height; y += 8) {
+    for (let x = 0; x < width; x++) {
+      if (map[y][x] === 'space') {
+        map[y][x] = 'corridor';
+      }
+    }
+  }
+  
+  // Residential areas (deterministic patterns)
+  // North residential
+  for (let y = 1; y < 12; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      if (map[y][x] === 'space') {
+        if ((x + y) % 4 < 2) {
+          map[y][x] = 'living_quarters';
+        } else if ((x + y) % 12 === 0) {
+          map[y][x] = 'recreation';
+        }
+      }
+    }
+  }
+  
+  // South residential
+  for (let y = 26; y < 37; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      if (map[y][x] === 'space') {
+        if ((x + y) % 4 < 2) {
+          map[y][x] = 'living_quarters';
+        } else if ((x + y) % 10 === 0) {
+          map[y][x] = 'recreation';
+        }
+      }
+    }
+  }
+  
+  // Downtown commercial district
+  for (let y = 13; y < 25; y++) {
+    for (let x = 16; x < 30; x++) {
+      if (map[y][x] === 'space') {
+        if ((x + y) % 3 < 2) {
+          map[y][x] = 'research_lab';
+        }
+      }
+    }
+  }
+  
+  // Industrial zone (west side)
+  for (let y = 18; y < 32; y++) {
+    for (let x = 1; x < 15; x++) {
+      if (map[y][x] === 'space') {
+        if (x % 5 === 0) {
+          map[y][x] = 'power_line';
+        } else if ((x + y) % 3 < 2) {
+          map[y][x] = 'engineering_bay';
+        }
+      }
+    }
+  }
+  
+  // Central park area
+  for (let y = 20; y < 24; y++) {
+    for (let x = 32; x < 40; x++) {
+      if (map[y][x] === 'space') {
+        map[y][x] = 'recreation';
+      }
+    }
+  }
+  
+  // Suburban parks
+  const parkLocations = [
+    [3, 3], [45, 5], [8, 35], [42, 40], [20, 8], [35, 15]
+  ];
+  
+  parkLocations.forEach(([px, py]) => {
+    for (let dy = 0; dy < 3; dy++) {
+      for (let dx = 0; dx < 3; dx++) {
+        if (py + dy < height && px + dx < width && map[py + dy][px + dx] === 'space') {
+          map[py + dy][px + dx] = 'recreation';
+        }
+      }
+    }
+  });
+  
+  return map;
+}
+
 export const defaultMap: MapConfig = {
-  name: "Alpha Station",
+  name: "New Metropolis",
   width: 50,
   height: 50,
-  tiles: [
-    // Row 0–4: Outer space buffer
-    ...Array.from({ length: 5 }, () => Array(50).fill('space')),
-
-    // Row 5–10: Living quarters section (quarters + recreation + corridors)
-    ...Array.from({ length: 6 }, (_, r) => 
-      Array.from({ length: 50 }, (_, c) => {
-        if (c % 10 === 0) return 'corridor';
-        if (c % 7 === 0 && r % 2 === 0) return 'recreation';
-        return 'living_quarters';
-      })
-    ),
-
-    // Row 11: Major north–south main corridor
-    Array(50).fill('highway'),
-
-    // Row 12–20: Research and development core
-    ...Array.from({ length: 9 }, (_, r) => 
-      Array.from({ length: 50 }, (_, c) => {
-        if (r % 3 === 0 && c % 5 === 0) return 'recreation';
-        if (c % 8 === 0) return 'main_corridor';
-        return 'research_lab';
-      })
-    ),
-
-    // Row 21: East–west cross main corridor
-    Array(50).fill('highway'),
-
-    // Row 22–30: Mixed mid-station (quarters + small research)
-    ...Array.from({ length: 9 }, (_, r) => 
-      Array.from({ length: 50 }, (_, c) => {
-        if (c % 12 === 0) return 'corridor';
-        if (r % 4 === 0 && c % 6 === 0) return 'recreation';
-        return (c % 5 < 3 ? 'living_quarters' : 'research_lab');
-      })
-    ),
-
-    // Row 31: South cross main corridor
-    Array(50).fill('highway'),
-
-    // Row 32–40: Engineering zone on west side
-    ...Array.from({ length: 9 }, (_, r) => 
-      Array.from({ length: 50 }, (_, c) => {
-        if (c < 15) return (c % 5 === 0 ? 'power_line' : 'engineering_bay');
-        if (c % 10 === 0) return 'corridor';
-        return 'space';
-      })
-    ),
-
-    // Row 41: Peripheral corridor
-    Array(50).fill('corridor'),
-
-    // Row 42–48: Southern living quarters
-    ...Array.from({ length: 7 }, (_, r) => 
-      Array.from({ length: 50 }, (_, c) => {
-        if (c % 9 === 0) return 'corridor';
-        if ((c + r) % 11 === 0) return 'recreation';
-        return 'living_quarters';
-      })
-    ),
-
-    // Row 49: Southern edge
-    Array(50).fill('space')
-  ]
+  tiles: createCityMap()
 };
 
 // Helper function to convert string to TileType

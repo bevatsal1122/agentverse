@@ -185,22 +185,22 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     ctx.fillStyle = '#228B22'; // Base grass green
     ctx.fillRect(x, y, size, size);
     
-    // Add grass texture pattern
+    // Add grass texture pattern (bigger for Minecraft style)
     ctx.fillStyle = '#32CD32'; // Lighter grass
-    for (let gx = 0; gx < size; gx += 2) {
-      for (let gy = 0; gy < size; gy += 2) {
-        if ((gx + gy + x + y) % 4 === 0) {
-          ctx.fillRect(x + gx, y + gy, 1, 1);
+    for (let gx = 0; gx < size; gx += 4) {
+      for (let gy = 0; gy < size; gy += 4) {
+        if ((gx + gy + x + y) % 8 === 0) {
+          ctx.fillRect(x + gx, y + gy, 2, 2);
         }
       }
     }
     
-    // Add darker grass spots for variation
+    // Add darker grass spots for variation (bigger)
     ctx.fillStyle = '#1F7A1F';
-    for (let gx = 1; gx < size; gx += 4) {
-      for (let gy = 1; gy < size; gy += 4) {
-        if ((gx + gy + x + y) % 8 === 0) {
-          ctx.fillRect(x + gx, y + gy, 1, 1);
+    for (let gx = 2; gx < size; gx += 8) {
+      for (let gy = 2; gy < size; gy += 8) {
+        if ((gx + gy + x + y) % 16 === 0) {
+          ctx.fillRect(x + gx, y + gy, 2, 2);
         }
       }
     }
@@ -229,44 +229,35 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
   const drawCrewmate = (ctx: CanvasRenderingContext2D, crewmate: Crewmate, x: number, y: number, tileSize: number) => {
     const centerX = x + tileSize / 2;
     const centerY = y + tileSize / 2;
-    const size = tileSize * 0.6;
+    const size = tileSize * 0.8; // Make crewmates bigger
     
-    // Crewmate body (oval shape like Among Us)
+    // Minecraft-style chunky crewmate body
     ctx.fillStyle = crewmate.color;
-    ctx.beginPath();
-    ctx.ellipse(centerX, centerY + size * 0.1, size * 0.4, size * 0.5, 0, 0, 2 * Math.PI);
-    ctx.fill();
+    ctx.fillRect(centerX - size * 0.3, centerY - size * 0.2, size * 0.6, size * 0.8);
     
-    // Crewmate backpack
+    // Crewmate head (square)
     ctx.fillStyle = crewmate.color;
-    ctx.beginPath();
-    ctx.ellipse(centerX, centerY + size * 0.3, size * 0.15, size * 0.25, 0, 0, 2 * Math.PI);
-    ctx.fill();
+    ctx.fillRect(centerX - size * 0.25, centerY - size * 0.4, size * 0.5, size * 0.3);
     
-    // Crewmate visor (white)
+    // Crewmate visor (white, rectangular)
     ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.ellipse(centerX, centerY - size * 0.1, size * 0.3, size * 0.2, 0, 0, 2 * Math.PI);
-    ctx.fill();
+    ctx.fillRect(centerX - size * 0.2, centerY - size * 0.35, size * 0.4, size * 0.15);
     
-    // Visor reflection
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-    ctx.beginPath();
-    ctx.ellipse(centerX - size * 0.05, centerY - size * 0.15, size * 0.1, size * 0.05, 0, 0, 2 * Math.PI);
-    ctx.fill();
+    // Simple eyes (black squares)
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(centerX - size * 0.12, centerY - size * 0.3, size * 0.06, size * 0.06);
+    ctx.fillRect(centerX + size * 0.06, centerY - size * 0.3, size * 0.06, size * 0.06);
     
-    // Activity indicator
+    // Activity indicator (bigger)
     if (crewmate.activity !== CrewmateActivity.WALKING) {
       const indicatorColor = getActivityColor(crewmate.activity);
       ctx.fillStyle = indicatorColor;
-      ctx.beginPath();
-      ctx.arc(centerX + size * 0.3, centerY - size * 0.2, size * 0.08, 0, 2 * Math.PI);
-      ctx.fill();
+      ctx.fillRect(centerX + size * 0.2, centerY - size * 0.3, size * 0.15, size * 0.15);
     }
     
     // Walking animation - slight bounce
     if (crewmate.activity === CrewmateActivity.WALKING) {
-      const bounce = Math.sin(crewmate.animationFrame * 0.5) * 2;
+      const bounce = Math.sin(crewmate.animationFrame * 0.5) * 3;
       ctx.translate(0, bounce);
     }
   };
@@ -308,21 +299,21 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     ctx.fillStyle = baseColor;
     ctx.fillRect(x, y, size, size);
     
-    // Add asphalt texture
+    // Add chunky asphalt texture for Minecraft style
     ctx.fillStyle = lightenColor(baseColor, 10);
-    for (let ax = 0; ax < size; ax += 3) {
-      for (let ay = 0; ay < size; ay += 3) {
-        if ((ax + ay + x + y) % 6 === 0) {
-          ctx.fillRect(x + ax, y + ay, 1, 1);
+    for (let ax = 0; ax < size; ax += 6) {
+      for (let ay = 0; ay < size; ay += 6) {
+        if ((ax + ay + x + y) % 12 === 0) {
+          ctx.fillRect(x + ax, y + ay, 2, 2);
         }
       }
     }
     
     ctx.fillStyle = lightenColor(baseColor, -10);
-    for (let ax = 1; ax < size; ax += 4) {
-      for (let ay = 1; ay < size; ay += 4) {
-        if ((ax + ay + x + y) % 8 === 0) {
-          ctx.fillRect(x + ax, y + ay, 1, 1);
+    for (let ax = 3; ax < size; ax += 8) {
+      for (let ay = 3; ay < size; ay += 8) {
+        if ((ax + ay + x + y) % 16 === 0) {
+          ctx.fillRect(x + ax, y + ay, 2, 2);
         }
       }
     }
@@ -338,14 +329,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       // Highway with multiple lanes
       ctx.fillStyle = lineColor;
       if (hasRoadNorth || hasRoadSouth) {
-        // Double lane dividers
-        ctx.fillRect(x + size/3, y, 1, size);
-        ctx.fillRect(x + 2*size/3, y, 1, size);
+        // Double lane dividers (thicker)
+        ctx.fillRect(x + size/3, y, 2, size);
+        ctx.fillRect(x + 2*size/3, y, 2, size);
       }
       if (hasRoadEast || hasRoadWest) {
-        // Double lane dividers
-        ctx.fillRect(x, y + size/3, size, 1);
-        ctx.fillRect(x, y + 2*size/3, size, 1);
+        // Double lane dividers (thicker)
+        ctx.fillRect(x, y + size/3, size, 2);
+        ctx.fillRect(x, y + 2*size/3, size, 2);
       }
       
       // Road edges
@@ -359,15 +350,15 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       // Main road with center line
       ctx.fillStyle = lineColor;
       if (hasRoadNorth || hasRoadSouth) {
-        // Dashed center line
-        for (let i = 0; i < size; i += 6) {
-          ctx.fillRect(x + size/2, y + i, 1, 3);
+        // Dashed center line (thicker)
+        for (let i = 0; i < size; i += 12) {
+          ctx.fillRect(x + size/2 - 1, y + i, 2, 6);
         }
       }
       if (hasRoadEast || hasRoadWest) {
-        // Dashed center line
-        for (let i = 0; i < size; i += 6) {
-          ctx.fillRect(x + i, y + size/2, 3, 1);
+        // Dashed center line (thicker)
+        for (let i = 0; i < size; i += 12) {
+          ctx.fillRect(x + i, y + size/2 - 1, 6, 2);
         }
       }
       
@@ -382,12 +373,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       // Regular road
       ctx.fillStyle = lineColor;
       if (hasRoadNorth || hasRoadSouth) {
-        // Simple center line
-        ctx.fillRect(x + size/2, y, 1, size);
+        // Simple center line (thicker)
+        ctx.fillRect(x + size/2 - 1, y, 2, size);
       }
       if (hasRoadEast || hasRoadWest) {
-        // Simple center line
-        ctx.fillRect(x, y + size/2, size, 1);
+        // Simple center line (thicker)
+        ctx.fillRect(x, y + size/2 - 1, size, 2);
       }
       
       // Road edges
@@ -581,120 +572,120 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
           const buildingType = (tile.x + tile.y) % 4;
           
           if (buildingType === 0) {
-            // Small house
+            // Small house (Minecraft-sized)
             // Shadow
             ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-            ctx.fillRect(x + 5, y + 18, 22, 12);
+            ctx.fillRect(x + 8, y + 32, 48, 24);
             
             // House base (brown)
             ctx.fillStyle = '#8B4513';
-            ctx.fillRect(x + 4, y + 16, 22, 12);
+            ctx.fillRect(x + 6, y + 28, 48, 24);
             
             // Roof (dark red)
             ctx.fillStyle = '#A0522D';
-            ctx.fillRect(x + 2, y + 12, 26, 6);
+            ctx.fillRect(x + 2, y + 20, 56, 12);
             
             // Roof peak
             ctx.fillStyle = '#8B4513';
-            ctx.fillRect(x + 4, y + 10, 22, 4);
+            ctx.fillRect(x + 6, y + 16, 48, 8);
             
-            // Windows (yellow)
+            // Windows (yellow, bigger)
             ctx.fillStyle = '#FFFF99';
-            ctx.fillRect(x + 8, y + 18, 3, 3);
-            ctx.fillRect(x + 13, y + 18, 3, 3);
-            ctx.fillRect(x + 18, y + 18, 3, 3);
+            ctx.fillRect(x + 12, y + 32, 8, 8);
+            ctx.fillRect(x + 26, y + 32, 8, 8);
+            ctx.fillRect(x + 40, y + 32, 8, 8);
             
-            // Door (dark brown)
+            // Door (dark brown, bigger)
             ctx.fillStyle = '#654321';
-            ctx.fillRect(x + 13, y + 22, 4, 6);
+            ctx.fillRect(x + 26, y + 40, 8, 12);
             
           } else if (buildingType === 1) {
-            // Medium house
+            // Medium house (scaled for 64px)
             // Shadow
             ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-            ctx.fillRect(x + 3, y + 14, 26, 16);
+            ctx.fillRect(x + 6, y + 28, 52, 32);
             
             // House base (tan)
             ctx.fillStyle = '#D2B48C';
-            ctx.fillRect(x + 2, y + 12, 26, 16);
+            ctx.fillRect(x + 4, y + 24, 52, 32);
             
             // Roof (blue)
             ctx.fillStyle = '#4682B4';
-            ctx.fillRect(x + 0, y + 8, 30, 6);
+            ctx.fillRect(x + 0, y + 16, 60, 12);
             
-            // Chimney
+            // Chimney (bigger)
             ctx.fillStyle = '#8B4513';
-            ctx.fillRect(x + 22, y + 6, 4, 8);
+            ctx.fillRect(x + 44, y + 12, 8, 16);
             
-            // Windows (yellow)
+            // Windows (yellow, bigger)
             ctx.fillStyle = '#FFFF99';
-            ctx.fillRect(x + 6, y + 16, 3, 3);
-            ctx.fillRect(x + 12, y + 16, 3, 3);
-            ctx.fillRect(x + 18, y + 16, 3, 3);
-            ctx.fillRect(x + 6, y + 21, 3, 3);
-            ctx.fillRect(x + 18, y + 21, 3, 3);
+            ctx.fillRect(x + 8, y + 28, 8, 8);
+            ctx.fillRect(x + 20, y + 28, 8, 8);
+            ctx.fillRect(x + 32, y + 28, 8, 8);
+            ctx.fillRect(x + 8, y + 40, 8, 8);
+            ctx.fillRect(x + 32, y + 40, 8, 8);
             
-            // Door (brown)
+            // Door (brown, bigger)
             ctx.fillStyle = '#654321';
-            ctx.fillRect(x + 12, y + 20, 4, 8);
+            ctx.fillRect(x + 20, y + 36, 8, 16);
             
           } else if (buildingType === 2) {
-            // Large house
+            // Large house (scaled for 64px)
             // Shadow
             ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-            ctx.fillRect(x + 1, y + 12, 30, 18);
+            ctx.fillRect(x + 2, y + 24, 60, 36);
             
             // House base (gray)
             ctx.fillStyle = '#A9A9A9';
-            ctx.fillRect(x + 0, y + 10, 30, 18);
+            ctx.fillRect(x + 0, y + 20, 60, 36);
             
             // Roof (green)
             ctx.fillStyle = '#228B22';
-            ctx.fillRect(x + 0, y + 6, 30, 6);
+            ctx.fillRect(x + 0, y + 12, 60, 12);
             
-            // Multiple chimneys
+            // Multiple chimneys (bigger)
             ctx.fillStyle = '#8B4513';
-            ctx.fillRect(x + 6, y + 4, 3, 8);
-            ctx.fillRect(x + 21, y + 4, 3, 8);
+            ctx.fillRect(x + 12, y + 8, 6, 16);
+            ctx.fillRect(x + 42, y + 8, 6, 16);
             
-            // Windows (yellow)
+            // Windows (yellow, bigger grid)
             ctx.fillStyle = '#FFFF99';
             for (let i = 0; i < 5; i++) {
-              ctx.fillRect(x + 3 + i * 5, y + 14, 3, 3);
+              ctx.fillRect(x + 6 + i * 10, y + 28, 6, 6);
               if (i !== 2) { // Skip middle for door
-                ctx.fillRect(x + 3 + i * 5, y + 20, 3, 3);
+                ctx.fillRect(x + 6 + i * 10, y + 40, 6, 6);
               }
             }
             
-            // Door (dark brown)
+            // Door (dark brown, bigger)
             ctx.fillStyle = '#654321';
-            ctx.fillRect(x + 13, y + 18, 4, 10);
+            ctx.fillRect(x + 26, y + 36, 8, 20);
             
           } else {
-            // Apartment building
+            // Apartment building (scaled for 64px)
             // Shadow
             ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-            ctx.fillRect(x + 3, y + 8, 26, 22);
+            ctx.fillRect(x + 6, y + 16, 52, 44);
             
             // Building base (brick red)
             ctx.fillStyle = '#B22222';
-            ctx.fillRect(x + 2, y + 6, 26, 22);
+            ctx.fillRect(x + 4, y + 12, 52, 44);
             
             // Roof (dark gray)
             ctx.fillStyle = '#2F2F2F';
-            ctx.fillRect(x + 1, y + 4, 28, 4);
+            ctx.fillRect(x + 2, y + 8, 56, 8);
             
-            // Windows in grid pattern (yellow)
+            // Windows in grid pattern (yellow, bigger)
             ctx.fillStyle = '#FFFF99';
             for (let wx = 0; wx < 4; wx++) {
               for (let wy = 0; wy < 4; wy++) {
-                ctx.fillRect(x + 4 + wx * 5, y + 8 + wy * 4, 3, 2);
+                ctx.fillRect(x + 8 + wx * 10, y + 16 + wy * 8, 6, 4);
               }
             }
             
-            // Entrance (brown)
+            // Entrance (brown, bigger)
             ctx.fillStyle = '#654321';
-            ctx.fillRect(x + 13, y + 24, 4, 4);
+            ctx.fillRect(x + 26, y + 48, 8, 8);
           }
           
         } else if (tile.type === TileType.RESEARCH_LAB) {
@@ -702,82 +693,82 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
           const buildingType = (tile.x * 3 + tile.y * 2) % 3;
           
           if (buildingType === 0) {
-            // Office building
+            // Office building (scaled for 64px)
             // Shadow
             ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-            ctx.fillRect(x + 2, y + 6, 28, 24);
+            ctx.fillRect(x + 4, y + 12, 56, 48);
             
             // Building base (blue)
             ctx.fillStyle = '#4169E1';
-            ctx.fillRect(x + 1, y + 4, 28, 24);
+            ctx.fillRect(x + 2, y + 8, 56, 48);
             
             // Roof (dark blue)
             ctx.fillStyle = '#191970';
-            ctx.fillRect(x + 0, y + 2, 30, 4);
+            ctx.fillRect(x + 0, y + 4, 60, 8);
             
-            // Windows in grid pattern (yellow)
+            // Windows in grid pattern (yellow, bigger)
             ctx.fillStyle = '#FFFF99';
             for (let wx = 0; wx < 5; wx++) {
               for (let wy = 0; wy < 5; wy++) {
-                ctx.fillRect(x + 3 + wx * 4, y + 6 + wy * 4, 3, 2);
+                ctx.fillRect(x + 6 + wx * 8, y + 12 + wy * 8, 6, 4);
               }
             }
             
-            // Entrance (dark blue)
+            // Entrance (dark blue, bigger)
             ctx.fillStyle = '#000080';
-            ctx.fillRect(x + 13, y + 24, 4, 4);
+            ctx.fillRect(x + 26, y + 48, 8, 8);
             
           } else if (buildingType === 1) {
-            // Shopping center
+            // Shopping center (scaled for 64px)
             // Shadow
             ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-            ctx.fillRect(x + 1, y + 16, 30, 14);
+            ctx.fillRect(x + 2, y + 32, 60, 28);
             
             // Building base (cyan)
             ctx.fillStyle = '#00CED1';
-            ctx.fillRect(x + 0, y + 14, 30, 14);
+            ctx.fillRect(x + 0, y + 28, 60, 28);
             
             // Roof (teal)
             ctx.fillStyle = '#008B8B';
-            ctx.fillRect(x + 0, y + 12, 30, 4);
+            ctx.fillRect(x + 0, y + 24, 60, 8);
             
-            // Store windows (yellow)
+            // Store windows (yellow, bigger)
             ctx.fillStyle = '#FFFF99';
-            ctx.fillRect(x + 2, y + 18, 8, 6);
-            ctx.fillRect(x + 12, y + 18, 8, 6);
-            ctx.fillRect(x + 22, y + 18, 6, 6);
+            ctx.fillRect(x + 4, y + 36, 16, 12);
+            ctx.fillRect(x + 24, y + 36, 16, 12);
+            ctx.fillRect(x + 44, y + 36, 12, 12);
             
-            // Store signs (red)
+            // Store signs (red, bigger)
             ctx.fillStyle = '#FF0000';
-            ctx.fillRect(x + 3, y + 16, 6, 2);
-            ctx.fillRect(x + 13, y + 16, 6, 2);
-            ctx.fillRect(x + 23, y + 16, 4, 2);
+            ctx.fillRect(x + 6, y + 32, 12, 4);
+            ctx.fillRect(x + 26, y + 32, 12, 4);
+            ctx.fillRect(x + 46, y + 32, 8, 4);
             
           } else {
-            // High-rise office
+            // High-rise office (scaled for 64px)
             // Shadow
             ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-            ctx.fillRect(x + 3, y + 2, 26, 28);
+            ctx.fillRect(x + 6, y + 4, 52, 56);
             
             // Building base (purple)
             ctx.fillStyle = '#9370DB';
-            ctx.fillRect(x + 2, y + 0, 26, 28);
+            ctx.fillRect(x + 4, y + 0, 52, 56);
             
             // Roof (dark purple)
             ctx.fillStyle = '#4B0082';
-            ctx.fillRect(x + 1, y + 0, 28, 3);
+            ctx.fillRect(x + 2, y + 0, 56, 6);
             
-            // Windows in dense grid (yellow)
+            // Windows in dense grid (yellow, bigger)
             ctx.fillStyle = '#FFFF99';
             for (let gx = 0; gx < 6; gx++) {
               for (let gy = 0; gy < 7; gy++) {
-                ctx.fillRect(x + 4 + gx * 3, y + 4 + gy * 3, 2, 2);
+                ctx.fillRect(x + 8 + gx * 6, y + 8 + gy * 6, 4, 4);
               }
             }
             
-            // Entrance (dark purple)
+            // Entrance (dark purple, bigger)
             ctx.fillStyle = '#4B0082';
-            ctx.fillRect(x + 13, y + 24, 4, 4);
+            ctx.fillRect(x + 26, y + 48, 8, 8);
           }
           
         } else if (tile.type === TileType.ENGINEERING_BAY) {
@@ -785,92 +776,92 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
           const buildingType = (tile.x * 2 + tile.y) % 3;
           
           if (buildingType === 0) {
-            // Heavy factory with smokestacks
+            // Heavy factory with smokestacks (scaled for 64px)
             // Shadow
             ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-            ctx.fillRect(x + 2, y + 12, 28, 18);
+            ctx.fillRect(x + 4, y + 24, 56, 36);
             
             // Factory body (gray)
             ctx.fillStyle = '#696969';
-            ctx.fillRect(x + 1, y + 10, 28, 18);
+            ctx.fillRect(x + 2, y + 20, 56, 36);
             
             // Factory roof (dark gray)
             ctx.fillStyle = '#2F2F2F';
-            ctx.fillRect(x + 0, y + 8, 30, 4);
+            ctx.fillRect(x + 0, y + 16, 60, 8);
             
-            // Multiple smokestacks
+            // Multiple smokestacks (bigger)
             ctx.fillStyle = '#A9A9A9';
-            ctx.fillRect(x + 6, y + 2, 3, 8);
-            ctx.fillRect(x + 12, y + 1, 4, 9);
-            ctx.fillRect(x + 20, y + 3, 3, 7);
-            ctx.fillRect(x + 26, y + 2, 3, 8);
+            ctx.fillRect(x + 12, y + 4, 6, 16);
+            ctx.fillRect(x + 24, y + 2, 8, 18);
+            ctx.fillRect(x + 40, y + 6, 6, 14);
+            ctx.fillRect(x + 52, y + 4, 6, 16);
             
-            // Smoke (light gray)
+            // Smoke (light gray, bigger)
             ctx.fillStyle = '#D3D3D3';
-            ctx.fillRect(x + 7, y + 0, 2, 3);
-            ctx.fillRect(x + 13, y + 0, 2, 2);
-            ctx.fillRect(x + 21, y + 1, 2, 3);
-            ctx.fillRect(x + 27, y + 0, 2, 3);
+            ctx.fillRect(x + 14, y + 0, 4, 6);
+            ctx.fillRect(x + 26, y + 0, 4, 4);
+            ctx.fillRect(x + 42, y + 2, 4, 6);
+            ctx.fillRect(x + 54, y + 0, 4, 6);
             
-            // Factory windows (orange glow)
+            // Factory windows (orange glow, bigger)
             ctx.fillStyle = '#FFA500';
-            ctx.fillRect(x + 4, y + 14, 3, 3);
-            ctx.fillRect(x + 12, y + 14, 3, 3);
-            ctx.fillRect(x + 20, y + 14, 3, 3);
+            ctx.fillRect(x + 8, y + 28, 6, 6);
+            ctx.fillRect(x + 24, y + 28, 6, 6);
+            ctx.fillRect(x + 40, y + 28, 6, 6);
             
           } else if (buildingType === 1) {
-            // Warehouse
+            // Warehouse (scaled for 64px)
             // Shadow
             ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-            ctx.fillRect(x + 1, y + 16, 30, 14);
+            ctx.fillRect(x + 2, y + 32, 60, 28);
             
             // Warehouse body (brown)
             ctx.fillStyle = '#8B4513';
-            ctx.fillRect(x + 0, y + 14, 30, 14);
+            ctx.fillRect(x + 0, y + 28, 60, 28);
             
             // Roof (dark brown)
             ctx.fillStyle = '#654321';
-            ctx.fillRect(x + 0, y + 12, 30, 4);
+            ctx.fillRect(x + 0, y + 24, 60, 8);
             
-            // Loading docks (dark gray)
+            // Loading docks (dark gray, bigger)
             ctx.fillStyle = '#2F2F2F';
-            ctx.fillRect(x + 2, y + 22, 6, 6);
-            ctx.fillRect(x + 12, y + 22, 6, 6);
-            ctx.fillRect(x + 22, y + 22, 6, 6);
+            ctx.fillRect(x + 4, y + 44, 12, 12);
+            ctx.fillRect(x + 24, y + 44, 12, 12);
+            ctx.fillRect(x + 44, y + 44, 12, 12);
             
-            // Office section (light blue)
+            // Office section (light blue, bigger)
             ctx.fillStyle = '#87CEEB';
-            ctx.fillRect(x + 26, y + 18, 3, 6);
+            ctx.fillRect(x + 52, y + 36, 6, 12);
             
           } else {
-            // Power plant
+            // Power plant (scaled for 64px)
             // Shadow
             ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-            ctx.fillRect(x + 3, y + 14, 26, 16);
+            ctx.fillRect(x + 6, y + 28, 52, 32);
             
             // Plant body (steel blue)
             ctx.fillStyle = '#4682B4';
-            ctx.fillRect(x + 2, y + 12, 26, 16);
+            ctx.fillRect(x + 4, y + 24, 52, 32);
             
             // Roof (dark gray)
             ctx.fillStyle = '#2F2F2F';
-            ctx.fillRect(x + 1, y + 10, 28, 4);
+            ctx.fillRect(x + 2, y + 20, 56, 8);
             
-            // Cooling towers
+            // Cooling towers (bigger)
             ctx.fillStyle = '#A9A9A9';
-            ctx.fillRect(x + 8, y + 4, 6, 8);
-            ctx.fillRect(x + 18, y + 4, 6, 8);
+            ctx.fillRect(x + 16, y + 8, 12, 16);
+            ctx.fillRect(x + 36, y + 8, 12, 16);
             
-            // Steam (white)
+            // Steam (white, bigger)
             ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(x + 10, y + 2, 2, 4);
-            ctx.fillRect(x + 20, y + 2, 2, 4);
+            ctx.fillRect(x + 20, y + 4, 4, 8);
+            ctx.fillRect(x + 40, y + 4, 4, 8);
             
-            // Industrial windows (blue)
+            // Industrial windows (blue, bigger)
             ctx.fillStyle = '#87CEEB';
             for (let iw = 0; iw < 5; iw++) {
-              ctx.fillRect(x + 4 + iw * 4, y + 16, 2, 3);
-              ctx.fillRect(x + 4 + iw * 4, y + 22, 2, 3);
+              ctx.fillRect(x + 8 + iw * 8, y + 32, 4, 6);
+              ctx.fillRect(x + 8 + iw * 8, y + 44, 4, 6);
             }
           }
           
@@ -894,23 +885,23 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
               }
             }
             
-            // Simple square trees
+            // Minecraft-style chunky trees
             for (let tx = 0; tx < 2; tx++) {
               for (let ty = 0; ty < 2; ty++) {
-                const treeX = x + 6 + tx * 12;
-                const treeY = y + 6 + ty * 12;
+                const treeX = x + 8 + tx * 24;
+                const treeY = y + 8 + ty * 24;
                 
-                // Tree trunk (brown)
+                // Tree trunk (brown, thicker)
                 ctx.fillStyle = '#8B4513';
-                ctx.fillRect(treeX + 4, treeY + 8, 2, 4);
+                ctx.fillRect(treeX + 8, treeY + 16, 8, 16);
                 
-                // Tree foliage (dark green)
+                // Tree foliage (dark green, bigger)
                 ctx.fillStyle = '#006400';
-                ctx.fillRect(treeX + 1, treeY + 2, 8, 8);
+                ctx.fillRect(treeX, treeY, 24, 24);
                 
                 // Tree highlights (bright green)
                 ctx.fillStyle = '#228B22';
-                ctx.fillRect(treeX + 2, treeY + 3, 6, 6);
+                ctx.fillRect(treeX + 4, treeY + 4, 16, 16);
               }
             }
             
@@ -930,47 +921,64 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
               }
             }
             
-            // Simple fountain or feature in center
+            // Bigger park features for 64px tiles
             if (parkType === 1) {
-              // Small fountain
+              // Bigger fountain
               ctx.fillStyle = '#4682B4';
-              ctx.fillRect(x + 12, y + 12, 8, 8);
+              ctx.fillRect(x + 20, y + 20, 24, 24);
               ctx.fillStyle = '#87CEEB';
-              ctx.fillRect(x + 13, y + 13, 6, 6);
+              ctx.fillRect(x + 24, y + 24, 16, 16);
+              // Fountain rim
+              ctx.fillStyle = '#D3D3D3';
+              ctx.fillRect(x + 20, y + 20, 24, 4);
+              ctx.fillRect(x + 20, y + 40, 24, 4);
+              ctx.fillRect(x + 20, y + 20, 4, 24);
+              ctx.fillRect(x + 40, y + 20, 4, 24);
             } else if (parkType === 2) {
-              // Flower bed
+              // Bigger flower bed
               ctx.fillStyle = '#FF69B4';
-              ctx.fillRect(x + 10, y + 10, 12, 12);
+              ctx.fillRect(x + 16, y + 16, 32, 32);
               ctx.fillStyle = '#FFD700';
-              ctx.fillRect(x + 12, y + 12, 8, 8);
+              ctx.fillRect(x + 20, y + 20, 24, 24);
+              ctx.fillStyle = '#FF0000';
+              ctx.fillRect(x + 24, y + 24, 16, 16);
             } else {
-              // Single tree
+              // Bigger single tree
               ctx.fillStyle = '#8B4513';
-              ctx.fillRect(x + 14, y + 18, 4, 6);
+              ctx.fillRect(x + 28, y + 40, 8, 16);
               ctx.fillStyle = '#006400';
-              ctx.fillRect(x + 10, y + 10, 12, 12);
+              ctx.fillRect(x + 16, y + 16, 32, 32);
               ctx.fillStyle = '#228B22';
-              ctx.fillRect(x + 12, y + 12, 8, 8);
+              ctx.fillRect(x + 20, y + 20, 24, 24);
+              ctx.fillStyle = '#90EE90';
+              ctx.fillRect(x + 24, y + 24, 16, 16);
             }
           }
           
         } else if (tile.type === TileType.POWER_LINE) {
-          // Power lines with poles
+          // Power lines with poles (scaled for 64px)
           ctx.fillStyle = '#FFFF00'; // Base yellow
           ctx.fillRect(x, y, state.tileSize, state.tileSize);
           
-          // Power pole
+          // Power pole (bigger)
           ctx.fillStyle = '#8B4513';
-          ctx.fillRect(x + 14, y + 4, 4, 24);
+          ctx.fillRect(x + 28, y + 8, 8, 48);
           
-          // Cross beam
-          ctx.fillRect(x + 8, y + 8, 16, 2);
+          // Cross beam (bigger)
+          ctx.fillRect(x + 16, y + 16, 32, 4);
           
-          // Power lines
+          // Power lines (thicker)
           ctx.fillStyle = '#000000';
-          ctx.fillRect(x + 0, y + 12, state.tileSize, 1);
-          ctx.fillRect(x + 0, y + 16, state.tileSize, 1);
-          ctx.fillRect(x + 0, y + 20, state.tileSize, 1);
+          ctx.fillRect(x + 0, y + 24, state.tileSize, 2);
+          ctx.fillRect(x + 0, y + 32, state.tileSize, 2);
+          ctx.fillRect(x + 0, y + 40, state.tileSize, 2);
+          
+          // Power insulators
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(x + 20, y + 22, 4, 6);
+          ctx.fillRect(x + 40, y + 22, 4, 6);
+          ctx.fillRect(x + 20, y + 30, 4, 6);
+          ctx.fillRect(x + 40, y + 30, 4, 6);
         }
       }
 
@@ -1000,46 +1008,69 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       }
     });
 
-    // Render player with classic SimCity mayor sprite at exact pixel position
-    const playerX = state.playerPosition.pixelX + 4;
-    const playerY = state.playerPosition.pixelY + 4;
-    const playerSize = 24;
+    // Render player with Minecraft-style sprite and walking animation
+    const playerX = state.playerPosition.pixelX + 8;
+    const playerY = state.playerPosition.pixelY + 8;
+    const playerSize = 48;
+
+    // Calculate walking animation offsets
+    const walkCycle = Math.sin(state.playerPosition.animationFrame * 0.5) * 3;
+    const leftLegOffset = state.playerPosition.isMoving ? walkCycle : 0;
+    const rightLegOffset = state.playerPosition.isMoving ? -walkCycle : 0;
+    const armSwing = state.playerPosition.isMoving ? Math.sin(state.playerPosition.animationFrame * 0.3) * 2 : 0;
 
     // Player shadow
     ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-    ctx.fillRect(playerX + 2, playerY + 20, playerSize - 2, 4);
+    ctx.fillRect(playerX + 4, playerY + 40, playerSize - 4, 8);
 
-    // Player body (mayor in suit)
-    ctx.fillStyle = '#000080'; // Navy suit
-    ctx.fillRect(playerX + 8, playerY + 12, 8, 12);
+    // Minecraft-style chunky player body
+    ctx.fillStyle = '#0066CC'; // Blue shirt
+    ctx.fillRect(playerX + 12, playerY + 20, 24, 24);
     
-    // Player head
+    // Player head (bigger and chunkier) - slight bob when walking
+    const headBob = state.playerPosition.isMoving ? Math.abs(walkCycle) * 0.3 : 0;
     ctx.fillStyle = '#FFDBAC'; // Skin tone
-    ctx.fillRect(playerX + 10, playerY + 4, 4, 6);
+    ctx.fillRect(playerX + 16, playerY + 4 - headBob, 16, 16);
     
-    // Player hair
+    // Player hair (chunky) - follows head
     ctx.fillStyle = '#8B4513'; // Brown hair
-    ctx.fillRect(playerX + 9, playerY + 3, 6, 3);
+    ctx.fillRect(playerX + 14, playerY + 2 - headBob, 20, 8);
     
-    // Player arms
-    ctx.fillStyle = '#000080'; // Suit arms
-    ctx.fillRect(playerX + 6, playerY + 12, 3, 6);
-    ctx.fillRect(playerX + 15, playerY + 12, 3, 6);
+    // Player arms (thicker) - swing when walking
+    ctx.fillStyle = '#FFDBAC'; // Skin arms
+    ctx.fillRect(playerX + 4, playerY + 20 + armSwing, 8, 16);
+    ctx.fillRect(playerX + 36, playerY + 20 - armSwing, 8, 16);
     
-    // Player hands
-    ctx.fillStyle = '#FFDBAC';
-    ctx.fillRect(playerX + 6, playerY + 16, 2, 2);
-    ctx.fillRect(playerX + 16, playerY + 16, 2, 2);
+    // Player shirt sleeves - follow arms
+    ctx.fillStyle = '#0066CC';
+    ctx.fillRect(playerX + 6, playerY + 22 + armSwing, 4, 12);
+    ctx.fillRect(playerX + 38, playerY + 22 - armSwing, 4, 12);
     
-    // Player legs
-    ctx.fillStyle = '#000080'; // Suit pants
-    ctx.fillRect(playerX + 9, playerY + 20, 2, 4);
-    ctx.fillRect(playerX + 13, playerY + 20, 2, 4);
+    // Player legs (chunky) - walking animation
+    ctx.fillStyle = '#333333'; // Dark pants
+    ctx.fillRect(playerX + 16, playerY + 36 + leftLegOffset, 8, 12);
+    ctx.fillRect(playerX + 24, playerY + 36 + rightLegOffset, 8, 12);
     
-    // Player shoes
+    // Player shoes (bigger) - follow legs
     ctx.fillStyle = '#000000';
-    ctx.fillRect(playerX + 8, playerY + 22, 3, 2);
-    ctx.fillRect(playerX + 13, playerY + 22, 3, 2);
+    ctx.fillRect(playerX + 14, playerY + 44 + leftLegOffset, 12, 4);
+    ctx.fillRect(playerX + 22, playerY + 44 + rightLegOffset, 12, 4);
+    
+    // Player face details - follow head
+    ctx.fillStyle = '#000000'; // Eyes
+    ctx.fillRect(playerX + 20, playerY + 8 - headBob, 2, 2);
+    ctx.fillRect(playerX + 26, playerY + 8 - headBob, 2, 2);
+    
+    // Simple smile - follow head
+    ctx.fillRect(playerX + 22, playerY + 14 - headBob, 4, 1);
+
+    // Direction indicator (optional - face direction)
+    if (state.playerPosition.direction === 'left') {
+      // Flip eyes slightly for left direction
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(playerX + 18, playerY + 8 - headBob, 2, 2);
+      ctx.fillRect(playerX + 24, playerY + 8 - headBob, 2, 2);
+    }
 
     // Draw crewmates
     state.crewmates.forEach((crewmate) => {
