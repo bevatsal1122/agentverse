@@ -51,8 +51,6 @@ export default function CreateToken() {
     setSuccess(null);
 
     try {
-      console.log("Submitting agent:", form);
-
       const response = await fetch("/api/create-agent", {
         method: "POST",
         headers: {
@@ -73,7 +71,6 @@ export default function CreateToken() {
           data.agent.address
         }. Database ID: ${data.agent.databaseId || "Not saved to database"}`
       );
-      console.log("Agent created successfully:", data);
 
       // Reset form
       setForm({
@@ -83,7 +80,6 @@ export default function CreateToken() {
         pythonCode: "",
       });
     } catch (error) {
-      console.error("Error creating agent:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error occurred";
       setError(`Error creating agent: ${errorMessage}`);

@@ -63,10 +63,8 @@ export class PlayerController {
   // Public method to update player movement (called from main game loop)
   update(deltaTime: number) {
     if (!deltaTime || !this.isInitialized) {
-      console.log('Player update skipped:', { deltaTime, isInitialized: this.isInitialized });
       return;
     }
-    console.log('Player update called with deltaTime:', deltaTime);
     this.handlePhysicsMovement(deltaTime);
   }
 
@@ -109,11 +107,6 @@ export class PlayerController {
     this.velocity.y = 0;
     let isMoving = false;
     let direction: 'left' | 'right' | 'up' | 'down' | undefined;
-
-    // Debug: log active keys
-    if (this.keys.size > 0) {
-      console.log('Active keys:', Array.from(this.keys));
-    }
 
     if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) {
       console.log('Moving right');

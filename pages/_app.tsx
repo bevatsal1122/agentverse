@@ -18,19 +18,16 @@ export default function App({ Component, pageProps }: AppProps) {
     const playAudio = async () => {
       try {
         await audio.play();
-        console.log('Audio started playing');
       } catch (error) {
-        console.log('Audio autoplay prevented, waiting for user interaction:', error);
         
         // If autoplay fails, wait for user interaction
         const handleUserInteraction = () => {
           audio.play().then(() => {
-            console.log('Audio started after user interaction');
             document.removeEventListener('click', handleUserInteraction);
             document.removeEventListener('keydown', handleUserInteraction);
             document.removeEventListener('touchstart', handleUserInteraction);
           }).catch(err => {
-            console.log('Still unable to play audio:', err);
+            console.error('Still unable to play audio:', err);
           });
         };
         

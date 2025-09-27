@@ -2,6 +2,9 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { RandomAvatar } from "react-random-avatars";
 import { Tables } from "./types/database.types";
+import { useNotifications } from "./hooks/useNotifications";
+import NotificationSystem from "./components/NotificationSystem";
+import { collaborativeTaskService } from "./services/collaborativeTaskService";
 
 type Agent = Tables<"agents">;
 
@@ -252,10 +255,15 @@ export default function Dashboard() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Notification system
+  const { notifications, addNotification, removeNotification } = useNotifications();
 
   useEffect(() => {
     fetchAgents();
-  }, []);
+    // Set up notification callback for collaborative task service
+    collaborativeTaskService.setNotificationCallback(addNotification);
+  }, [addNotification]);
 
   const fetchAgents = async () => {
     try {
@@ -281,6 +289,21 @@ export default function Dashboard() {
 
   const refreshAgents = () => {
     fetchAgents();
+  };
+
+  const generateCollaborativeTask = async () => {
+    try {
+      const result = await collaborativeTaskService.generateCollaborativeTask({
+        userId: 'dashboard_user' // You might want to get this from auth context
+      });
+      
+      if (result.success) {
+        // Refresh agents to show new tasks
+        await fetchAgents();
+      }
+    } catch (error) {
+      console.error('Error generating collaborative task:', error);
+    }
   };
 
   return (
@@ -327,6 +350,12 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="flex items-center space-x-2">
+              <button
+                onClick={generateCollaborativeTask}
+                className="amongus-button px-4 py-2 text-sm bg-purple-600 hover:bg-purple-500"
+              >
+                ASK CHATGPT
+              </button>
               <button
                 onClick={refreshAgents}
                 className="amongus-button px-4 py-2 text-sm"
@@ -430,6 +459,12 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+      
+      {/* Notification System */}
+      <NotificationSystem 
+        notifications={notifications}
+        onRemove={removeNotification}
+      />
     </div>
   );
 }

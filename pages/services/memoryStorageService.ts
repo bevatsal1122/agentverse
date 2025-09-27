@@ -71,12 +71,39 @@ interface Task {
   completed_at?: string;
 }
 
+interface MasterTask {
+  id: string;
+  user_id: string;
+  agent_address: string;
+  prompt: string;
+  media_b64?: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  aggregated_results?: any[];
+  final_output?: string;
+  created_at: string;
+  completed_at?: string;
+}
+
+interface Subtask {
+  id: string;
+  task_id: string;
+  prompt: string;
+  media_b64?: string;
+  agent_address: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  output?: string;
+  created_at: string;
+  completed_at?: string;
+}
+
 class MemoryStorageService {
   private communications: Map<string, AgentCommunication> = new Map();
   private actions: Map<string, AgentAction> = new Map();
   private sessions: Map<string, AgentSession> = new Map();
   private agentMetadata: Map<string, AgentMetadata> = new Map();
   private tasks: Map<string, Task> = new Map();
+  private masterTasks: Map<string, MasterTask> = new Map();
+  private subtasks: Map<string, Subtask> = new Map();
   
   // Communication indexes for fast lookups
   private communicationsByAgent: Map<string, string[]> = new Map();
@@ -90,6 +117,15 @@ class MemoryStorageService {
   private tasksByAgent: Map<string, string[]> = new Map();
   private tasksByStatus: Map<string, string[]> = new Map();
   private tasksByPriority: Map<string, string[]> = new Map();
+
+  // Master task indexes for fast lookups
+  private masterTasksByAgent: Map<string, string[]> = new Map();
+  private masterTasksByStatus: Map<string, string[]> = new Map();
+
+  // Subtask indexes for fast lookups
+  private subtasksByTask: Map<string, string[]> = new Map();
+  private subtasksByAgent: Map<string, string[]> = new Map();
+  private subtasksByStatus: Map<string, string[]> = new Map();
 
   // ===== COMMUNICATIONS =====
 
@@ -290,6 +326,10 @@ class MemoryStorageService {
     return Array.from(this.agentMetadata.values()).filter(agent => agent.status === 'active');
   }
 
+  removeAgentMetadata(agentId: string): boolean {
+    return this.agentMetadata.delete(agentId);
+  }
+
   // ===== TASKS =====
 
   addTask(data: Omit<Task, 'id' | 'created_at' | 'updated_at'>): Task {
@@ -405,6 +445,204 @@ class MemoryStorageService {
     return this.getTasksByStatus('pending');
   }
 
+  // ===== MASTER TASKS =====
+
+  addMasterTask(data: Omit<MasterTask, 'id' | 'created_at'>): MasterTask {
+    const id = `master_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const masterTask: MasterTask = {
+      ...data,
+      id,
+      created_at: new Date().toISOString(),
+    };
+
+    this.masterTasks.set(id, masterTask);
+
+    // Update indexes
+    this.addToMasterTaskAgentIndex(data.agent_address, id);
+    this.addToMasterTaskStatusIndex(data.status, id);
+
+    return masterTask;
+  }
+
+  private addToMasterTaskAgentIndex(agentAddress: string, taskId: string): void {
+    if (!this.masterTasksByAgent.has(agentAddress)) {
+      this.masterTasksByAgent.set(agentAddress, []);
+    }
+    this.masterTasksByAgent.get(agentAddress)!.push(taskId);
+  }
+
+  private addToMasterTaskStatusIndex(status: string, taskId: string): void {
+    if (!this.masterTasksByStatus.has(status)) {
+      this.masterTasksByStatus.set(status, []);
+    }
+    this.masterTasksByStatus.get(status)!.push(taskId);
+  }
+
+  getMasterTask(taskId: string): MasterTask | null {
+    return this.masterTasks.get(taskId) || null;
+  }
+
+  updateMasterTask(taskId: string, updates: Partial<Omit<MasterTask, 'id' | 'created_at'>>): MasterTask | null {
+    const existing = this.masterTasks.get(taskId);
+    if (!existing) return null;
+
+    const updated: MasterTask = {
+      ...existing,
+      ...updates,
+    };
+
+    if (updates.status === 'completed' && !updated.completed_at) {
+      updated.completed_at = new Date().toISOString();
+    }
+
+    this.masterTasks.set(taskId, updated);
+
+    // Update indexes if status changed
+    if (updates.status && updates.status !== existing.status) {
+      this.removeFromMasterTaskStatusIndex(existing.status, taskId);
+      this.addToMasterTaskStatusIndex(updates.status, taskId);
+    }
+
+    return updated;
+  }
+
+  private removeFromMasterTaskStatusIndex(status: string, taskId: string): void {
+    const statusTasks = this.masterTasksByStatus.get(status);
+    if (statusTasks) {
+      const index = statusTasks.indexOf(taskId);
+      if (index > -1) {
+        statusTasks.splice(index, 1);
+      }
+    }
+  }
+
+  getMasterTasksByAgent(agentAddress: string): MasterTask[] {
+    const taskIds = this.masterTasksByAgent.get(agentAddress) || [];
+    return taskIds
+      .map(id => this.masterTasks.get(id))
+      .filter((task): task is MasterTask => task !== undefined)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }
+
+  getMasterTasksByStatus(status: string): MasterTask[] {
+    const taskIds = this.masterTasksByStatus.get(status) || [];
+    return taskIds
+      .map(id => this.masterTasks.get(id))
+      .filter((task): task is MasterTask => task !== undefined)
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  }
+
+  getPendingMasterTasks(): MasterTask[] {
+    return this.getMasterTasksByStatus('pending');
+  }
+
+  // ===== SUBTASKS =====
+
+  addSubtask(data: Omit<Subtask, 'id' | 'created_at'>): Subtask {
+    const id = `subtask_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const subtask: Subtask = {
+      ...data,
+      id,
+      created_at: new Date().toISOString(),
+    };
+
+    this.subtasks.set(id, subtask);
+
+    // Update indexes
+    this.addToSubtaskTaskIndex(data.task_id, id);
+    this.addToSubtaskAgentIndex(data.agent_address, id);
+    this.addToSubtaskStatusIndex(data.status, id);
+
+    return subtask;
+  }
+
+  private addToSubtaskTaskIndex(taskId: string, subtaskId: string): void {
+    if (!this.subtasksByTask.has(taskId)) {
+      this.subtasksByTask.set(taskId, []);
+    }
+    this.subtasksByTask.get(taskId)!.push(subtaskId);
+  }
+
+  private addToSubtaskAgentIndex(agentAddress: string, subtaskId: string): void {
+    if (!this.subtasksByAgent.has(agentAddress)) {
+      this.subtasksByAgent.set(agentAddress, []);
+    }
+    this.subtasksByAgent.get(agentAddress)!.push(subtaskId);
+  }
+
+  private addToSubtaskStatusIndex(status: string, subtaskId: string): void {
+    if (!this.subtasksByStatus.has(status)) {
+      this.subtasksByStatus.set(status, []);
+    }
+    this.subtasksByStatus.get(status)!.push(subtaskId);
+  }
+
+  getSubtask(subtaskId: string): Subtask | null {
+    return this.subtasks.get(subtaskId) || null;
+  }
+
+  updateSubtask(subtaskId: string, updates: Partial<Omit<Subtask, 'id' | 'created_at'>>): Subtask | null {
+    const existing = this.subtasks.get(subtaskId);
+    if (!existing) return null;
+
+    const updated: Subtask = {
+      ...existing,
+      ...updates,
+    };
+
+    if (updates.status === 'completed' && !updated.completed_at) {
+      updated.completed_at = new Date().toISOString();
+    }
+
+    this.subtasks.set(subtaskId, updated);
+
+    // Update indexes if status changed
+    if (updates.status && updates.status !== existing.status) {
+      this.removeFromSubtaskStatusIndex(existing.status, subtaskId);
+      this.addToSubtaskStatusIndex(updates.status, subtaskId);
+    }
+
+    return updated;
+  }
+
+  private removeFromSubtaskStatusIndex(status: string, subtaskId: string): void {
+    const statusSubtasks = this.subtasksByStatus.get(status);
+    if (statusSubtasks) {
+      const index = statusSubtasks.indexOf(subtaskId);
+      if (index > -1) {
+        statusSubtasks.splice(index, 1);
+      }
+    }
+  }
+
+  getSubtasksByTask(taskId: string): Subtask[] {
+    const subtaskIds = this.subtasksByTask.get(taskId) || [];
+    return subtaskIds
+      .map(id => this.subtasks.get(id))
+      .filter((subtask): subtask is Subtask => subtask !== undefined)
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  }
+
+  getSubtasksByAgent(agentAddress: string): Subtask[] {
+    const subtaskIds = this.subtasksByAgent.get(agentAddress) || [];
+    return subtaskIds
+      .map(id => this.subtasks.get(id))
+      .filter((subtask): subtask is Subtask => subtask !== undefined)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }
+
+  getSubtasksByStatus(status: string): Subtask[] {
+    const subtaskIds = this.subtasksByStatus.get(status) || [];
+    return subtaskIds
+      .map(id => this.subtasks.get(id))
+      .filter((subtask): subtask is Subtask => subtask !== undefined)
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  }
+
+  getPendingSubtasks(): Subtask[] {
+    return this.getSubtasksByStatus('pending');
+  }
+
   // ===== ANALYTICS & STATS =====
 
   getAgentStats(agentId: string): {
@@ -505,6 +743,8 @@ class MemoryStorageService {
     sessions: number;
     agentMetadata: number;
     tasks: number;
+    masterTasks: number;
+    subtasks: number;
     totalItems: number;
   } {
     return {
@@ -513,7 +753,9 @@ class MemoryStorageService {
       sessions: this.sessions.size,
       agentMetadata: this.agentMetadata.size,
       tasks: this.tasks.size,
-      totalItems: this.communications.size + this.actions.size + this.sessions.size + this.agentMetadata.size + this.tasks.size,
+      masterTasks: this.masterTasks.size,
+      subtasks: this.subtasks.size,
+      totalItems: this.communications.size + this.actions.size + this.sessions.size + this.agentMetadata.size + this.tasks.size + this.masterTasks.size + this.subtasks.size,
     };
   }
 
@@ -523,6 +765,8 @@ class MemoryStorageService {
     this.sessions.clear();
     this.agentMetadata.clear();
     this.tasks.clear();
+    this.masterTasks.clear();
+    this.subtasks.clear();
     this.communicationsByAgent.clear();
     this.communicationsByTask.clear();
     this.actionsByAgent.clear();
@@ -530,8 +774,13 @@ class MemoryStorageService {
     this.tasksByAgent.clear();
     this.tasksByStatus.clear();
     this.tasksByPriority.clear();
+    this.masterTasksByAgent.clear();
+    this.masterTasksByStatus.clear();
+    this.subtasksByTask.clear();
+    this.subtasksByAgent.clear();
+    this.subtasksByStatus.clear();
   }
 }
 
 export const memoryStorageService = new MemoryStorageService();
-export type { AgentCommunication, AgentAction, AgentSession, AgentMetadata, Task };
+export type { AgentCommunication, AgentAction, AgentSession, AgentMetadata, Task, MasterTask, Subtask };
