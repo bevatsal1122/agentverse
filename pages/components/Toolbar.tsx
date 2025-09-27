@@ -32,51 +32,74 @@ const Toolbar: React.FC<ToolbarProps> = () => {
     }
   };
 
-  const handleSpawnCrewmate = () => {
-    gameState.spawnRandomCrewmate();
+  const handleSpawnAIAgent = () => {
+    const newAgent = gameState.spawnRandomAIAgent();
+    if (!newAgent) {
+      alert('Cannot spawn AI agent: no map loaded');
+    }
   };
 
   const tools = [
     { id: Tool.SELECT, label: 'Select', icon: '🖱️' },
     { id: Tool.BULLDOZER, label: 'Demolish', icon: '💥' },
-    { id: Tool.ROAD, label: 'Corridors', icon: '🚶' },
-    { id: Tool.RESIDENTIAL, label: 'Quarters', icon: '🏠' },
-    { id: Tool.COMMERCIAL, label: 'Research', icon: '🔬' },
-    { id: Tool.INDUSTRIAL, label: 'Engineering', icon: '⚙️' },
-    { id: Tool.PARK, label: 'Recreation', icon: '🎮' },
+    { id: Tool.CORRIDOR, label: 'Corridors', icon: '🚶' },
+    { id: Tool.LIVING_QUARTERS, label: 'Quarters', icon: '🏠' },
+    { id: Tool.RESEARCH_LAB, label: 'Research', icon: '🔬' },
+    { id: Tool.ENGINEERING_BAY, label: 'Engineering', icon: '⚙️' },
+    { id: Tool.RECREATION, label: 'Recreation', icon: '🎮' },
     { id: Tool.POWER, label: 'Power', icon: '⚡' }
   ];
 
   return (
-    <div className="amongus-toolbar p-2">
+    <div className="bg-gray-800 border-2 border-gray-600 p-2" style={{ imageRendering: 'pixelated' }}>
       {/* Info Panel */}
-      <div className="amongus-panel p-2 flex justify-between items-center">
-        <div className="text-xs">
-          <div className="font-bold text-white">ENERGY: 100%</div>
-          <div className="text-blue-300">Crew: {gameState.getState().crewmates.size}</div>
+      <div className="bg-gray-800 border-2 border-gray-600 p-2 flex justify-between items-center" style={{ imageRendering: 'pixelated' }}>
+        <div className="text-xs" style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>
+          <div className="font-bold text-white" style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>ENERGY: 100%</div>
+          <div className="text-blue-300" style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>AI AGENTS: {gameState.getState().aiAgents.size}</div>
         </div>
         
         <div className="flex space-x-1">
-          <button onClick={handleSave} className="amongus-button text-xs">
-            Save Station
+          <button 
+            onClick={handleSave} 
+            className="bg-blue-600 border-2 border-blue-400 text-white font-bold text-xs px-2 py-1 hover:bg-blue-500"
+            style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}
+          >
+            SAVE STATION
           </button>
-          <button onClick={handleLoad} className="amongus-button text-xs">
-            Load Station
+          <button 
+            onClick={handleLoad} 
+            className="bg-blue-600 border-2 border-blue-400 text-white font-bold text-xs px-2 py-1 hover:bg-blue-500"
+            style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}
+          >
+            LOAD STATION
           </button>
-          <button onClick={() => MapLoader.loadDefaultMap()} className="amongus-button text-xs">
-            Load Alpha Station
+          <button 
+            onClick={() => MapLoader.loadDefaultMap()} 
+            className="bg-blue-600 border-2 border-blue-400 text-white font-bold text-xs px-2 py-1 hover:bg-blue-500"
+            style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}
+          >
+            LOAD ALPHA
           </button>
-          <button onClick={() => MapLoader.createEmptyMap(30, 30)} className="amongus-button text-xs">
-            New Station
+          <button 
+            onClick={() => MapLoader.createEmptyMap(30, 30)} 
+            className="bg-blue-600 border-2 border-blue-400 text-white font-bold text-xs px-2 py-1 hover:bg-blue-500"
+            style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}
+          >
+            NEW STATION
           </button>
-          <button onClick={handleSpawnCrewmate} className="amongus-button text-xs bg-green-600 hover:bg-green-500">
-            + Crewmate
+          <button 
+            onClick={handleSpawnAIAgent} 
+            className="bg-cyan-600 border-2 border-cyan-400 text-white font-bold text-xs px-2 py-1 hover:bg-cyan-500"
+            style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}
+          >
+            + AI AGENT
           </button>
         </div>
         
-        <div className="text-xs">
-          <div className="text-white">Mission: Day 1</div>
-          <div className="text-blue-300">Status: Active</div>
+        <div className="text-xs" style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>
+          <div className="text-white font-bold" style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>MISSION: DAY 1</div>
+          <div className="text-blue-300 font-bold" style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>STATUS: ACTIVE</div>
         </div>
       </div>
     </div>

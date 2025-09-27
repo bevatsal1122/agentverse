@@ -9,24 +9,24 @@ export interface MapConfig {
 
 // Helper function to create a realistic city layout
 function createCityMap(): string[][] {
-  const width = 50;
-  const height = 50;
+  const width = 25;
+  const height = 25;
   const map: string[][] = Array.from({ length: height }, () => Array(width).fill('space'));
   
   // Create major highway grid
   for (let x = 0; x < width; x++) {
-    map[12][x] = 'highway';  // North highway
-    map[25][x] = 'highway';  // Central highway
-    map[37][x] = 'highway';  // South highway
+    map[6][x] = 'highway';   // North highway
+    map[12][x] = 'highway';  // Central highway
+    map[18][x] = 'highway';  // South highway
   }
   
   for (let y = 0; y < height; y++) {
-    map[y][15] = 'main_corridor';  // West corridor
-    map[y][30] = 'main_corridor';  // East corridor
+    map[y][8] = 'main_corridor';   // West corridor
+    map[y][16] = 'main_corridor';  // East corridor
   }
   
   // Local street grid
-  for (let x = 6; x < width; x += 9) {
+  for (let x = 3; x < width; x += 5) {
     for (let y = 0; y < height; y++) {
       if (map[y][x] === 'space') {
         map[y][x] = 'corridor';
@@ -34,7 +34,7 @@ function createCityMap(): string[][] {
     }
   }
   
-  for (let y = 6; y < height; y += 8) {
+  for (let y = 3; y < height; y += 4) {
     for (let x = 0; x < width; x++) {
       if (map[y][x] === 'space') {
         map[y][x] = 'corridor';
@@ -44,12 +44,12 @@ function createCityMap(): string[][] {
   
   // Residential areas (deterministic patterns)
   // North residential
-  for (let y = 1; y < 12; y++) {
+  for (let y = 1; y < 6; y++) {
     for (let x = 1; x < width - 1; x++) {
       if (map[y][x] === 'space') {
-        if ((x + y) % 4 < 2) {
+        if ((x + y) % 3 < 2) {
           map[y][x] = 'living_quarters';
-        } else if ((x + y) % 12 === 0) {
+        } else if ((x + y) % 8 === 0) {
           map[y][x] = 'recreation';
         }
       }
@@ -57,12 +57,12 @@ function createCityMap(): string[][] {
   }
   
   // South residential
-  for (let y = 26; y < 37; y++) {
+  for (let y = 13; y < 18; y++) {
     for (let x = 1; x < width - 1; x++) {
       if (map[y][x] === 'space') {
-        if ((x + y) % 4 < 2) {
+        if ((x + y) % 3 < 2) {
           map[y][x] = 'living_quarters';
-        } else if ((x + y) % 10 === 0) {
+        } else if ((x + y) % 7 === 0) {
           map[y][x] = 'recreation';
         }
       }
@@ -70,8 +70,8 @@ function createCityMap(): string[][] {
   }
   
   // Downtown commercial district
-  for (let y = 13; y < 25; y++) {
-    for (let x = 16; x < 30; x++) {
+  for (let y = 7; y < 12; y++) {
+    for (let x = 9; x < 16; x++) {
       if (map[y][x] === 'space') {
         if ((x + y) % 3 < 2) {
           map[y][x] = 'research_lab';
@@ -81,10 +81,10 @@ function createCityMap(): string[][] {
   }
   
   // Industrial zone (west side)
-  for (let y = 18; y < 32; y++) {
-    for (let x = 1; x < 15; x++) {
+  for (let y = 19; y < 24; y++) {
+    for (let x = 1; x < 8; x++) {
       if (map[y][x] === 'space') {
-        if (x % 5 === 0) {
+        if (x % 4 === 0) {
           map[y][x] = 'power_line';
         } else if ((x + y) % 3 < 2) {
           map[y][x] = 'engineering_bay';
@@ -94,22 +94,22 @@ function createCityMap(): string[][] {
   }
   
   // Central park area
-  for (let y = 20; y < 24; y++) {
-    for (let x = 32; x < 40; x++) {
+  for (let y = 9; y < 11; y++) {
+    for (let x = 17; x < 22; x++) {
       if (map[y][x] === 'space') {
         map[y][x] = 'recreation';
       }
     }
   }
   
-  // Suburban parks
+  // Smaller parks scattered around
   const parkLocations = [
-    [3, 3], [45, 5], [8, 35], [42, 40], [20, 8], [35, 15]
+    [2, 2], [22, 3], [4, 20], [20, 22], [10, 4], [18, 8]
   ];
   
   parkLocations.forEach(([px, py]) => {
-    for (let dy = 0; dy < 3; dy++) {
-      for (let dx = 0; dx < 3; dx++) {
+    for (let dy = 0; dy < 2; dy++) {
+      for (let dx = 0; dx < 2; dx++) {
         if (py + dy < height && px + dx < width && map[py + dy][px + dx] === 'space') {
           map[py + dy][px + dx] = 'recreation';
         }
@@ -121,9 +121,9 @@ function createCityMap(): string[][] {
 }
 
 export const defaultMap: MapConfig = {
-  name: "New Metropolis",
-  width: 50,
-  height: 50,
+  name: "Compact City",
+  width: 25,
+  height: 25,
   tiles: createCityMap()
 };
 

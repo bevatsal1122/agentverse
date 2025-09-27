@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { gameState, Tool, TileType, GameState, Crewmate, CrewmateType, CrewmateActivity } from '../game/state';
+import { gameState, Tool, TileType, GameState, Crewmate, CrewmateType, CrewmateActivity, AIAgent } from '../game/state';
 import { MapLoader } from '../maps/mapLoader';
+import LiveFeed from './LiveFeed';
 
 
 interface GameCanvasProps {
@@ -78,22 +79,26 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     // Generate initial traffic
     generateTraffic(gameState.getState());
     
-    // Spawn initial crewmates
+    // Spawn initial AI agents
     const currentState = gameState.getState();
-    if (currentState.crewmates.size === 0) {
-      // Spawn 3-5 crewmates initially
-      const numCrewmates = 3 + Math.floor(Math.random() * 3);
-      for (let i = 0; i < numCrewmates; i++) {
-        gameState.spawnRandomCrewmate();
+    if (currentState.aiAgents.size === 0) {
+      // Spawn 3-5 AI agents initially for compact city
+      const numAgents = 3 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < numAgents; i++) {
+        const newAgent = gameState.spawnRandomAIAgent();
+        if (!newAgent) {
+          console.log('Cannot spawn initial AI agent: no map loaded');
+          break;
+        }
       }
     }
     
-    // Animation loop for traffic and crewmates (throttled for performance)
+    // Animation loop for traffic and AI agents (throttled for performance)
     let lastTime = 0;
     const animate = (currentTime: number) => {
       if (currentTime - lastTime > 100) { // Update every 100ms instead of every frame
         updateTraffic();
-        gameState.updateCrewmates(); // Update crewmate AI and movement
+        gameState.updateAIAgents(); // Update AI agent behavior and movement
         updateCanvas(gameState.getState());
         lastTime = currentTime;
       }
@@ -226,20 +231,20 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       (B < 255 ? B < 1 ? 0 : B : 255)).toString(16).slice(1);
   };
 
-  const drawCrewmate = (ctx: CanvasRenderingContext2D, crewmate: Crewmate, x: number, y: number, tileSize: number) => {
+  const drawAIAgent = (ctx: CanvasRenderingContext2D, agent: AIAgent, x: number, y: number, tileSize: number) => {
     const centerX = x + tileSize / 2;
     const centerY = y + tileSize / 2;
     const size = tileSize * 0.8; // Make crewmates bigger
     
-    // Minecraft-style chunky crewmate body
-    ctx.fillStyle = crewmate.color;
+    // Minecraft-style chunky agent body
+    ctx.fillStyle = agent.color;
     ctx.fillRect(centerX - size * 0.3, centerY - size * 0.2, size * 0.6, size * 0.8);
     
-    // Crewmate head (square)
-    ctx.fillStyle = crewmate.color;
+    // Agent head (square)
+    ctx.fillStyle = agent.color;
     ctx.fillRect(centerX - size * 0.25, centerY - size * 0.4, size * 0.5, size * 0.3);
     
-    // Crewmate visor (white, rectangular)
+    // Agent visor (white, rectangular)
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(centerX - size * 0.2, centerY - size * 0.35, size * 0.4, size * 0.15);
     
@@ -249,16 +254,22 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     ctx.fillRect(centerX + size * 0.06, centerY - size * 0.3, size * 0.06, size * 0.06);
     
     // Activity indicator (bigger)
-    if (crewmate.activity !== CrewmateActivity.WALKING) {
-      const indicatorColor = getActivityColor(crewmate.activity);
+    if (agent.activity !== CrewmateActivity.WALKING) {
+      const indicatorColor = getActivityColor(agent.activity);
       ctx.fillStyle = indicatorColor;
       ctx.fillRect(centerX + size * 0.2, centerY - size * 0.3, size * 0.15, size * 0.15);
     }
     
     // Walking animation - slight bounce
-    if (crewmate.activity === CrewmateActivity.WALKING) {
-      const bounce = Math.sin(crewmate.animationFrame * 0.5) * 3;
+    if (agent.activity === CrewmateActivity.WALKING) {
+      const bounce = Math.sin(agent.animationFrame * 0.5) * 3;
       ctx.translate(0, bounce);
+    }
+    
+    // Interaction indicator
+    if (agent.interactionTarget) {
+      ctx.fillStyle = '#ffff00';
+      ctx.fillRect(centerX - size * 0.4, centerY - size * 0.5, size * 0.1, size * 0.1);
     }
   };
 
@@ -277,6 +288,91 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       default:
         return '#ffffff';
     }
+  };
+
+  const drawChatBubble = (ctx: CanvasRenderingContext2D, agent: AIAgent, x: number, y: number, tileSize: number) => {
+    if (!agent.chatBubble) return;
+    
+    const message = agent.chatBubble.message;
+    const maxWidth = 150;
+    const padding = 8;
+    const fontSize = 12;
+    
+    ctx.font = `${fontSize}px Arial`;
+    ctx.textAlign = 'left';
+    
+    // Word wrap the message
+    const words = message.split(' ');
+    const lines: string[] = [];
+    let currentLine = '';
+    
+    for (const word of words) {
+      const testLine = currentLine + (currentLine ? ' ' : '') + word;
+      const metrics = ctx.measureText(testLine);
+      
+      if (metrics.width > maxWidth - padding * 2) {
+        if (currentLine) {
+          lines.push(currentLine);
+          currentLine = word;
+        } else {
+          lines.push(word);
+        }
+      } else {
+        currentLine = testLine;
+      }
+    }
+    
+    if (currentLine) {
+      lines.push(currentLine);
+    }
+    
+    const lineHeight = fontSize + 2;
+    const bubbleHeight = lines.length * lineHeight + padding * 2;
+    const bubbleWidth = Math.min(maxWidth, Math.max(...lines.map(line => ctx.measureText(line).width)) + padding * 2);
+    
+    // Position bubble above agent
+    const bubbleX = x + tileSize / 2 - bubbleWidth / 2;
+    const bubbleY = y - bubbleHeight - 10;
+    
+    // Draw bubble background
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    ctx.fillRect(bubbleX, bubbleY, bubbleWidth, bubbleHeight);
+    
+    // Draw bubble border
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(bubbleX, bubbleY, bubbleWidth, bubbleHeight);
+    
+    // Draw bubble tail
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    ctx.beginPath();
+    ctx.moveTo(bubbleX + bubbleWidth / 2 - 5, bubbleY + bubbleHeight);
+    ctx.lineTo(bubbleX + bubbleWidth / 2 + 5, bubbleY + bubbleHeight);
+    ctx.lineTo(bubbleX + bubbleWidth / 2, bubbleY + bubbleHeight + 8);
+    ctx.closePath();
+    ctx.fill();
+    
+    // Draw text
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'left';
+    
+    lines.forEach((line, index) => {
+      ctx.fillText(
+        line,
+        bubbleX + padding,
+        bubbleY + padding + (index + 1) * lineHeight - 2
+      );
+    });
+    
+    // Draw agent name tag
+    ctx.font = '10px Arial';
+    ctx.fillStyle = agent.color;
+    const nameWidth = ctx.measureText(agent.name).width;
+    ctx.fillText(
+      agent.name,
+      bubbleX + bubbleWidth / 2 - nameWidth / 2,
+      bubbleY - 5
+    );
   };
 
   const drawRoadTile = (ctx: CanvasRenderingContext2D, x: number, y: number, size: number, state: GameState, tileX: number, tileY: number, roadType: TileType) => {
@@ -1072,17 +1168,22 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       ctx.fillRect(playerX + 24, playerY + 8 - headBob, 2, 2);
     }
 
-    // Draw crewmates
-    state.crewmates.forEach((crewmate) => {
-      const screenX = (crewmate.x * state.tileSize) - state.cameraPosition.x;
-      const screenY = (crewmate.y * state.tileSize) - state.cameraPosition.y;
+    // Draw AI agents
+    state.aiAgents.forEach((agent) => {
+      const screenX = (agent.x * state.tileSize) - state.cameraPosition.x;
+      const screenY = (agent.y * state.tileSize) - state.cameraPosition.y;
       
-      // Only render crewmates in viewport
+      // Only render agents in viewport
       if (screenX > -state.tileSize && screenX < window.innerWidth + state.tileSize && 
           screenY > -state.tileSize && screenY < window.innerHeight + state.tileSize) {
         
         ctx.save();
-        drawCrewmate(ctx, crewmate, screenX, screenY, state.tileSize);
+        drawAIAgent(ctx, agent, screenX, screenY, state.tileSize);
+        ctx.restore();
+        
+        // Draw chat bubble if exists
+        ctx.save();
+        drawChatBubble(ctx, agent, screenX, screenY, state.tileSize);
         ctx.restore();
       }
     });
@@ -1118,15 +1219,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
         className="block"
         style={{ imageRendering: 'pixelated' }}
       />
-      <div className="absolute bottom-2 right-2 simcity-panel p-2">
-        <div className="text-xs">
-          <div className="font-bold">STATUS</div>
-          <div>Tool: {selectedTool.replace('_', ' ').toUpperCase()}</div>
-          <div>Position: ({gameState.getState().playerPosition.x}, {gameState.getState().playerPosition.y})</div>
-          <div>Pixel: ({Math.round(gameState.getState().playerPosition.pixelX)}, {Math.round(gameState.getState().playerPosition.pixelY)})</div>
-          <div>Tile Cost: $100</div>
-        </div>
-      </div>
+      <LiveFeed />
     </div>
   );
 };
