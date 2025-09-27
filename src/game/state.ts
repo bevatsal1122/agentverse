@@ -117,15 +117,22 @@ export interface GameState {
   cameraPosition: { x: number; y: number };
   cameraFollowMode: 'player' | 'agent';
   cameraFollowAgentId: string | null;
+  isManualCameraControl: boolean;
   gridSize: number;
   tileSize: number;
   mapWidth: number;
   mapHeight: number;
+  screenWidth: number;
+  screenHeight: number;
   crewmates: Map<string, Crewmate>;
   lastCrewmateUpdate: number;
   aiAgents: Map<string, AIAgent>;
   chatMessages: ChatMessage[];
   maxChatMessages: number;
+  playerPath?: Array<{x: number, y: number}>;
+  playerPathIndex: number;
+  isPlayerFollowingPath: boolean;
+  playerLastMoveTime?: number;
 }
 
 class GameStateManager {
@@ -133,18 +140,25 @@ class GameStateManager {
     selectedTool: Tool.SELECT,
     mapData: new Map(),
     playerPosition: { x: 12, y: 12, pixelX: 768, pixelY: 768, isMoving: false, animationFrame: 0, direction: 'right' }, // Start at center of compact city
-    cameraPosition: { x: 0, y: 0 }, // Will be updated when window is available
+    cameraPosition: { x: 12, y: 12 }, // Start at player position (center of map)
     cameraFollowMode: 'player',
     cameraFollowAgentId: null,
+    isManualCameraControl: false,
     gridSize: 64,
     tileSize: 64,
     mapWidth: 25, // Default from defaultMap
     mapHeight: 25, // Default from defaultMap
+    screenWidth: 1024, // Default screen width
+    screenHeight: 768, // Default screen height
     crewmates: new Map(),
-    lastCrewmateUpdate: 0,
+    lastCrewmateUpdate: Date.now(),
     aiAgents: new Map(),
     chatMessages: [],
-    maxChatMessages: 100
+    maxChatMessages: 100,
+    playerPath: undefined,
+    playerPathIndex: 0,
+    isPlayerFollowingPath: false,
+    playerLastMoveTime: undefined
   };
 
   private listeners: Array<(state: GameState) => void> = [];
@@ -192,6 +206,11 @@ class GameStateManager {
     this.notifyListeners();
   }
 
+  clearAllAIAgents(): void {
+    this.state.aiAgents.clear();
+    this.notifyListeners();
+  }
+
   updateAIAgent(id: string, updates: Partial<AIAgent>): void {
     const agent = this.state.aiAgents.get(id);
     if (agent) {
@@ -204,6 +223,28 @@ class GameStateManager {
       
       this.notifyListeners();
     }
+  }
+
+  // Move an agent to a specific location
+  moveAgentToLocation(agentId: string, targetX: number, targetY: number): boolean {
+    const agent = this.state.aiAgents.get(agentId);
+    if (!agent) {
+      console.warn(`Agent ${agentId} not found in game state`);
+      return false;
+    }
+
+    // Update agent's target coordinates
+    this.updateAIAgent(agentId, {
+      targetX: targetX,
+      targetY: targetY,
+      activity: CrewmateActivity.WALKING,
+      isFollowingPath: false, // Use simple grid movement
+      currentPath: undefined,
+      pathIndex: 0
+    });
+
+    console.log(`Moving agent ${agent.name} (${agentId}) to location (${targetX}, ${targetY})`);
+    return true;
   }
 
   getAIAgents(): Map<string, AIAgent> {
@@ -320,7 +361,7 @@ class GameStateManager {
       return null;
     }
     
-    // Find a random living quarters tile for home
+    // Find a random living quarters tile for home (only buildings, not roads/corridors)
     let homeX = 0, homeY = 0;
     const livingQuarters = allTiles.filter(([key, tile]) => 
       tile.type === TileType.LIVING_QUARTERS && 
@@ -331,14 +372,20 @@ class GameStateManager {
       homeX = randomHome[1].x;
       homeY = randomHome[1].y;
     } else {
-      // If no living quarters, pick any random tile from the map within boundaries
-      const validTiles = allTiles.filter(([key, tile]) => 
+      // If no living quarters, pick any random BUILDING tile from the map (not roads/corridors)
+      const buildingTypes = [TileType.LIVING_QUARTERS, TileType.RESEARCH_LAB, TileType.ENGINEERING_BAY, TileType.RECREATION, TileType.POWER_LINE];
+      const validBuildingTiles = allTiles.filter(([key, tile]) => 
+        buildingTypes.includes(tile.type) &&
         tile.x >= 0 && tile.x < this.state.mapWidth && tile.y >= 0 && tile.y < this.state.mapHeight
       );
-      if (validTiles.length > 0) {
-        const randomTile = validTiles[Math.floor(Math.random() * validTiles.length)];
+      if (validBuildingTiles.length > 0) {
+        const randomTile = validBuildingTiles[Math.floor(Math.random() * validBuildingTiles.length)];
         homeX = randomTile[1].x;
         homeY = randomTile[1].y;
+      } else {
+        // No buildings available, can't spawn agent
+        console.warn('No building tiles available for agent spawning');
+        return null;
       }
     }
     
@@ -362,14 +409,20 @@ class GameStateManager {
       workX = randomWork[1].x;
       workY = randomWork[1].y;
     } else {
-      // If no work tiles of preferred type, pick any random tile from the map within boundaries
-      const validTiles = allTiles.filter(([key, tile]) => 
+      // If no work tiles of preferred type, pick any random BUILDING tile from the map (not roads/corridors)
+      const buildingTypes = [TileType.LIVING_QUARTERS, TileType.RESEARCH_LAB, TileType.ENGINEERING_BAY, TileType.RECREATION, TileType.POWER_LINE];
+      const validBuildingTiles = allTiles.filter(([key, tile]) => 
+        buildingTypes.includes(tile.type) &&
         tile.x >= 0 && tile.x < this.state.mapWidth && tile.y >= 0 && tile.y < this.state.mapHeight
       );
-      if (validTiles.length > 0) {
-        const randomTile = validTiles[Math.floor(Math.random() * validTiles.length)];
+      if (validBuildingTiles.length > 0) {
+        const randomTile = validBuildingTiles[Math.floor(Math.random() * validBuildingTiles.length)];
         workX = randomTile[1].x;
         workY = randomTile[1].y;
+      } else {
+        // No buildings available, use home position
+        workX = homeX;
+        workY = homeY;
       }
     }
     
@@ -488,18 +541,18 @@ class GameStateManager {
     const deltaTime = now - this.state.lastCrewmateUpdate;
     this.state.lastCrewmateUpdate = now;
 
+    // Clamp deltaTime to reasonable values (max 100ms = 0.1s)
+    const clampedDeltaTime = Math.min(deltaTime, 100);
+
     // Clear old chat messages
     if (now % 30000 < 100) { // Every 30 seconds
       this.clearOldChatMessages();
     }
 
-    // Periodically spawn new agents (every 60-120 seconds, max 8 agents for compact city)
-    if (this.state.aiAgents.size < 8 && now % 90000 < 100 && Math.random() < 0.3) {
-      const newAgent = this.spawnRandomAIAgent();
-      if (!newAgent) {
-        console.log('Cannot spawn AI agent: no map loaded');
-      }
-    }
+    // No longer automatically spawn random agents - only real agents from backend should appear
+
+    // Update player path following (convert deltaTime from ms to seconds)
+    this.updatePlayerPathFollowing(clampedDeltaTime / 1000);
 
     for (const [id, agent] of Array.from(this.state.aiAgents.entries())) {
       this.updateAIAgentBehavior(agent, deltaTime, now);
@@ -517,25 +570,14 @@ class GameStateManager {
       agent.chatBubble = undefined;
     }
     
-    // Autonomous behavior - generate thoughts and actions more frequently
-    if (now - agent.lastInteractionTime > 3000 + Math.random() * 5000) {
-      this.generateAutonomousBehavior(agent, now);
-      agent.lastInteractionTime = now;
-    }
-    
-    // Building visit decision logic
-    if (now - agent.lastBuildingVisitTime > agent.visitCooldown && !agent.isFollowingPath) {
-      this.decideToVisitBuilding(agent, now);
-    }
-    
-    // Movement logic with pathfinding
     if (agent.isFollowingPath && agent.currentPath) {
+      // Debug: Log when agent is following path
+      if (now % 1000 < 50) { // Log once per second
+        console.log(`🤖 Agent ${agent.name} following path: ${agent.pathIndex}/${agent.currentPath.length} at (${Math.round(agent.x)}, ${Math.round(agent.y)})`);
+      }
       this.followPath(agent, deltaTime, now);
     } else {
-      // Fallback to old random roaming if no path
-      if (Math.random() < 0.001) { // 0.1% chance per frame to change destination
-        this.findRandomDestination(agent);
-      }
+      // Random roaming removed - agents only move when following ChatGPT tasks
       
       // Grid-based movement towards target (road-only)
       const currentX = Math.round(agent.x);
@@ -544,8 +586,8 @@ class GameStateManager {
       const targetY = Math.round(agent.targetY);
       
       if (currentX === targetX && currentY === targetY) {
-        // Reached target, choose new activity
-        this.chooseNewAIActivity(agent);
+        // Reached target, stop moving (no random activity switching)
+        agent.activity = CrewmateActivity.RESTING;
       } else {
         // Check if enough time has passed for the next movement step
         if (now - agent.lastMoveTime >= agent.moveInterval) {
@@ -580,265 +622,15 @@ class GameStateManager {
       }
     }
     
-    // Check for nearby agents for interactions
-    this.checkForAgentInteractions(agent, now);
+    // Agent interactions removed - agents only respond to ChatGPT tasks
     
     this.state.aiAgents.set(agent.id, agent);
   }
 
-  private generateAutonomousBehavior(agent: AIAgent, now: number): void {
-    const thoughts = [
-      `${agent.name} is exploring the area`,
-      `${agent.name} wonders about the other agents`,
-      `${agent.name} is ${agent.currentThought}`,
-      `${agent.name} decides to ${agent.currentGoal?.toLowerCase()}`,
-      `${agent.name} feels ${agent.personality.split(' ')[0].toLowerCase()}`,
-      `${agent.name} is roaming around`,
-      `${agent.name} discovers new places`,
-      `${agent.name} is curious about the city`,
-      `${agent.name} enjoys the urban landscape`,
-      `${agent.name} is on an adventure`,
-      `${agent.name} explores different districts`,
-      `${agent.name} wanders through the streets`,
-      `${agent.name} investigates the area`,
-      `${agent.name} is on a mission`,
-      `${agent.name} seeks new experiences`
-    ];
-    
-    // Generate activity-specific thoughts
-    switch (agent.activity) {
-      case CrewmateActivity.WORKING:
-        thoughts.push(`${agent.name} is focused on work`, `${agent.name} is being productive`, `${agent.name} is hard at work`);
-        break;
-      case CrewmateActivity.RESTING:
-        thoughts.push(`${agent.name} is taking a break`, `${agent.name} is recharging`, `${agent.name} needs some rest`);
-        break;
-      case CrewmateActivity.WALKING:
-        thoughts.push(`${agent.name} is heading somewhere`, `${agent.name} enjoys the journey`, `${agent.name} is on the move`, `${agent.name} travels the city`);
-        break;
-      case CrewmateActivity.RESEARCHING:
-        thoughts.push(`${agent.name} is conducting research`, `${agent.name} makes discoveries`, `${agent.name} studies the data`);
-        break;
-      case CrewmateActivity.MAINTAINING:
-        thoughts.push(`${agent.name} is fixing systems`, `${agent.name} maintains equipment`, `${agent.name} keeps things running`);
-        break;
-      case CrewmateActivity.EATING:
-        thoughts.push(`${agent.name} is having a meal`, `${agent.name} enjoys recreation`, `${agent.name} takes time to relax`);
-        break;
-    }
-    
-    const randomThought = thoughts[Math.floor(Math.random() * thoughts.length)];
-    
-    // Add chat bubble
-    agent.chatBubble = {
-      message: randomThought,
-      timestamp: now,
-      duration: 2000 + Math.random() * 3000 // 2-5 seconds
-    };
-    
-    // Add to chat log
-    this.addChatMessage({
-      id: `msg_${now}_${Math.random().toString(36).substr(2, 9)}`,
-      agentId: agent.id,
-      message: randomThought,
-      timestamp: now,
-      type: 'thinking'
-    });
-    
-    // Update current thought
-    agent.currentThought = randomThought;
-  }
 
-  private checkForAgentInteractions(agent: AIAgent, now: number): void {
-    const interactionRange = 3; // tiles - increased for compact city
-    
-    for (const [otherId, otherAgent] of Array.from(this.state.aiAgents.entries())) {
-      if (otherId === agent.id) continue;
-      
-      const distance = Math.abs(agent.x - otherAgent.x) + Math.abs(agent.y - otherAgent.y);
-      
-      if (distance <= interactionRange && Math.random() < 0.02) { // 2% chance per frame when close - increased for more interactions
-        this.triggerAgentInteraction(agent, otherAgent, now);
-        break; // Only one interaction at a time
-      }
-    }
-  }
 
-  private triggerAgentInteraction(agent1: AIAgent, agent2: AIAgent, now: number): void {
-    const interactions = [
-      `${agent1.name} greets ${agent2.name}`,
-      `${agent1.name} and ${agent2.name} have a friendly chat`,
-      `${agent1.name} shares ideas with ${agent2.name}`,
-      `${agent1.name} asks ${agent2.name} about their work`,
-      `${agent1.name} and ${agent2.name} discuss the metaverse`
-    ];
-    
-    // Type-specific interactions
-    if (agent1.type === agent2.type) {
-      interactions.push(`${agent1.name} and ${agent2.name} bond over their shared profession`);
-    }
-    
-    if (agent1.type === CrewmateType.CAPTAIN || agent2.type === CrewmateType.CAPTAIN) {
-      interactions.push(`Leadership discussion between ${agent1.name} and ${agent2.name}`);
-    }
-    
-    const interaction = interactions[Math.floor(Math.random() * interactions.length)];
-    
-    // Set interaction targets
-    agent1.interactionTarget = agent2.id;
-    agent2.interactionTarget = agent1.id;
-    
-    // Add chat bubbles for both agents
-    agent1.chatBubble = {
-      message: `Talking with ${agent2.name}`,
-      timestamp: now,
-      duration: 4000
-    };
-    
-    agent2.chatBubble = {
-      message: `Chatting with ${agent1.name}`,
-      timestamp: now,
-      duration: 4000
-    };
-    
-    // Add interaction message
-    this.addChatMessage({
-      id: `interaction_${now}_${Math.random().toString(36).substr(2, 9)}`,
-      agentId: agent1.id,
-      message: interaction,
-      timestamp: now,
-      type: 'interaction'
-    });
-    
-    // Clear interaction targets after a delay
-    setTimeout(() => {
-      agent1.interactionTarget = undefined;
-      agent2.interactionTarget = undefined;
-    }, 4000);
-  }
 
-  private chooseNewAIActivity(agent: AIAgent): void {
-    const currentTile = this.state.mapData.get(`${Math.round(agent.x)},${Math.round(agent.y)}`);
-    
-    if (currentTile) {
-      switch (currentTile.type) {
-        case TileType.LIVING_QUARTERS:
-          agent.activity = CrewmateActivity.RESTING;
-          setTimeout(() => {
-            agent.targetX = agent.workX;
-            agent.targetY = agent.workY;
-            agent.activity = CrewmateActivity.WALKING;
-          }, 3000 + Math.random() * 5000);
-          break;
-          
-        case TileType.RESEARCH_LAB:
-          if (agent.type === CrewmateType.SCIENTIST) {
-            agent.activity = CrewmateActivity.RESEARCHING;
-            setTimeout(() => {
-              this.findRandomDestination(agent);
-            }, 5000 + Math.random() * 8000);
-          } else {
-            this.findRandomDestination(agent);
-          }
-          break;
-          
-        case TileType.ENGINEERING_BAY:
-          if (agent.type === CrewmateType.ENGINEER) {
-            agent.activity = CrewmateActivity.MAINTAINING;
-            setTimeout(() => {
-              this.findRandomDestination(agent);
-            }, 4000 + Math.random() * 6000);
-          } else {
-            this.findRandomDestination(agent);
-          }
-          break;
-          
-        case TileType.RECREATION:
-          agent.activity = CrewmateActivity.EATING;
-          setTimeout(() => {
-            this.findRandomDestination(agent);
-          }, 2000 + Math.random() * 4000);
-          break;
-          
-        default:
-          this.findRandomDestination(agent);
-      }
-    } else {
-      this.findRandomDestination(agent);
-    }
-  }
 
-  private decideToVisitBuilding(agent: AIAgent, now: number): void {
-    // Decide which type of building to visit based on agent type and randomness
-    const buildingTypes = [
-      TileType.RECREATION,
-      TileType.LIVING_QUARTERS,
-      TileType.RESEARCH_LAB,
-      TileType.ENGINEERING_BAY
-    ];
-    
-    // Weight building types based on agent type
-    const weights = buildingTypes.map(type => {
-      let weight = 1;
-      if (type === TileType.RESEARCH_LAB && agent.type === CrewmateType.SCIENTIST) weight = 3;
-      if (type === TileType.ENGINEERING_BAY && agent.type === CrewmateType.ENGINEER) weight = 3;
-      if (type === TileType.RECREATION) weight = 2; // Everyone likes recreation
-      return weight;
-    });
-    
-    // Select building type based on weights
-    const totalWeight = weights.reduce((sum, w) => sum + w, 0);
-    let random = Math.random() * totalWeight;
-    let selectedType = TileType.RECREATION;
-    
-    for (let i = 0; i < buildingTypes.length; i++) {
-      random -= weights[i];
-      if (random <= 0) {
-        selectedType = buildingTypes[i];
-        break;
-      }
-    }
-    
-    // Find path to the selected building type
-    const path = this.pathfinder.findPathToRandomBuilding(
-      Math.round(agent.x), 
-      Math.round(agent.y), 
-      selectedType
-    );
-    
-    console.log(`${agent.name} decided to visit ${this.getBuildingTypeName(selectedType)} - path found: ${path ? path.nodes.length : 0} nodes`);
-    
-    if (path && path.nodes.length > 0) {
-      const targetBuilding = path.nodes[path.nodes.length - 1];
-      
-      agent.currentPath = path.nodes;
-      agent.pathIndex = 0;
-      agent.isFollowingPath = true;
-      agent.targetBuilding = {
-        x: targetBuilding.x,
-        y: targetBuilding.y,
-        type: selectedType,
-        reason: this.getBuildingVisitReason(selectedType, agent.type)
-      };
-      agent.activity = CrewmateActivity.WALKING;
-      agent.lastBuildingVisitTime = now;
-      
-      // Add chat message about the decision
-      agent.chatBubble = {
-        message: `${agent.name} decides to visit ${this.getBuildingTypeName(selectedType)}`,
-        timestamp: now,
-        duration: 3000
-      };
-      
-      this.addChatMessage({
-        id: `visit_${now}_${Math.random().toString(36).substr(2, 9)}`,
-        agentId: agent.id,
-        message: `${agent.name} decides to visit ${this.getBuildingTypeName(selectedType)} - ${agent.targetBuilding.reason}`,
-        timestamp: now,
-        type: 'action'
-      });
-    }
-  }
 
   private followPath(agent: AIAgent, deltaTime: number, now: number): void {
     if (!agent.currentPath || agent.pathIndex >= agent.currentPath.length) {
@@ -903,7 +695,7 @@ class GameStateManager {
   private arriveAtBuilding(agent: AIAgent, now: number): void {
     if (!agent.targetBuilding) return;
     
-    const buildingName = this.getBuildingTypeName(agent.targetBuilding.type);
+    const buildingName = 'Building';
     
     // Set appropriate activity based on building type
     switch (agent.targetBuilding.type) {
@@ -948,102 +740,7 @@ class GameStateManager {
     }, stayDuration);
   }
 
-  private getBuildingTypeName(type: TileType): string {
-    switch (type) {
-      case TileType.RESEARCH_LAB: return 'Research Lab';
-      case TileType.ENGINEERING_BAY: return 'Engineering Bay';
-      case TileType.LIVING_QUARTERS: return 'Living Quarters';
-      case TileType.RECREATION: return 'Recreation Center';
-      default: return 'Building';
-    }
-  }
 
-  private getBuildingVisitReason(buildingType: TileType, agentType: CrewmateType): string {
-    const reasons: Record<string, string[]> = {
-      [TileType.RESEARCH_LAB]: [
-        'to conduct research',
-        'to analyze data',
-        'to make discoveries',
-        'to study samples'
-      ],
-      [TileType.ENGINEERING_BAY]: [
-        'to maintain systems',
-        'to fix equipment',
-        'to upgrade technology',
-        'to build improvements'
-      ],
-      [TileType.LIVING_QUARTERS]: [
-        'to rest and recharge',
-        'to meet residents',
-        'to check facilities',
-        'to socialize'
-      ],
-      [TileType.RECREATION]: [
-        'to relax and unwind',
-        'to have fun',
-        'to meet other agents',
-        'to enjoy activities'
-      ]
-    };
-    
-    const buildingReasons = reasons[buildingType] || ['to explore'];
-    return buildingReasons[Math.floor(Math.random() * buildingReasons.length)];
-  }
-
-  private findRandomDestination(agent: AIAgent): void {
-    // Get all available tiles from the loaded map
-    const allTiles = Array.from(this.state.mapData.entries());
-    
-    if (allTiles.length === 0) {
-      // No map loaded, stay in place
-      return;
-    }
-    
-    // More diverse roaming behavior within map boundaries
-    const destinations = [
-      { type: TileType.RECREATION, weight: 4 },
-      { type: TileType.LIVING_QUARTERS, weight: 3 },
-      { type: TileType.RESEARCH_LAB, weight: agent.type === CrewmateType.SCIENTIST ? 5 : 2 },
-      { type: TileType.ENGINEERING_BAY, weight: agent.type === CrewmateType.ENGINEER ? 5 : 2 },
-      { type: TileType.CORRIDOR, weight: 6 }, // More corridor exploration
-      { type: TileType.SPACE, weight: 2 } // Only explore space tiles that exist in the map
-    ];
-    
-    const totalWeight = destinations.reduce((sum, dest) => sum + dest.weight, 0);
-    let random = Math.random() * totalWeight;
-    
-    let selectedType = TileType.CORRIDOR;
-    for (const dest of destinations) {
-      random -= dest.weight;
-      if (random <= 0) {
-        selectedType = dest.type;
-        break;
-      }
-    }
-    
-    const tilesOfType = allTiles.filter(([key, tile]) => 
-      tile.type === selectedType && 
-      tile.x >= 0 && tile.x < this.state.mapWidth && tile.y >= 0 && tile.y < this.state.mapHeight // Ensure within boundaries
-    );
-    
-    if (tilesOfType.length > 0) {
-      const randomTile = tilesOfType[Math.floor(Math.random() * tilesOfType.length)];
-      agent.targetX = Math.max(0, Math.min(this.state.mapWidth - 1, randomTile[1].x));
-      agent.targetY = Math.max(0, Math.min(this.state.mapHeight - 1, randomTile[1].y));
-      agent.activity = CrewmateActivity.WALKING;
-    } else {
-      // If no tiles of selected type, pick any random tile from the loaded map within boundaries
-      const validTiles = allTiles.filter(([key, tile]) => 
-        tile.x >= 0 && tile.x < this.state.mapWidth && tile.y >= 0 && tile.y < this.state.mapHeight
-      );
-      if (validTiles.length > 0) {
-        const randomTile = validTiles[Math.floor(Math.random() * validTiles.length)];
-        agent.targetX = Math.max(0, Math.min(24, randomTile[1].x));
-        agent.targetY = Math.max(0, Math.min(24, randomTile[1].y));
-        agent.activity = CrewmateActivity.WALKING;
-      }
-    }
-  }
 
   private updateCrewmateAI(crewmate: Crewmate, deltaTime: number): void {
     const currentTile = this.state.mapData.get(`${crewmate.x},${crewmate.y}`);
@@ -1059,8 +756,8 @@ class GameStateManager {
     const targetY = Math.round(crewmate.targetY);
     
     if (currentX === targetX && currentY === targetY) {
-      // Reached target, choose new activity
-      this.chooseNewActivity(crewmate);
+      // Reached target, stop moving (no random activity switching)
+      crewmate.activity = CrewmateActivity.RESTING;
     } else {
       // Check if enough time has passed for the next movement step
       if (now - crewmate.lastMoveTime >= crewmate.moveInterval) {
@@ -1097,108 +794,6 @@ class GameStateManager {
     this.state.crewmates.set(crewmate.id, crewmate);
   }
 
-  private chooseNewActivity(crewmate: Crewmate): void {
-    const currentTile = this.state.mapData.get(`${Math.round(crewmate.x)},${Math.round(crewmate.y)}`);
-    
-    if (currentTile) {
-      switch (currentTile.type) {
-        case TileType.LIVING_QUARTERS:
-          crewmate.activity = CrewmateActivity.RESTING;
-          // After resting, go to work
-          setTimeout(() => {
-            crewmate.targetX = crewmate.workX;
-            crewmate.targetY = crewmate.workY;
-            crewmate.activity = CrewmateActivity.WALKING;
-          }, 3000 + Math.random() * 5000);
-          break;
-          
-        case TileType.RESEARCH_LAB:
-          if (crewmate.type === CrewmateType.SCIENTIST) {
-            crewmate.activity = CrewmateActivity.RESEARCHING;
-            // After researching, go home
-            setTimeout(() => {
-              crewmate.targetX = crewmate.homeX;
-              crewmate.targetY = crewmate.homeY;
-              crewmate.activity = CrewmateActivity.WALKING;
-            }, 5000 + Math.random() * 8000);
-          } else {
-            // Go to recreation
-            this.findNearestTile(crewmate, TileType.RECREATION);
-          }
-          break;
-          
-        case TileType.ENGINEERING_BAY:
-          if (crewmate.type === CrewmateType.ENGINEER) {
-            crewmate.activity = CrewmateActivity.MAINTAINING;
-            // After maintaining, go home
-            setTimeout(() => {
-              crewmate.targetX = crewmate.homeX;
-              crewmate.targetY = crewmate.homeY;
-              crewmate.activity = CrewmateActivity.WALKING;
-            }, 4000 + Math.random() * 6000);
-          } else {
-            // Go to recreation
-            this.findNearestTile(crewmate, TileType.RECREATION);
-          }
-          break;
-          
-        case TileType.RECREATION:
-          crewmate.activity = CrewmateActivity.EATING;
-          // After eating, go to work
-          setTimeout(() => {
-            crewmate.targetX = crewmate.workX;
-            crewmate.targetY = crewmate.workY;
-            crewmate.activity = CrewmateActivity.WALKING;
-          }, 2000 + Math.random() * 4000);
-          break;
-          
-        default:
-          // Random walk
-          this.findRandomCorridor(crewmate);
-      }
-    } else {
-      // In space, find nearest corridor
-      this.findNearestTile(crewmate, TileType.CORRIDOR);
-    }
-  }
-
-  private findNearestTile(crewmate: Crewmate, tileType: TileType): void {
-    let nearestDistance = Infinity;
-    let nearestX = crewmate.x;
-    let nearestY = crewmate.y;
-    
-    for (const [key, tile] of Array.from(this.state.mapData.entries())) {
-      if (tile.type === tileType) {
-        const distance = Math.abs(tile.x - crewmate.x) + Math.abs(tile.y - crewmate.y);
-        if (distance < nearestDistance) {
-          nearestDistance = distance;
-          nearestX = tile.x;
-          nearestY = tile.y;
-        }
-      }
-    }
-    
-    crewmate.targetX = nearestX;
-    crewmate.targetY = nearestY;
-    crewmate.activity = CrewmateActivity.WALKING;
-  }
-
-  private findRandomCorridor(crewmate: Crewmate): void {
-    const corridors: Array<{x: number, y: number}> = [];
-    
-    for (const [key, tile] of Array.from(this.state.mapData.entries())) {
-      if (tile.type === TileType.CORRIDOR) {
-        corridors.push({ x: tile.x, y: tile.y });
-      }
-    }
-    
-    if (corridors.length > 0) {
-      const randomCorridor = corridors[Math.floor(Math.random() * corridors.length)];
-      crewmate.targetX = randomCorridor.x;
-      crewmate.targetY = randomCorridor.y;
-      crewmate.activity = CrewmateActivity.WALKING;
-    }
-  }
 
   placeTile(x: number, y: number, type: TileType) {
     const key = `${x},${y}`;
@@ -1235,6 +830,172 @@ class GameStateManager {
     this.notifyListeners();
   }
 
+  setPlayerPath(path: Array<{x: number, y: number}>) {
+    // Remove the starting position from the path if it matches the player's current position
+    const currentPos = this.state.playerPosition;
+    const currentTileX = Math.round(currentPos.pixelX / this.state.tileSize);
+    const currentTileY = Math.round(currentPos.pixelY / this.state.tileSize);
+    
+    let filteredPath = path;
+    if (path.length > 0 && path[0].x === currentTileX && path[0].y === currentTileY) {
+      filteredPath = path.slice(1); // Remove the first node if it's the current position
+      console.log(`🎯 Removed starting position (${currentTileX}, ${currentTileY}) from path, ${filteredPath.length} nodes remaining`);
+    }
+    
+    this.state.playerPath = filteredPath;
+    this.state.playerPathIndex = 0;
+    this.state.isPlayerFollowingPath = true;
+    
+    console.log(`🎯 Player path set: ${filteredPath.length} nodes, starting at (${currentTileX}, ${currentTileY}) pixel(${currentPos.pixelX}, ${currentPos.pixelY})`);
+    if (filteredPath.length > 0) {
+      console.log(`🎯 First target: (${filteredPath[0].x}, ${filteredPath[0].y}) pixel(${filteredPath[0].x * this.state.tileSize}, ${filteredPath[0].y * this.state.tileSize})`);
+      
+      // Add path start to activity logs
+      this.addChatMessage({
+        id: `player_path_start_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        agentId: 'player',
+        message: `Player started following path with ${filteredPath.length} waypoints`,
+        timestamp: Date.now(),
+        type: 'action'
+      });
+    }
+    
+    this.notifyListeners();
+  }
+
+  // Hardcoded test path for immediate testing
+  setHardcodedTestPath() {
+    const testPath = [
+      { x: 13, y: 12 }, // Move right from current position
+      { x: 14, y: 12 }, // Move right
+      { x: 14, y: 13 }, // Move down
+      { x: 14, y: 14 }, // Move down
+      { x: 13, y: 14 }, // Move left
+      { x: 12, y: 14 }, // Move left
+      { x: 12, y: 13 }, // Move up
+      { x: 12, y: 12 }  // Back to start
+    ];
+    
+    console.log(`🎯 Setting hardcoded test path with ${testPath.length} nodes`);
+    this.setPlayerPath(testPath);
+  }
+
+  clearPlayerPath() {
+    this.state.playerPath = undefined;
+    this.state.playerPathIndex = 0;
+    this.state.isPlayerFollowingPath = false;
+    this.notifyListeners();
+  }
+
+  private updatePlayerPathFollowing(deltaTime: number): void {
+    if (!this.state.isPlayerFollowingPath || !this.state.playerPath || this.state.playerPath.length === 0) {
+      return;
+    }
+
+    const currentPos = this.state.playerPosition;
+    const currentTileX = Math.round(currentPos.pixelX / this.state.tileSize);
+    const currentTileY = Math.round(currentPos.pixelY / this.state.tileSize);
+    const pathIndex = this.state.playerPathIndex;
+    
+    if (pathIndex >= this.state.playerPath.length) {
+      // Reached end of path
+      console.log(`🏁 Player reached end of path at (${currentTileX}, ${currentTileY})`);
+      
+      // Add path completion to activity logs
+      this.addChatMessage({
+        id: `player_path_complete_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        agentId: 'player',
+        message: `Player completed path at (${currentTileX}, ${currentTileY})`,
+        timestamp: Date.now(),
+        type: 'action'
+      });
+      
+      this.clearPlayerPath();
+      return;
+    }
+
+    const targetNode = this.state.playerPath[pathIndex];
+    
+    // Check if we've reached the current target node (grid-based)
+    if (currentTileX === targetNode.x && currentTileY === targetNode.y) {
+      // Move to next path node
+      this.state.playerPathIndex++;
+      console.log(`📍 Player reached path node ${pathIndex + 1}/${this.state.playerPath.length} at (${targetNode.x}, ${targetNode.y})`);
+      
+      // Add path node reached to activity logs
+      this.addChatMessage({
+        id: `player_node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        agentId: 'player',
+        message: `Player reached waypoint ${pathIndex + 1}/${this.state.playerPath.length} at (${targetNode.x}, ${targetNode.y})`,
+        timestamp: Date.now(),
+        type: 'action'
+      });
+      
+      // If we've reached the end of the path, clear it
+      if (this.state.playerPathIndex >= this.state.playerPath.length) {
+        this.clearPlayerPath();
+      }
+      return;
+    }
+    
+    // Check if enough time has passed for the next movement step (grid-based movement timing)
+    const now = Date.now();
+    const moveInterval = 500; // 500ms between each grid movement (adjustable for speed)
+    
+    if (!this.state.playerLastMoveTime) {
+      this.state.playerLastMoveTime = now;
+    }
+    
+    if (now - this.state.playerLastMoveTime < moveInterval) {
+      return; // Wait for next movement step
+    }
+    
+    // Move one grid square at a time towards the target
+    const dx = targetNode.x - currentTileX;
+    const dy = targetNode.y - currentTileY;
+    
+    // Move one step at a time in a single direction (no diagonal movement)
+    let newTileX = currentTileX;
+    let newTileY = currentTileY;
+    let direction: 'left' | 'right' | 'up' | 'down' = 'right';
+    
+    if (Math.abs(dx) > Math.abs(dy)) {
+      // Move horizontally
+      newTileX = currentTileX + (dx > 0 ? 1 : -1);
+      direction = dx > 0 ? 'right' : 'left';
+    } else if (dy !== 0) {
+      // Move vertically
+      newTileY = currentTileY + (dy > 0 ? 1 : -1);
+      direction = dy > 0 ? 'down' : 'up';
+    }
+    
+    // Ensure we stay within map boundaries
+    newTileX = Math.max(0, Math.min(this.state.mapWidth - 1, newTileX));
+    newTileY = Math.max(0, Math.min(this.state.mapHeight - 1, newTileY));
+    
+    // Convert back to pixel coordinates and update position
+    const newPixelX = newTileX * this.state.tileSize;
+    const newPixelY = newTileY * this.state.tileSize;
+    
+    console.log(`🚶 Player moving: from (${currentTileX}, ${currentTileY}) to (${newTileX}, ${newTileY}) - direction: ${direction}`);
+    
+    // Add movement to activity logs
+    this.addChatMessage({
+      id: `player_move_${now}_${Math.random().toString(36).substr(2, 9)}`,
+      agentId: 'player',
+      message: `Player moved ${direction} to (${newTileX}, ${newTileY})`,
+      timestamp: now,
+      type: 'action'
+    });
+    
+    // Update player position and animation
+    this.setPlayerPixelPosition(newPixelX, newPixelY);
+    this.updatePlayerAnimation(true, direction);
+    
+    // Update last move time
+    this.state.playerLastMoveTime = now;
+  }
+
   setPlayerPixelPosition(pixelX: number, pixelY: number) {
     const tileSize = this.state.tileSize;
     
@@ -1245,7 +1006,6 @@ class GameStateManager {
     const maxPixelY = (mapHeight - 1) * tileSize;
     
     // Debug logging to see what's happening
-    console.log(`Player boundary debug: pixelX=${pixelX}, pixelY=${pixelY}, mapWidth=${mapWidth}, mapHeight=${mapHeight}, tileSize=${tileSize}, maxPixelX=${maxPixelX}, maxPixelY=${maxPixelY}`);
     
     // TEMPORARILY DISABLE BOUNDARY CONSTRAINTS FOR TESTING
     const constrainedPixelX = pixelX;
@@ -1263,6 +1023,8 @@ class GameStateManager {
       animationFrame: this.state.playerPosition.animationFrame,
       direction: this.state.playerPosition.direction
     };
+    
+    console.log(`📍 Player position updated: tile(${tileX}, ${tileY}) pixel(${constrainedPixelX.toFixed(1)}, ${constrainedPixelY.toFixed(1)})`);
     
     // Update camera based on current follow mode
     this.updateCamera();
@@ -1364,37 +1126,25 @@ class GameStateManager {
     return { x: constrainedX, y: constrainedY };
   }
 
-  initializeCamera() {
-    if (typeof window !== 'undefined') {
-      const playerPixelX = this.state.playerPosition.pixelX;
-      const playerPixelY = this.state.playerPosition.pixelY;
-      
-      // Center camera on player's exact pixel position
-      const cameraX = -playerPixelX + (window.innerWidth / 2) - 16; // 16 is half player size
-      const cameraY = -playerPixelY + (window.innerHeight / 2) - 16;
-      
-      // Constrain camera to map boundaries
-      const constrainedCamera = this.constrainCameraToMapBounds(cameraX, cameraY);
-      
-      this.state.cameraPosition = constrainedCamera;
-      this.notifyListeners();
-    }
-  }
 
   updateCameraToFollowPlayer() {
     if (typeof window !== 'undefined') {
-      const playerPixelX = this.state.playerPosition.pixelX;
-      const playerPixelY = this.state.playerPosition.pixelY;
+      const playerPos = this.state.playerPosition;
+      const playerTileX = playerPos.pixelX / this.state.tileSize;
+      const playerTileY = playerPos.pixelY / this.state.tileSize;
       
-      // Center camera on player's exact pixel position
-      const cameraX = -playerPixelX + (window.innerWidth / 2) - 16; // 16 is half player size
-      const cameraY = -playerPixelY + (window.innerHeight / 2) - 16;
+      // Center the camera on the player
+      const screenCenterX = window.innerWidth / 2;
+      const screenCenterY = window.innerHeight / 2;
+      
+      const cameraX = playerTileX - (screenCenterX / this.state.tileSize);
+      const cameraY = playerTileY - (screenCenterY / this.state.tileSize);
       
       // Constrain camera to map boundaries
       const constrainedCamera = this.constrainCameraToMapBounds(cameraX, cameraY);
       
       // Only update camera if position changed significantly (reduces unnecessary renders)
-      const threshold = 0.5; // 0.5 pixel threshold for smoother camera
+      const threshold = 0.1; // 0.1 tile threshold for smoother camera
       if (Math.abs(this.state.cameraPosition.x - constrainedCamera.x) > threshold || 
           Math.abs(this.state.cameraPosition.y - constrainedCamera.y) > threshold) {
         this.state.cameraPosition = constrainedCamera;
@@ -1440,11 +1190,97 @@ class GameStateManager {
     this.notifyListeners();
   }
 
+  // Manual camera movement controls
+  moveCamera(deltaX: number, deltaY: number) {
+    this.state.isManualCameraControl = true; // Enable manual control
+    
+    const oldX = this.state.cameraPosition.x;
+    const oldY = this.state.cameraPosition.y;
+    
+    this.state.cameraPosition.x += deltaX;
+    this.state.cameraPosition.y += deltaY;
+    
+    // Apply map boundaries to camera
+    const mapWidth = this.state.mapWidth;
+    const mapHeight = this.state.mapHeight;
+    const screenWidth = this.state.screenWidth;
+    const screenHeight = this.state.screenHeight;
+    const tileSize = this.state.tileSize;
+    
+    const maxCameraX = Math.max(0, mapWidth - (screenWidth / tileSize));
+    const maxCameraY = Math.max(0, mapHeight - (screenHeight / tileSize));
+    
+    this.state.cameraPosition.x = Math.max(0, Math.min(maxCameraX, this.state.cameraPosition.x));
+    this.state.cameraPosition.y = Math.max(0, Math.min(maxCameraY, this.state.cameraPosition.y));
+    
+    console.log(`📷 Camera moved from (${oldX.toFixed(1)}, ${oldY.toFixed(1)}) to (${this.state.cameraPosition.x.toFixed(1)}, ${this.state.cameraPosition.y.toFixed(1)}) - delta: (${deltaX.toFixed(2)}, ${deltaY.toFixed(2)})`);
+    this.notifyListeners();
+  }
+
+  resetCameraToPlayer() {
+    this.state.isManualCameraControl = false; // Disable manual control, return to auto-follow
+    
+    if (typeof window === 'undefined') {
+      this.state.cameraPosition.x = 12;
+      this.state.cameraPosition.y = 12;
+      return;
+    }
+
+    const playerPos = this.state.playerPosition;
+    const playerTileX = playerPos.pixelX / this.state.tileSize;
+    const playerTileY = playerPos.pixelY / this.state.tileSize;
+    
+    // Center the camera on the player
+    const screenCenterX = window.innerWidth / 2;
+    const screenCenterY = window.innerHeight / 2;
+    
+    const cameraX = playerTileX - (screenCenterX / this.state.tileSize);
+    const cameraY = playerTileY - (screenCenterY / this.state.tileSize);
+    
+    this.state.cameraPosition.x = cameraX;
+    this.state.cameraPosition.y = cameraY;
+    
+    console.log(`📷 Camera reset to center player: player(${playerTileX.toFixed(1)}, ${playerTileY.toFixed(1)}) camera(${cameraX.toFixed(1)}, ${cameraY.toFixed(1)}) - auto-follow enabled`);
+    this.notifyListeners();
+  }
+
+  // Initialize camera to player position (call this when the game starts)
+  initializeCamera() {
+    if (typeof window === 'undefined') {
+      // Fallback for server-side rendering
+      this.state.cameraPosition.x = 12;
+      this.state.cameraPosition.y = 12;
+      return;
+    }
+
+    const playerPos = this.state.playerPosition;
+    const playerTileX = playerPos.pixelX / this.state.tileSize;
+    const playerTileY = playerPos.pixelY / this.state.tileSize;
+    
+    // Center the camera on the player
+    // Camera position should be offset to center the player on screen
+    const screenCenterX = window.innerWidth / 2;
+    const screenCenterY = window.innerHeight / 2;
+    
+    // Calculate camera position to center player on screen
+    const cameraX = playerTileX - (screenCenterX / this.state.tileSize);
+    const cameraY = playerTileY - (screenCenterY / this.state.tileSize);
+    
+    this.state.cameraPosition.x = cameraX;
+    this.state.cameraPosition.y = cameraY;
+    
+    console.log(`📷 Camera initialized to center player on screen: player(${playerTileX.toFixed(1)}, ${playerTileY.toFixed(1)}) camera(${cameraX.toFixed(1)}, ${cameraY.toFixed(1)})`);
+    this.notifyListeners();
+  }
+
   updateCamera() {
-    if (this.state.cameraFollowMode === 'player') {
-      this.updateCameraToFollowPlayer();
-    } else if (this.state.cameraFollowMode === 'agent' && this.state.cameraFollowAgentId) {
-      this.updateCameraToFollowAgent(this.state.cameraFollowAgentId);
+    // Only auto-follow if not in manual control mode
+    if (!this.state.isManualCameraControl) {
+      if (this.state.cameraFollowMode === 'player') {
+        this.updateCameraToFollowPlayer();
+      } else if (this.state.cameraFollowMode === 'agent' && this.state.cameraFollowAgentId) {
+        this.updateCameraToFollowAgent(this.state.cameraFollowAgentId);
+      }
     }
   }
 

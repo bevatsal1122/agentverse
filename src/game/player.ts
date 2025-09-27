@@ -13,6 +13,7 @@ export class PlayerController {
   private isOnGround = false;
   // Collision system disabled
   private lastTime = 0;
+  private cameraKeys: Set<string> = new Set(); // Track camera control keys
 
   constructor() {
     // Don't initialize immediately - wait for client-side
@@ -44,103 +45,100 @@ export class PlayerController {
       return;
     }
     
-    console.log('Setting up keyboard listeners...');
+    console.log('Setting up camera control keyboard listeners...');
     
     window.addEventListener('keydown', (e) => {
-      console.log('Key down:', e.code);
-      this.keys.add(e.code);
+      // Track camera control keys
+      if (['KeyW', 'KeyS', 'KeyA', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyR', 'KeyT'].includes(e.code)) {
+        e.preventDefault();
+        this.cameraKeys.add(e.code);
+        
+        // Handle R key (reset camera) immediately
+        if (e.code === 'KeyR') {
+          gameState.resetCameraToPlayer();
+          console.log('Camera: Reset to player');
+        }
+        
+        // Handle T key (test path) immediately
+        if (e.code === 'KeyT') {
+          gameState.setHardcodedTestPath();
+          console.log('Player: Starting hardcoded test path');
+        }
+      }
     });
 
     window.addEventListener('keyup', (e) => {
-      console.log('Key up:', e.code);
-      this.keys.delete(e.code);
+      // Remove camera control keys when released
+      if (['KeyW', 'KeyS', 'KeyA', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyR', 'KeyT'].includes(e.code)) {
+        e.preventDefault();
+        this.cameraKeys.delete(e.code);
+      }
     });
 
-    console.log('Keyboard listeners set up successfully');
-    // Don't start separate game loop - let main game loop handle updates
+    console.log('Camera control keyboard listeners set up successfully');
   }
 
   // Public method to update player movement (called from main game loop)
   update(deltaTime: number) {
     if (!deltaTime || !this.isInitialized) {
-      console.log('Player update skipped:', { deltaTime, isInitialized: this.isInitialized });
       return;
     }
-    console.log('Player update called with deltaTime:', deltaTime);
     this.handlePhysicsMovement(deltaTime);
   }
 
   private handlePhysicsMovement(deltaTime: number) {
     if (!deltaTime) return;
     
-    const state = gameState.getState();
-    const currentPos = state.playerPosition;
+    // DISABLED: Manual physics movement removed - player movement is now algorithm-controlled only
+    // The player position is now updated exclusively by the path following system in gameState
     
-    // Handle input
+    // Only handle animation updates based on path following state
     this.handleInput();
-    
-    // Only update position if there's actual movement
-    if (this.velocity.x !== 0 || this.velocity.y !== 0) {
-      // Simple direct movement (no physics for city map)
-      const newPixelX = currentPos.pixelX + this.velocity.x * deltaTime;
-      const newPixelY = currentPos.pixelY + this.velocity.y * deltaTime;
-      
-      // Apply map boundary constraints using actual map dimensions
-      const state = gameState.getState();
-      const tileSize = state.tileSize;
-      const mapWidth = state.mapWidth;
-      const mapHeight = state.mapHeight;
-      const maxPixelX = (mapWidth - 1) * tileSize;
-      const maxPixelY = (mapHeight - 1) * tileSize;
-      
-      // TEMPORARILY DISABLE BOUNDARY CONSTRAINTS FOR TESTING
-      const constrainedPixelX = newPixelX;
-      const constrainedPixelY = newPixelY;
-      
-      // Only update state if position actually changed (reduces unnecessary updates)
-      if (Math.abs(constrainedPixelX - currentPos.pixelX) > 0.5 || Math.abs(constrainedPixelY - currentPos.pixelY) > 0.5) {
-        gameState.setPlayerPixelPosition(constrainedPixelX, constrainedPixelY);
-      }
-    }
   }
 
   private handleInput() {
-    this.velocity.x = 0;
-    this.velocity.y = 0;
-    let isMoving = false;
-    let direction: 'left' | 'right' | 'up' | 'down' | undefined;
-
-    // Debug: log active keys
-    if (this.keys.size > 0) {
-      console.log('Active keys:', Array.from(this.keys));
+    // DISABLED: Manual player controls removed - only algorithmic movement allowed
+    // Player movement is now controlled entirely by path following algorithms
+    
+    // Handle camera movement based on held keys
+    this.handleCameraMovement();
+    
+    // Check if player is following a path (algorithmic movement)
+    const state = gameState.getState();
+    if (state.isPlayerFollowingPath && state.playerPath && state.playerPath.length > 0) {
+      // Player is moving via algorithm - update animation to show movement
+      gameState.updatePlayerAnimation(true, 'right'); // Default direction for algorithmic movement
+    } else {
+      // Player is stationary
+      gameState.updatePlayerAnimation(false);
     }
+  }
 
-    if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) {
-      console.log('Moving right');
-      this.velocity.x = X_VELOCITY;
-      isMoving = true;
-      direction = 'right';
-    } else if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) {
-      console.log('Moving left');
-      this.velocity.x = -X_VELOCITY;
-      isMoving = true;
-      direction = 'left';
+  private handleCameraMovement() {
+    if (this.cameraKeys.size === 0) return;
+    
+    const cameraSpeed = 0.2; // tiles per frame (smooth movement)
+    let deltaX = 0;
+    let deltaY = 0;
+    
+    // Calculate movement based on held keys
+    if (this.cameraKeys.has('KeyA') || this.cameraKeys.has('ArrowLeft')) {
+      deltaX -= cameraSpeed;
     }
-
-    if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) {
-      console.log('Moving up');
-      this.velocity.y = -X_VELOCITY;
-      isMoving = true;
-      direction = 'up';
-    } else if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) {
-      console.log('Moving down');
-      this.velocity.y = X_VELOCITY;
-      isMoving = true;
-      direction = 'down';
+    if (this.cameraKeys.has('KeyD') || this.cameraKeys.has('ArrowRight')) {
+      deltaX += cameraSpeed;
     }
-
-    // Update player animation
-    gameState.updatePlayerAnimation(isMoving, direction);
+    if (this.cameraKeys.has('KeyW') || this.cameraKeys.has('ArrowUp')) {
+      deltaY -= cameraSpeed;
+    }
+    if (this.cameraKeys.has('KeyS') || this.cameraKeys.has('ArrowDown')) {
+      deltaY += cameraSpeed;
+    }
+    
+    // Apply camera movement if there's any movement
+    if (deltaX !== 0 || deltaY !== 0) {
+      gameState.moveCamera(deltaX, deltaY);
+    }
   }
 
 

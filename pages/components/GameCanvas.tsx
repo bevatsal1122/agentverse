@@ -2,9 +2,15 @@ import React, { useEffect, useRef, useState } from 'react';
 import { gameState, Tool, TileType, GameState, Crewmate, CrewmateType, CrewmateActivity, AIAgent } from '../../src/game/state';
 import { MapLoader } from '../../src/maps/mapLoader';
 import { playerController } from '../../src/game/player';
+// Removed direct agentService import to avoid client-side Redis import issues
+import { collaborativeTaskService } from '../services/collaborativeTaskService';
+import { useNotifications } from '../hooks/useNotifications';
+import NotificationSystem from './NotificationSystem';
 import LiveFeed from './LiveFeed';
 import AgentsList from './AgentsList';
 import { useRouter } from 'next/router';
+import { getBuildingById, getBuildingsAssignedToAgent } from '../../src/maps/defaultMap';
+
 
 
 interface GameCanvasProps {
@@ -30,6 +36,160 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
   const [showAgentsList, setShowAgentsList] = useState(false);
   const animationFrameRef = useRef<number>();
   const lastRenderTime = useRef<number>(0);
+  
+  // Notification system
+  const { notifications, addNotification, removeNotification } = useNotifications();
+
+  // Set up notification callback for collaborative task service
+  useEffect(() => {
+    collaborativeTaskService.setNotificationCallback(addNotification);
+  }, [addNotification]);
+
+  // Function to generate collaborative tasks
+  const generateCollaborativeTask = async () => {
+    try {
+      const result = await collaborativeTaskService.generateCollaborativeTask({
+        userId: 'game_user' // You might want to get this from auth context
+      });
+      
+      if (result.success) {
+        // Task generation handles agent movement internally, no need to reload agents
+        console.log('Task generated successfully, agents will move sequentially');
+      }
+    } catch (error) {
+      console.error('Error generating collaborative task:', error);
+    }
+  };
+
+  // Load real agents from backend
+  const loadRealAgents = async () => {
+    try {
+      console.log('🔄 Starting to load real agents from backend...');
+      const response = await fetch('/api/agents');
+      const agentsResult = await response.json();
+      console.log('📡 API response:', agentsResult);
+      
+      if (agentsResult.success && agentsResult.agents) {
+        console.log(`✅ Loading ${agentsResult.agents.length} real agents from backend`);
+        
+        // Clear existing agents first
+        gameState.clearAllAIAgents();
+        
+        let loadedCount = 0;
+        for (const agent of agentsResult.agents) {
+          // Convert backend agent to game AI agent
+          const gameAgent = convertBackendAgentToGameAgent(agent);
+          if (gameAgent) {
+            gameState.addAIAgent(gameAgent);
+            loadedCount++;
+            console.log(`✅ Loaded agent ${agent.name} at (${gameAgent.x}, ${gameAgent.y})`);
+          } else {
+            console.warn(`❌ Failed to convert agent ${agent.name} to game agent`);
+          }
+        }
+        console.log(`🎉 Successfully loaded ${loadedCount} agents into game state`);
+      } else {
+        console.log('❌ No agents found in backend, no agents will spawn on map');
+        console.log('API response:', agentsResult);
+        // Clear existing agents if no agents in backend
+        gameState.clearAllAIAgents();
+      }
+    } catch (error) {
+      console.error('❌ Error loading agents from backend:', error);
+    }
+  };
+
+  // Convert backend agent to game AI agent
+  const convertBackendAgentToGameAgent = (backendAgent: any): AIAgent | null => {
+    const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57', '#ff9ff3', '#54a0ff', '#5f27cd', '#ff7675', '#74b9ff'];
+    const types = [CrewmateType.CREW, CrewmateType.SCIENTIST, CrewmateType.ENGINEER, CrewmateType.CAPTAIN];
+    
+    // Get all available tiles from the loaded map
+    const allTiles = Array.from(gameState.getState().mapData.entries());
+    console.log(`🗺️ Map tiles loaded: ${allTiles.length}`);
+    if (allTiles.length === 0) {
+      console.error('❌ No map loaded, cannot place agent');
+      return null; // No map loaded
+    }
+
+    let x: number, y: number;
+
+    // Check if agent has an assigned building
+    if (backendAgent.current_building_id) {
+      // Import the building lookup function
+      const { getBuildingById } = require('../../src/maps/defaultMap');
+      const building = getBuildingById(backendAgent.current_building_id);
+      
+      if (building) {
+        // Place agent at their assigned building
+        x = building.x;
+        y = building.y;
+        console.log(`Placing agent ${backendAgent.name} at assigned building ${backendAgent.current_building_id} (${x}, ${y})`);
+      } else {
+        // Building not found, fall back to random building placement (not roads/corridors)
+        console.warn(`Building ${backendAgent.current_building_id} not found for agent ${backendAgent.name}, using random building placement`);
+        const buildingTypes = [TileType.LIVING_QUARTERS, TileType.RESEARCH_LAB, TileType.ENGINEERING_BAY, TileType.RECREATION, TileType.POWER_LINE];
+        const buildingTiles = allTiles.filter(([_, tile]) => 
+          buildingTypes.includes(tile.type)
+        );
+        
+        if (buildingTiles.length === 0) {
+          console.error('No building tiles available for agent placement');
+          return null; // No building tiles
+        }
+
+        const [tileKey, tile] = buildingTiles[Math.floor(Math.random() * buildingTiles.length)];
+        [x, y] = tileKey.split(',').map(Number);
+      }
+    } else {
+      // No assigned building, find a random building tile (not roads/corridors)
+      const buildingTypes = [TileType.LIVING_QUARTERS, TileType.RESEARCH_LAB, TileType.ENGINEERING_BAY, TileType.RECREATION, TileType.POWER_LINE];
+      const buildingTiles = allTiles.filter(([_, tile]) => 
+        buildingTypes.includes(tile.type)
+      );
+      
+      if (buildingTiles.length === 0) {
+        console.error('No building tiles available for agent placement');
+        return null; // No building tiles
+      }
+
+      const [tileKey, tile] = buildingTiles[Math.floor(Math.random() * buildingTiles.length)];
+      [x, y] = tileKey.split(',').map(Number);
+    }
+
+    const type = types[Math.floor(Math.random() * types.length)];
+    const color = colors[Math.floor(Math.random() * colors.length)];
+
+    return {
+      id: backendAgent.id,
+      name: backendAgent.name,
+      type,
+      x,
+      y,
+      targetX: x,
+      targetY: y,
+      color,
+      activity: CrewmateActivity.RESTING, // Start at rest when at their building
+      speed: 1,
+      direction: 'north' as const,
+      animationFrame: 0,
+      lastMoveTime: Date.now(),
+      homeX: x, // Set home to current position (their assigned building)
+      homeY: y,
+      workX: x, // Set work to current position (their assigned building)
+      workY: y,
+      personality: backendAgent.personality?.traits?.join(', ') || 'Friendly and helpful',
+      currentThought: 'Exploring the space station',
+      lastInteractionTime: 0,
+      autonomyLevel: 0.7,
+      goals: backendAgent.personality?.goals || ['Explore', 'Help others'],
+      pathIndex: 0,
+      isFollowingPath: false,
+      lastBuildingVisitTime: 0,
+      visitCooldown: 5000,
+      moveInterval: 200 + Math.random() * 200
+    };
+  };
   const lastGameUpdateTime = useRef<number>(0);
   const lastTrafficUpdateTime = useRef<number>(0);
   const targetFPS = 60;
@@ -90,19 +250,21 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     // Generate initial traffic
     generateTraffic(gameState.getState());
     
-    // Spawn initial AI agents
-    const currentState = gameState.getState();
-    if (currentState.aiAgents.size === 0) {
-      // Spawn 2-3 AI agents initially for better performance
-      const numAgents = 2 + Math.floor(Math.random() * 2);
-      for (let i = 0; i < numAgents; i++) {
-        const newAgent = gameState.spawnRandomAIAgent();
-        if (!newAgent) {
-          console.log('Cannot spawn initial AI agent: no map loaded');
-          break;
-        }
+    // Load real agents from backend instead of spawning random ones
+    // Wait a bit to ensure map is fully loaded
+    setTimeout(() => {
+      const currentState = gameState.getState();
+      console.log('🔍 Checking if agents need to be loaded. Current agents:', currentState.aiAgents.size);
+      if (currentState.aiAgents.size === 0) {
+        console.log('🚀 Loading real agents...');
+        loadRealAgents();
+      } else {
+        console.log('✅ Agents already loaded, skipping');
       }
-    }
+    }, 100);
+
+    // Expose loadRealAgents function globally for manual refresh
+    (window as any).refreshGameAgents = loadRealAgents;
     
     // Optimized animation loop with separate rendering and game logic updates
     const animate = (currentTime: number) => {
@@ -154,8 +316,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     const y = event.clientY - rect.top;
 
     // Convert screen coordinates to grid coordinates
-    const gridX = Math.floor((x - state.cameraPosition.x) / state.tileSize);
-    const gridY = Math.floor((y - state.cameraPosition.y) / state.tileSize);
+    const gridX = Math.floor((x + state.cameraPosition.x * state.tileSize) / state.tileSize);
+    const gridY = Math.floor((y + state.cameraPosition.y * state.tileSize) / state.tileSize);
 
     // Get the current selected tool from game state instead of closure
     const currentTool = state.selectedTool;
@@ -584,14 +746,93 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     }));
   };
 
+  const drawPlayerPath = (ctx: CanvasRenderingContext2D, state: GameState) => {
+    if (!state.playerPath || state.playerPath.length < 2) return;
+    
+    // Player path - bright blue highlighted path
+    ctx.strokeStyle = '#00BFFF'; // Bright blue color for player path
+    ctx.lineWidth = 6;
+    ctx.setLineDash([]); // Solid line
+    ctx.lineCap = 'round';
+    ctx.shadowColor = '#00BFFF';
+    ctx.shadowBlur = 15;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+    
+    ctx.beginPath();
+    
+    for (let i = 0; i < state.playerPath.length; i++) {
+      const node = state.playerPath[i];
+      // Use world coordinates - camera transformation is already applied
+      const worldX = node.x * state.tileSize + state.tileSize / 2;
+      const worldY = node.y * state.tileSize + state.tileSize / 2;
+      
+      if (i === 0) {
+        // Start from player's current position for the first segment
+        const playerWorldX = state.playerPosition.x * state.tileSize + state.tileSize / 2;
+        const playerWorldY = state.playerPosition.y * state.tileSize + state.tileSize / 2;
+        ctx.moveTo(playerWorldX, playerWorldY);
+        ctx.lineTo(worldX, worldY);
+      } else {
+        ctx.lineTo(worldX, worldY);
+      }
+    }
+    
+    ctx.stroke();
+    ctx.setLineDash([]); // Reset dash pattern
+    ctx.shadowBlur = 0; // Reset shadow
+    
+    // Draw path nodes with enhanced highlighting
+    for (let i = 0; i < state.playerPath.length; i++) {
+      const node = state.playerPath[i];
+      const worldX = node.x * state.tileSize + state.tileSize / 2;
+      const worldY = node.y * state.tileSize + state.tileSize / 2;
+      
+      // Draw node circle
+      ctx.fillStyle = '#00BFFF';
+      ctx.shadowColor = '#00BFFF';
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.arc(worldX, worldY, 4, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Draw node number
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 10px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowBlur = 0;
+      ctx.fillText((i + 1).toString(), worldX, worldY);
+    }
+    
+    ctx.shadowBlur = 0; // Reset shadow
+  };
+
   const drawAgentPath = (ctx: CanvasRenderingContext2D, agent: AIAgent, state: GameState) => {
     if (!agent.currentPath || agent.currentPath.length < 2) return;
     
-    // Draw path as connected line segments
-    ctx.strokeStyle = `${agent.color}80`; // Semi-transparent agent color
-    ctx.lineWidth = 3;
-    ctx.setLineDash([5, 5]); // Dashed line
-    ctx.lineCap = 'round';
+    // Check if this is a master agent (has a task-related thought)
+    const isMasterAgent = agent.currentThought && agent.currentThought.includes('Walking to');
+    
+    // Draw path as connected line segments with enhanced highlighting for master agents
+    if (isMasterAgent) {
+      // Master agent path - bright highlighted path
+      ctx.strokeStyle = '#FFD700'; // Gold color for master agent path
+      ctx.lineWidth = 5;
+      ctx.setLineDash([]); // Solid line for master agents
+      ctx.lineCap = 'round';
+      ctx.shadowColor = '#FFD700';
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+    } else {
+      // Regular agent path
+      ctx.strokeStyle = `${agent.color}80`; // Semi-transparent agent color
+      ctx.lineWidth = 3;
+      ctx.setLineDash([5, 5]); // Dashed line
+      ctx.lineCap = 'round';
+      ctx.shadowBlur = 0; // No shadow for regular agents
+    }
     
     ctx.beginPath();
     
@@ -614,9 +855,20 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     
     ctx.stroke();
     ctx.setLineDash([]); // Reset dash pattern
+    ctx.shadowBlur = 0; // Reset shadow
     
-    // Draw path nodes as small circles
-    ctx.fillStyle = `${agent.color}40`; // Very transparent agent color
+    // Draw path nodes with enhanced highlighting for master agents
+    if (isMasterAgent) {
+      // Master agent path nodes - bright gold circles
+      ctx.fillStyle = '#FFD700';
+      ctx.shadowColor = '#FFD700';
+      ctx.shadowBlur = 8;
+    } else {
+      // Regular agent path nodes
+      ctx.fillStyle = `${agent.color}40`; // Very transparent agent color
+      ctx.shadowBlur = 0;
+    }
+    
     for (let i = agent.pathIndex + 1; i < agent.currentPath.length; i++) {
       const node = agent.currentPath[i];
       // Use world coordinates - camera transformation is already applied
@@ -624,9 +876,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       const worldY = node.y * state.tileSize + state.tileSize / 2;
       
       ctx.beginPath();
-      ctx.arc(worldX, worldY, 3, 0, Math.PI * 2);
+      ctx.arc(worldX, worldY, isMasterAgent ? 5 : 3, 0, Math.PI * 2);
       ctx.fill();
     }
+    
+    ctx.shadowBlur = 0; // Reset shadow
   };
 
   const drawTargetBuildingIndicator = (ctx: CanvasRenderingContext2D, agent: AIAgent, state: GameState) => {
@@ -683,6 +937,57 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     }
   };
 
+  const drawAgentNameOnBuilding = (ctx: CanvasRenderingContext2D, tile: any, x: number, y: number, state: GameState) => {
+    // Check if this tile is a building that can have agents assigned
+    if (tile.type !== TileType.LIVING_QUARTERS && 
+        tile.type !== TileType.RESEARCH_LAB && 
+        tile.type !== TileType.ENGINEERING_BAY) {
+      return;
+    }
+
+    // Find which agent is assigned to this building
+    const agents = Array.from(state.aiAgents.values());
+    const assignedAgent = agents.find(agent => {
+      // Check if agent is at this building location
+      return Math.round(agent.x) === tile.x && Math.round(agent.y) === tile.y;
+    });
+
+    if (assignedAgent) {
+      // Set up text styling
+      ctx.font = 'bold 12px Arial';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
+      ctx.lineWidth = 2;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+
+      // Calculate position (above the building)
+      const textX = x + state.tileSize / 2;
+      const textY = y - 5;
+
+      // Draw text with outline for better visibility
+      ctx.strokeText(assignedAgent.name, textX, textY);
+      ctx.fillText(assignedAgent.name, textX, textY);
+
+      // Draw a small background rectangle for better readability
+      const textMetrics = ctx.measureText(assignedAgent.name);
+      const textWidth = textMetrics.width;
+      const padding = 4;
+      
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+      ctx.fillRect(
+        textX - textWidth / 2 - padding, 
+        textY - 16, 
+        textWidth + padding * 2, 
+        14
+      );
+
+      // Redraw the text on top of the background
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+      ctx.fillText(assignedAgent.name, textX, textY);
+    }
+  };
+
   const drawTraffic = (ctx: CanvasRenderingContext2D, state: GameState) => {
     trafficElements.forEach(element => {
       // Use world coordinates - camera transformation is already applied
@@ -733,14 +1038,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     // Save context for transformations
     ctx.save();
 
-    // Apply camera transformation
-    ctx.translate(state.cameraPosition.x, state.cameraPosition.y);
+    // Apply camera transformation (convert tile coordinates to pixel coordinates)
+    const cameraPixelX = -state.cameraPosition.x * state.tileSize;
+    const cameraPixelY = -state.cameraPosition.y * state.tileSize;
+    ctx.translate(cameraPixelX, cameraPixelY);
 
     // Calculate visible area to optimize rendering
-    const viewportLeft = Math.floor(-state.cameraPosition.x / state.tileSize) - 2;
-    const viewportRight = Math.floor((-state.cameraPosition.x + canvas.width) / state.tileSize) + 2;
-    const viewportTop = Math.floor(-state.cameraPosition.y / state.tileSize) - 2;
-    const viewportBottom = Math.floor((-state.cameraPosition.y + canvas.height) / state.tileSize) + 2;
+    const viewportLeft = Math.floor(state.cameraPosition.x) - 2;
+    const viewportRight = Math.floor(state.cameraPosition.x + canvas.width / state.tileSize) + 2;
+    const viewportTop = Math.floor(state.cameraPosition.y) - 2;
+    const viewportBottom = Math.floor(state.cameraPosition.y + canvas.height / state.tileSize) + 2;
 
     // Define map boundaries (25x25 grid from defaultMap)
     const mapWidth = 25;
@@ -1347,6 +1654,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
         ctx.lineWidth = 1;
         ctx.strokeRect(x, y, state.tileSize, state.tileSize);
       }
+
+      // Draw agent name on building if agent is assigned
+      drawAgentNameOnBuilding(ctx, tile, x, y, state);
     });
 
     // Render player with Minecraft-style sprite and walking animation
@@ -1414,7 +1724,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       ctx.fillRect(playerX + 24, playerY + 8 - headBob, 2, 2);
     }
 
-    // Draw agent paths first (so they appear behind agents)
+    // Draw player path first (so it appears behind everything)
+    if (state.playerPath && state.playerPath.length > 1) {
+      drawPlayerPath(ctx, state);
+    }
+
+    // Draw agent paths (so they appear behind agents)
     // Note: Paths are drawn in world coordinates, so they will be transformed with the camera
     state.aiAgents.forEach((agent) => {
       if (agent.isFollowingPath && agent.currentPath && agent.currentPath.length > 1) {
@@ -1479,6 +1794,17 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       
       {/* Game UI Overlay */}
       <div className="absolute top-4 right-4 flex flex-col space-y-3 z-10">
+        {/* Generate Collaborative Task Button */}
+        <button
+          onClick={generateCollaborativeTask}
+          className="amongus-button flex items-center space-x-2 text-sm font-bold tracking-wider bg-purple-600 hover:bg-purple-500"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+          </svg>
+          <span>ASK CHATGPT</span>
+        </button>
+        
         {/* Agents List Button */}
         <div className="flex space-x-3">
         <button
@@ -1510,6 +1836,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       <AgentsList 
         isVisible={showAgentsList} 
         onClose={() => setShowAgentsList(false)} 
+      />
+      
+      {/* Notification System */}
+      <NotificationSystem 
+        notifications={notifications}
+        onRemove={removeNotification}
       />
     </div>
   );

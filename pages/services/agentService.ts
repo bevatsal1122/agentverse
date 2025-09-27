@@ -1,7 +1,9 @@
 import { supabase } from "../lib/supabase";
 import { taskQueueService } from "./taskQueueService";
 import { memoryStorageService, AgentCommunication, AgentAction, AgentMetadata, Task } from "./memoryStorageService";
+import { persistentMemoryStorageService } from "./persistentMemoryStorageService";
 import { getAvailableBuildings, assignAgentToBuilding } from "../../src/maps/defaultMap";
+import { startupInitializer } from "./startupInitializer";
 
 // Minimal database agent interface (only what's stored in DB)
 interface DbAgent {
@@ -170,6 +172,11 @@ export class AgentService {
     error?: string;
   }> {
     try {
+      // Auto-initialize agent assignments on first call
+      if (!startupInitializer.isInitialized()) {
+        await startupInitializer.initialize();
+      }
+
       // Get basic agent data from database
       const { data: dbAgents, error } = await typedSupabase
         .from("agents")
@@ -181,11 +188,12 @@ export class AgentService {
         return { success: false, error: error.message };
       }
 
-      // Combine with memory data
-      const fullAgents: Agent[] = (dbAgents || []).map((dbAgent: DbAgent) => {
-        const metadata = memoryStorageService.getAgentMetadata(dbAgent.id);
+      // Combine with persistent memory data
+      const fullAgents: Agent[] = [];
+      for (const dbAgent of dbAgents || []) {
+        const metadata = await persistentMemoryStorageService.getAgentMetadataAsync(dbAgent.id);
         
-        // If no metadata in memory, create default
+        // If no metadata in persistent storage, create default
         if (!metadata) {
           const defaultMetadata: AgentMetadata = {
             id: dbAgent.id,
@@ -196,14 +204,15 @@ export class AgentService {
             level: 1,
             reputation_score: 100,
             last_active: new Date().toISOString(),
+            created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           };
-          memoryStorageService.setAgentMetadata(defaultMetadata);
-          return { ...dbAgent, ...defaultMetadata };
+          await persistentMemoryStorageService.setAgentMetadataAsync(defaultMetadata);
+          fullAgents.push({ ...dbAgent, ...defaultMetadata });
+        } else {
+          fullAgents.push({ ...dbAgent, ...metadata });
         }
-
-        return { ...dbAgent, ...metadata };
-      });
+      }
 
       return { success: true, data: fullAgents };
     } catch (error) {
@@ -388,15 +397,80 @@ export class AgentService {
     }
   }
 
+  async deleteAgent(id: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Delete from database
+      const { error } = await typedSupabase
+        .from("agents")
+        .delete()
+        .eq("id", id);
+
+      if (error) {
+        console.error("Error deleting agent from database:", error);
+        return { success: false, error: error.message };
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error("Error deleting agent:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error occurred",
+      };
+    }
+  }
+
   async assignBuildingToAgent(
     agentId: string,
     buildingId: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      // Get current agent metadata from memory
-      const metadata = memoryStorageService.getAgentMetadata(agentId);
+      // Validate that the building ID exists and is a valid building (not road/corridor)
+      const { getBuildingById } = await import('../../src/maps/defaultMap');
+      const building = getBuildingById(buildingId);
+      
+      if (!building) {
+        return { success: false, error: "Building not found" };
+      }
+
+      // Ensure only actual buildings can be assigned (not roads/corridors/water/space)
+      const validBuildingTypes = ['living_quarters', 'research_lab', 'engineering_bay', 'recreation', 'power_line'];
+      if (!validBuildingTypes.includes(building.type)) {
+        return { 
+          success: false, 
+          error: `Cannot assign ${building.type} to agent - only buildings are allowed, not roads or corridors` 
+        };
+      }
+
+      // Check if building is already assigned to another agent
+      if (building.assignedAgent && building.assignedAgent !== agentId) {
+        return { 
+          success: false, 
+          error: `Building ${buildingId} is already assigned to another agent` 
+        };
+      }
+
+      // Get current agent metadata from persistent storage, create if doesn't exist
+      let metadata = await persistentMemoryStorageService.getAgentMetadataAsync(agentId);
       if (!metadata) {
-        return { success: false, error: "Agent not found" };
+        // Create initial metadata for the agent
+        const newMetadata = {
+          id: agentId,
+          assigned_building_ids: [],
+          current_building_id: undefined,
+          status: 'active' as const,
+          experience_points: 0,
+          level: 1,
+          reputation_score: 0,
+          capabilities: [],
+          last_active: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        metadata = await persistentMemoryStorageService.setAgentMetadataAsync(newMetadata);
+        if (!metadata) {
+          return { success: false, error: "Failed to create agent metadata" };
+        }
       }
 
       // Add building to assigned list if not already there
@@ -404,19 +478,24 @@ export class AgentService {
       if (!currentBuildings.includes(buildingId)) {
         const updatedBuildings = [...currentBuildings, buildingId];
         
-        // Update in memory
-        memoryStorageService.updateAgentMetadata(agentId, {
+        // Update in persistent storage
+        await persistentMemoryStorageService.updateAgentMetadataAsync(agentId, {
           assigned_building_ids: updatedBuildings,
           current_building_id: buildingId, // Also set as current
         });
 
-        // Log the action in memory
-        memoryStorageService.addAction({
+        // Mark building as assigned in the map
+        building.assignedAgent = agentId;
+
+        // Log the action in persistent storage
+        await persistentMemoryStorageService.addActionAsync({
+          id: `action_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           agent_id: agentId,
           action_type: 'building_assigned',
-          action_data: { building_id: buildingId },
+          action_data: { building_id: buildingId, building_type: building.type },
           building_id: buildingId,
           success: true,
+          timestamp: new Date().toISOString()
         });
       }
 
@@ -431,33 +510,15 @@ export class AgentService {
   }
 
   // ===== TASK MANAGEMENT =====
+  // DISABLED: Old task creation - only ChatGPT collaborative tasks are allowed
 
   async createTask(
     taskData: TaskCreationData
   ): Promise<{ success: boolean; data?: Task; error?: string }> {
-    try {
-      // Create task in memory
-      const task = memoryStorageService.addTask({
-        title: taskData.title,
-        description: taskData.description,
-        creator_agent_id: taskData.creator_agent_id,
-        task_type: taskData.task_type || 'custom',
-        priority: taskData.priority || 'medium',
-        status: 'pending',
-        requirements: taskData.requirements,
-        reward_amount: taskData.reward_amount,
-        reward_token: taskData.reward_token,
-        deadline: taskData.deadline,
-      });
-
-      return { success: true, data: task };
-    } catch (error) {
-      console.error("Error creating task:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred",
-      };
-    }
+    return {
+      success: false,
+      error: 'Old task creation is disabled. Use ChatGPT collaborative tasks only.'
+    };
   }
 
   async getAvailableTasks(): Promise<{
@@ -465,51 +526,20 @@ export class AgentService {
     data?: Task[];
     error?: string;
   }> {
-    try {
-      const tasks = memoryStorageService.getPendingTasks();
-      return { success: true, data: tasks };
-    } catch (error) {
-      console.error("Error fetching available tasks:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred",
-      };
-    }
+    return {
+      success: false,
+      error: 'Old task system is disabled. Use collaborative task status endpoints.'
+    };
   }
 
   async assignTaskToAgent(
     taskId: string,
     agentId: string
   ): Promise<{ success: boolean; data?: Task; error?: string }> {
-    try {
-      // Get task from memory
-      const task = memoryStorageService.getTask(taskId);
-      if (!task) {
-        return { success: false, error: "Task not found" };
-      }
-
-      if (task.status !== 'pending') {
-        return { success: false, error: "Task is not available for assignment" };
-      }
-
-      // Update task in memory
-      const updatedTask = memoryStorageService.updateTask(taskId, {
-        assigned_agent_id: agentId,
-        status: 'assigned',
-      });
-
-      if (!updatedTask) {
-        return { success: false, error: "Failed to update task" };
-      }
-
-      return { success: true, data: updatedTask };
-    } catch (error) {
-      console.error("Error assigning task:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred",
-      };
-    }
+    return {
+      success: false,
+      error: 'Old task assignment is disabled. Use collaborative task system.'
+    };
   }
 
   async updateTaskStatus(
@@ -670,6 +700,7 @@ export class AgentService {
   }
 
   // ===== TASK QUEUE INTEGRATION =====
+  // DISABLED: Old task queue system - only ChatGPT collaborative tasks are allowed
 
   async submitTaskToQueue(
     targetAgentId: string,
@@ -680,50 +711,10 @@ export class AgentService {
     },
     aiRecommendation?: any
   ): Promise<{ success: boolean; queuedTaskId?: string; error?: string }> {
-    try {
-      // Verify both agents exist
-      const [targetAgent, requestingAgent] = await Promise.all([
-        this.getAgentById(targetAgentId),
-        this.getAgentById(requestingAgentId)
-      ]);
-
-      if (!targetAgent.success || !requestingAgent.success) {
-        return { success: false, error: 'One or both agents not found' };
-      }
-
-      // Add task to queue
-      const queuedTaskId = taskQueueService.addTaskToQueue(
-        targetAgentId, 
-        requestingAgentId, 
-        taskData,
-        aiRecommendation
-      );
-
-      // Update requesting agent's last active time
-      await this.updateAgentLastActive(requestingAgentId);
-
-      // Log the action in memory
-      memoryStorageService.addAction({
-        agent_id: requestingAgentId,
-        action_type: 'custom',
-        action_data: { 
-          type: 'task_queued',
-          target_agent_id: targetAgentId,
-          queued_task_id: queuedTaskId,
-          task_title: taskData.title
-        },
-        target_agent_id: targetAgentId,
-        success: true,
-      });
-
-      return { success: true, queuedTaskId };
-    } catch (error) {
-      console.error("Error submitting task to queue:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred",
-      };
-    }
+    return {
+      success: false,
+      error: 'Old task queue system is disabled. Use ChatGPT collaborative tasks only.'
+    };
   }
 
   getAgentQueueStatus(agentId: string) {
@@ -749,73 +740,10 @@ export class AgentService {
     aiRecommendation?: any;
     error?: string 
   }> {
-    try {
-      // Verify requesting agent exists
-      const requestingAgent = await this.getAgentById(requestingAgentId);
-      if (!requestingAgent.success) {
-        return { success: false, error: 'Requesting agent not found' };
-      }
-
-      // Get available agents (excluding the requesting agent)
-      const availableAgentsResult = await this.getActiveAgents();
-      if (!availableAgentsResult.success || !availableAgentsResult.data) {
-        return { success: false, error: 'No available agents found' };
-      }
-
-      const availableAgents = availableAgentsResult.data.filter(agent => agent.id !== requestingAgentId);
-      if (availableAgents.length === 0) {
-        return { success: false, error: 'No other agents available for task assignment' };
-      }
-
-      // Get AI recommendation
-      const geminiServiceModule = await import("./geminiService");
-      const aiResult = await geminiServiceModule.chatGPTService.selectBestAgent({
-        taskTitle: taskData.title,
-        taskDescription: taskData.description,
-        availableAgents: availableAgents as any,
-      });
-
-      let targetAgentId: string;
-      let aiRecommendation: any;
-
-      if (aiResult.success && aiResult.recommendation) {
-        targetAgentId = aiResult.recommendation.recommendedAgentId;
-        aiRecommendation = {
-          ...aiResult.recommendation,
-          wasAiSelected: true
-        };
-      } else {
-        // Fallback to first available agent
-        targetAgentId = availableAgents[0].id;
-        aiRecommendation = {
-          recommendedAgentId: targetAgentId,
-          confidence: 0.3,
-          reasoning: 'Fallback selection due to AI service unavailable',
-          wasAiSelected: false
-        };
-      }
-
-      // Submit task to queue
-      const result = await this.submitTaskToQueue(
-        targetAgentId,
-        requestingAgentId,
-        taskData,
-        aiRecommendation
-      );
-
-      return {
-        ...result,
-        targetAgentId,
-        aiRecommendation
-      };
-
-    } catch (error) {
-      console.error("Error submitting task with AI selection:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred",
-      };
-    }
+    return {
+      success: false,
+      error: 'Old task queue system is disabled. Use ChatGPT collaborative tasks only.'
+    };
   }
 
   // ===== BUILDING MANAGEMENT HELPERS =====
@@ -996,6 +924,41 @@ export class AgentService {
       return {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error occurred",
+      };
+    }
+  }
+
+  // ===== BUILDING ASSIGNMENT =====
+  
+  async assignAgentToBuilding(
+    agentId: string,
+    buildingId: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Update agent metadata in memory
+      const metadata = memoryStorageService.getAgentMetadata(agentId);
+      if (metadata) {
+        metadata.current_building_id = buildingId;
+        if (!metadata.assigned_building_ids.includes(buildingId)) {
+          metadata.assigned_building_ids.push(buildingId);
+        }
+        memoryStorageService.setAgentMetadata(metadata);
+      }
+
+      // Update building assignment in map
+      const assignmentSuccess = assignAgentToBuilding(buildingId, agentId);
+      if (!assignmentSuccess) {
+        return { success: false, error: 'Building assignment failed' };
+      }
+
+      console.log(`✅ Assigned agent ${agentId} to building ${buildingId}`);
+      return { success: true };
+
+    } catch (error) {
+      console.error('Error assigning agent to building:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
       };
     }
   }

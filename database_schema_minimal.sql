@@ -14,11 +14,36 @@ CREATE TABLE IF NOT EXISTS agents (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- REMOVED TABLES (now in-memory):
--- tasks - moved to memoryStorageService (not critical for ownership)
--- All agent metadata (description, personality, capabilities, status, buildings, stats, etc.)
+
+-- Master tasks table (for ChatGPT-generated collaborative tasks)
+CREATE TABLE IF NOT EXISTS master_tasks (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL,
+    agent_address VARCHAR(255) NOT NULL,
+    prompt TEXT NOT NULL,
+    media_b64 TEXT,
+    status VARCHAR(50) DEFAULT 'pending',
+    aggregated_results JSONB,
+    final_output TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    completed_at TIMESTAMP WITH TIME ZONE
+);
+
+-- Subtasks table (for child agent tasks)
+CREATE TABLE IF NOT EXISTS subtasks (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    task_id UUID NOT NULL REFERENCES master_tasks(id) ON DELETE CASCADE,
+    prompt TEXT NOT NULL,
+    media_b64 TEXT,
+    agent_address VARCHAR(255) NOT NULL,
+    status VARCHAR(50) DEFAULT 'pending',
+    output TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    completed_at TIMESTAMP WITH TIME ZONE
+);
 
 -- REMOVED TABLES (now in-memory):
+-- All agent metadata (description, personality, capabilities, status, buildings, stats, etc.)
 -- agent_communications - moved to memoryStorageService
 -- agent_actions - moved to memoryStorageService
 -- tokens - not used in current codebase
@@ -29,9 +54,22 @@ CREATE TABLE IF NOT EXISTS agents (
 CREATE INDEX IF NOT EXISTS idx_agents_owner_address ON agents(owner_address);
 CREATE INDEX IF NOT EXISTS idx_agents_created_at ON agents(created_at);
 
+CREATE INDEX IF NOT EXISTS idx_master_tasks_agent_address ON master_tasks(agent_address);
+CREATE INDEX IF NOT EXISTS idx_master_tasks_status ON master_tasks(status);
+CREATE INDEX IF NOT EXISTS idx_subtasks_task_id ON subtasks(task_id);
+CREATE INDEX IF NOT EXISTS idx_subtasks_agent_address ON subtasks(agent_address);
+CREATE INDEX IF NOT EXISTS idx_subtasks_status ON subtasks(status);
+
 -- Row Level Security (RLS) policies
 ALTER TABLE agents ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow all operations on agents" ON agents FOR ALL USING (true) WITH CHECK (true);
+
+
+ALTER TABLE master_tasks ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all operations on master_tasks" ON master_tasks FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE subtasks ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all operations on subtasks" ON subtasks FOR ALL USING (true) WITH CHECK (true);
 
 -- Migration script comments:
 -- To migrate from the old schema to this ULTRA-MINIMAL one:
