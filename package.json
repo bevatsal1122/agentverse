@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "supabase-types": "supabase gen types typescript --project-id pgvgcudsrcxlxyqdrzlx > pages/types/database.types.ts",
+    "supabase-types:update": "npm run supabase-types && echo 'Supabase types updated successfully!'"
   },
   "dependencies": {
     "@pixi/react": "^7.1.2",
@@ -15,10 +17,12 @@
     "@selfxyz/common": "^0.0.7",
     "@selfxyz/contracts": "^1.2.0",
     "@selfxyz/core": "^1.0.8",
+    "@supabase/supabase-js": "^2.58.0",
     "next": "^14.0.0",
     "pixi.js": "^7.3.2",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "thirdweb": "^5.108.3"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
@@ -30,6 +34,7 @@
     "eslint": "^8.45.0",
     "eslint-config-next": "^14.0.0",
     "postcss": "^8.4.31",
+    "supabase": "^2.45.5",
     "tailwindcss": "^3.3.5",
     "typescript": "^5.0.2"
   }
