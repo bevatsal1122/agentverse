@@ -1138,27 +1138,57 @@ class GameStateManager {
 
   resetCameraToPlayer() {
     this.state.isManualCameraControl = false; // Disable manual control, return to auto-follow
+    
+    if (typeof window === 'undefined') {
+      this.state.cameraPosition.x = 12;
+      this.state.cameraPosition.y = 12;
+      return;
+    }
+
     const playerPos = this.state.playerPosition;
     const playerTileX = playerPos.pixelX / this.state.tileSize;
     const playerTileY = playerPos.pixelY / this.state.tileSize;
     
-    this.state.cameraPosition.x = playerTileX;
-    this.state.cameraPosition.y = playerTileY;
+    // Center the camera on the player
+    const screenCenterX = window.innerWidth / 2;
+    const screenCenterY = window.innerHeight / 2;
     
-    console.log(`📷 Camera reset to player at (${playerTileX.toFixed(1)}, ${playerTileY.toFixed(1)}) - auto-follow enabled`);
+    const cameraX = playerTileX - (screenCenterX / this.state.tileSize);
+    const cameraY = playerTileY - (screenCenterY / this.state.tileSize);
+    
+    this.state.cameraPosition.x = cameraX;
+    this.state.cameraPosition.y = cameraY;
+    
+    console.log(`📷 Camera reset to center player: player(${playerTileX.toFixed(1)}, ${playerTileY.toFixed(1)}) camera(${cameraX.toFixed(1)}, ${cameraY.toFixed(1)}) - auto-follow enabled`);
     this.notifyListeners();
   }
 
   // Initialize camera to player position (call this when the game starts)
   initializeCamera() {
+    if (typeof window === 'undefined') {
+      // Fallback for server-side rendering
+      this.state.cameraPosition.x = 12;
+      this.state.cameraPosition.y = 12;
+      return;
+    }
+
     const playerPos = this.state.playerPosition;
     const playerTileX = playerPos.pixelX / this.state.tileSize;
     const playerTileY = playerPos.pixelY / this.state.tileSize;
     
-    this.state.cameraPosition.x = playerTileX;
-    this.state.cameraPosition.y = playerTileY;
+    // Center the camera on the player
+    // Camera position should be offset to center the player on screen
+    const screenCenterX = window.innerWidth / 2;
+    const screenCenterY = window.innerHeight / 2;
     
-    console.log(`📷 Camera initialized to player position (${playerTileX.toFixed(1)}, ${playerTileY.toFixed(1)})`);
+    // Calculate camera position to center player on screen
+    const cameraX = playerTileX - (screenCenterX / this.state.tileSize);
+    const cameraY = playerTileY - (screenCenterY / this.state.tileSize);
+    
+    this.state.cameraPosition.x = cameraX;
+    this.state.cameraPosition.y = cameraY;
+    
+    console.log(`📷 Camera initialized to center player on screen: player(${playerTileX.toFixed(1)}, ${playerTileY.toFixed(1)}) camera(${cameraX.toFixed(1)}, ${cameraY.toFixed(1)})`);
     this.notifyListeners();
   }
 
