@@ -75,12 +75,29 @@ export default async function handler(
     console.log("Using user email:", userEmail);
     const user = await privy.users().getByEmailAddress({ address: userEmail });
 
+    console.log(
+      "User linked accounts:",
+      user.linked_accounts.map((w: any) => ({
+        address: w.address,
+        connector_type: w.connector_type,
+      }))
+    );
+    console.log("Looking for agent wallet:", fromAgent.privy_wallet_address);
+
+    // Find the wallet that matches the agent's privy_wallet_address
     const wallet = user.linked_accounts.find(
-      (w: any) => w.connector_type === "embedded"
+      (w: any) => w.address === fromAgent.privy_wallet_address
     ) as any;
 
     if (!wallet || !wallet.id) {
-      return res.status(400).json({ error: "No embedded wallet found" });
+      return res.status(400).json({
+        error: "No matching wallet found for agent's Privy wallet address",
+        details: `Agent wallet: ${
+          fromAgent.privy_wallet_address
+        }, Available wallets: ${user.linked_accounts
+          .map((w: any) => w.address)
+          .join(", ")}`,
+      });
     }
 
     // Authorization context
@@ -91,9 +108,10 @@ export default async function handler(
     };
 
     // Encode transfer data using ethers
+    const parsedAmount = ethers.parseUnits(amount, 6);
     const transferData = new ethers.Interface(ERC20_ABI).encodeFunctionData(
       "transfer",
-      [toAgent.privy_wallet_address, amount]
+      [toAgent.privy_wallet_address, parsedAmount]
     );
 
     console.log("Transfer data:", transferData);

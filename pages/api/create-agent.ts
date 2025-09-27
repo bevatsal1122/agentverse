@@ -60,7 +60,6 @@ if __name__ == "__main__":
 
 `;
 
-
 // Create the agent (user-scoped)
 async function createAgent(
   name: string,
@@ -85,9 +84,12 @@ async function createAgent(
   return res.json();
 }
 
-async function combineCodeWithChatGPT(initialCode: string, userCode: string): Promise<string> {
+async function combineCodeWithChatGPT(
+  initialCode: string,
+  userCode: string
+): Promise<string> {
   const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-  
+
   if (!OPENAI_API_KEY) {
     console.warn("OPENAI_API_KEY not found, using direct combination");
     return `${initialCode}\n\n# User-provided code:\n${userCode}`;
@@ -97,7 +99,7 @@ async function combineCodeWithChatGPT(initialCode: string, userCode: string): Pr
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${OPENAI_API_KEY}`,
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -105,16 +107,17 @@ async function combineCodeWithChatGPT(initialCode: string, userCode: string): Pr
         messages: [
           {
             role: "system",
-            content: "You are a Python expert specializing in the uAgents framework. Your task is to combine initial agent code with user-provided code, ensuring they work together seamlessly. Maintain the existing structure and imports while integrating the user's functionality."
+            content:
+              "You are a Python expert specializing in the uAgents framework. Your task is to combine initial agent code with user-provided code, ensuring they work together seamlessly. Maintain the existing structure and imports while integrating the user's functionality.",
           },
           {
             role: "user",
-            content: `Please combine this initial uAgents code:\n\n\`\`\`python\n${initialCode}\n\`\`\`\n\nWith this user-provided code:\n\n\`\`\`python\n${userCode}\n\`\`\`\n\nReturn only the combined Python code, ensuring it's syntactically correct and maintains the uAgents framework structure. Ensure there are no same imports.`
-          }
+            content: `Please combine this initial uAgents code:\n\n\`\`\`python\n${initialCode}\n\`\`\`\n\nWith this user-provided code:\n\n\`\`\`python\n${userCode}\n\`\`\`\n\nReturn only the combined Python code, ensuring it's syntactically correct and maintains the uAgents framework structure. Ensure there are no same imports.`,
+          },
         ],
         temperature: 0.3,
-        max_tokens: 2000
-      })
+        max_tokens: 2000,
+      }),
     });
 
     if (!response.ok) {
@@ -125,7 +128,7 @@ async function combineCodeWithChatGPT(initialCode: string, userCode: string): Pr
 
     const data = await response.json();
     const combinedCode = data.choices[0]?.message?.content?.trim();
-    
+
     if (!combinedCode) {
       throw new Error("No code returned from ChatGPT");
     }
@@ -133,7 +136,7 @@ async function combineCodeWithChatGPT(initialCode: string, userCode: string): Pr
     // Extract code from markdown if present
     const codeMatch = combinedCode.match(/```python\n([\s\S]*?)\n```/);
     const finalCode = codeMatch ? codeMatch[1] : combinedCode;
-    
+
     console.log("Successfully combined code with ChatGPT");
     return finalCode;
   } catch (error) {
@@ -145,8 +148,11 @@ async function combineCodeWithChatGPT(initialCode: string, userCode: string): Pr
 
 async function uploadCode(address: string, pythonCode: string) {
   // Combine initial code with user code using ChatGPT
-  const combinedCode = await combineCodeWithChatGPT(pythonInitialCode, pythonCode);
-  
+  const combinedCode = await combineCodeWithChatGPT(
+    pythonInitialCode,
+    pythonCode
+  );
+
   const files = [
     {
       language: "python",
@@ -191,14 +197,19 @@ async function uploadCode(address: string, pythonCode: string) {
 }
 
 // Start the agent
-async function startAgent(address: string, noCache: boolean = false): Promise<any> {
+async function startAgent(
+  address: string,
+  noCache: boolean = false
+): Promise<any> {
   const url = new URL(`${BASE}/hosting/agents/${address}/start`);
   if (noCache) {
-    url.searchParams.set('no_cache', 'true');
+    url.searchParams.set("no_cache", "true");
   }
 
-  console.log(`Starting agent at address: ${address}${noCache ? ' (no_cache=true)' : ''}`);
-  
+  console.log(
+    `Starting agent at address: ${address}${noCache ? " (no_cache=true)" : ""}`
+  );
+
   const res = await fetch(url.toString(), {
     method: "POST",
     headers,
@@ -214,7 +225,7 @@ async function startAgent(address: string, noCache: boolean = false): Promise<an
   console.log(`Agent ${address} started successfully:`, {
     running: response.running,
     revision: response.revision,
-    domain: response.domain
+    domain: response.domain,
   });
 
   return response;
@@ -247,7 +258,8 @@ async function saveAgentToDatabase(
     id: agentData.address, // Use the agent address as the ID
     name: agentData.name,
     description: agentData.short_description,
-    owner_address: userId || "", // Set the authenticated user's ID
+    owner_address: "", // Keep empty for now
+    user_id: userId || null, // Set the authenticated user's ID in the correct field
     status: "active",
     capabilities: [category], // Store category as a capability
     created_at: new Date().toISOString(),
@@ -343,7 +355,13 @@ export default async function handler(
         console.log("Agent started on retry:", started);
       } catch (retryError) {
         console.error("Failed to start agent on retry:", retryError);
-        throw new Error(`Agent creation succeeded but failed to start: ${startError instanceof Error ? startError.message : String(startError)}`);
+        throw new Error(
+          `Agent creation succeeded but failed to start: ${
+            startError instanceof Error
+              ? startError.message
+              : String(startError)
+          }`
+        );
       }
     }
 
