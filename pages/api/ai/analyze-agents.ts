@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { agentService } from '../../services/agentService';
-import { geminiService } from '../../services/geminiService';
+import { chatGPTService } from '../../services/geminiService';
 
 export default async function handler(
   req: NextApiRequest,
@@ -40,7 +40,7 @@ export default async function handler(
     }
 
     // Get AI recommendation
-    const aiResult = await geminiService.selectBestAgent({
+    const aiResult = await chatGPTService.selectBestAgent({
       taskTitle: taskData.title,
       taskDescription: taskData.description,
       availableAgents
@@ -55,7 +55,7 @@ export default async function handler(
 
     // Get additional details about recommended and alternative agents
     const recommendedAgent = availableAgents.find(agent => agent.id === aiResult.recommendation?.recommendedAgentId);
-    const alternativeAgents = aiResult.recommendation?.alternativeAgents?.map(alt => ({
+    const alternativeAgents = aiResult.recommendation?.alternativeAgents?.map((alt: any) => ({
       ...alt,
       agent: availableAgents.find(agent => agent.id === alt.agentId)
     })) || [];

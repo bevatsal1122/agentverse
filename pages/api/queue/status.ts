@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { taskQueueService } from '../../services/taskQueueService';
-import { agentService } from '../../services/agentService';
 
 export default async function handler(
   req: NextApiRequest,
@@ -11,54 +10,42 @@ export default async function handler(
   }
 
   try {
-    const { agentId, all } = req.query;
-
-    if (all === 'true') {
-      // Return status for all agents with queues (both regular and hierarchical)
-      const allQueues = taskQueueService.getAllQueues();
-      const allHierarchicalQueues = taskQueueService.getAllHierarchicalQueues();
-      
-      console.log(`🔍 Queue status check - Regular queues:`, Object.keys(allQueues));
-      console.log(`🔍 Queue status check - Hierarchical queues:`, Object.keys(allHierarchicalQueues));
-      console.log(`🔍 Hierarchical queue details:`, allHierarchicalQueues);
-      
-      return res.status(200).json({ 
-        success: true,
-        queues: allQueues,
-        hierarchicalQueues: allHierarchicalQueues,
-        totalQueues: Object.keys(allQueues).length,
-        totalHierarchicalQueues: Object.keys(allHierarchicalQueues).length
-      });
-    }
-
-    if (!agentId || typeof agentId !== 'string') {
-      return res.status(400).json({ 
-        error: 'Agent ID is required when not requesting all queues' 
-      });
-    }
-
-    // Verify agent exists
-    const agentResult = await agentService.getAgentById(agentId);
-    if (!agentResult.success) {
-      return res.status(404).json({ 
-        error: 'Agent not found' 
-      });
-    }
-
-    // Get full queue contents for specific agent (both regular and hierarchical)
-    const allQueues = taskQueueService.getAllQueues();
     const allHierarchicalQueues = taskQueueService.getAllHierarchicalQueues();
     
-    const agentQueue = allQueues[agentId] || { queueLength: 0, processing: false, tasks: [] };
-    const agentHierarchicalQueue = allHierarchicalQueues[agentId] || { queueLength: 0, processing: false, tasks: [] };
+    console.log('🔍 All hierarchical queues:', allHierarchicalQueues);
+    console.log('🔍 Queue keys:', Object.keys(allHierarchicalQueues));
     
-    res.status(200).json({ 
-      success: true,
-      agentId,
-      agentName: agentResult.data?.name,
-      queueStatus: agentQueue,
-      hierarchicalQueueStatus: agentHierarchicalQueue
+    // Transform hierarchical tasks into the required format
+    const formattedTasks: any[] = [];
+    
+    Object.entries(allHierarchicalQueues).forEach(([agentAddress, queueData]) => {
+      if (queueData.tasks && queueData.tasks.length > 0) {
+        queueData.tasks.forEach((task, index) => {
+          // Since the system only creates subtasks, we'll format them as master tasks
+          const masterTask = {
+            id: parseInt(task.id.replace(/\D/g, '')) || Date.now() + index,
+            user_id: 2, // Default user_id as shown in example
+            agent_address: agentAddress,
+            prompt: task.taskData.prompt,
+            media_b64: task.taskData.media_b64 || "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOEAA...",
+            created_at: new Date(task.timestamp).toISOString().replace('T', ' ').substring(0, 19),
+            agentic_tasks: [
+              {
+                id: 1,
+                task_id: parseInt(task.id.replace(/\D/g, '')) || Date.now() + index,
+                prompt: task.taskData.prompt,
+                media_b64: task.taskData.media_b64 || "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOEAA...",
+                agent_address: agentAddress,
+                created_at: new Date(task.timestamp).toISOString().replace('T', ' ').substring(0, 19)
+              }
+            ]
+          };
+          formattedTasks.push(masterTask);
+        });
+      }
     });
+    
+    return res.status(200).json(formattedTasks);
 
   } catch (error) {
     console.error('Error getting queue status:', error);

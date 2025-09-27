@@ -49,6 +49,7 @@ interface AgentMetadata {
   level: number;
   reputation_score: number;
   last_active: string;
+  created_at: string;
   updated_at: string;
 }
 

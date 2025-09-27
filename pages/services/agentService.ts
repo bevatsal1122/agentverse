@@ -132,6 +132,7 @@ export class AgentService {
         level: 1,
         reputation_score: 100,
         last_active: new Date().toISOString(),
+        created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
 
@@ -254,6 +255,7 @@ export class AgentService {
           level: 1,
           reputation_score: 100,
           last_active: new Date().toISOString(),
+          created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
         memoryStorageService.setAgentMetadata(defaultMetadata);
@@ -300,6 +302,7 @@ export class AgentService {
             level: 1,
             reputation_score: 100,
             last_active: new Date().toISOString(),
+            created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           };
           memoryStorageService.setAgentMetadata(defaultMetadata);
