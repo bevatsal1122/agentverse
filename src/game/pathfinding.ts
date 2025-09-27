@@ -142,8 +142,9 @@ export class Pathfinder {
     const goalRoad = this.findNearestRoad(goalX, goalY);
     
     if (!startRoad || !goalRoad) {
-      console.log('Could not find road access for pathfinding');
-      return null;
+      console.log('Could not find road access for pathfinding, trying fallback path');
+      // Try fallback path that can cross obstacles
+      return this.findPathWithFallback(startX, startY, goalX, goalY);
     }
 
     // A* algorithm implementation
@@ -225,8 +226,44 @@ export class Pathfinder {
       }
     }
     
-    // No path found
-    return null;
+    // No path found via roads, try fallback
+    console.log('No path found via roads, trying fallback path');
+    return this.findPathWithFallback(startX, startY, goalX, goalY);
+  }
+
+  /**
+   * Fallback pathfinding that allows crossing obstacles when no road path exists
+   */
+  private findPathWithFallback(startX: number, startY: number, goalX: number, goalY: number): Path | null {
+    console.log(`🔄 Using fallback pathfinding from (${startX}, ${startY}) to (${goalX}, ${goalY})`);
+    
+    // For fallback, we'll create a simple direct path that can cross obstacles
+    // This ensures agents can always reach their destination
+    const path: Array<{x: number, y: number}> = [];
+    
+    // Calculate the direct line path
+    const dx = goalX - startX;
+    const dy = goalY - startY;
+    const steps = Math.max(Math.abs(dx), Math.abs(dy));
+    
+    if (steps === 0) {
+      // Already at destination
+      path.push({ x: startX, y: startY });
+    } else {
+      // Create a path with steps
+      for (let i = 0; i <= steps; i++) {
+        const x = Math.round(startX + (dx * i) / steps);
+        const y = Math.round(startY + (dy * i) / steps);
+        path.push({ x, y });
+      }
+    }
+    
+    console.log(`✅ Fallback path created with ${path.length} nodes:`, path.map(node => `(${node.x},${node.y})`).join(' -> '));
+    
+    return {
+      nodes: path,
+      length: path.length
+    };
   }
 
   /**

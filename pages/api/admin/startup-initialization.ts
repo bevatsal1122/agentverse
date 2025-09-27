@@ -62,15 +62,19 @@ export default async function handler(
     let memoryCount = 0;
 
     for (const agent of agents) {
-      // Find an available building
-      const availableBuilding = validBuildings.find(building => 
+      // Get all unassigned buildings and randomize selection
+      const unassignedBuildings = validBuildings.filter(building => 
         !building.assignedAgent
       );
 
-      if (!availableBuilding) {
+      if (unassignedBuildings.length === 0) {
         console.warn(`No available buildings for agent ${agent.name} (${agent.id})`);
         continue;
       }
+
+      // Randomly select a building from available ones
+      const randomIndex = Math.floor(Math.random() * unassignedBuildings.length);
+      const availableBuilding = unassignedBuildings[randomIndex];
 
       // Create metadata for agent if it doesn't exist
       let metadata = memoryStorageService.getAgentMetadata(agent.id);

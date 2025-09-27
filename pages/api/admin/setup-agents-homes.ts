@@ -57,15 +57,19 @@ export default async function handler(
         continue;
       }
 
-      // Find an available building
-      const availableBuilding = validBuildings.find(building => 
+      // Get all unassigned buildings and randomize selection
+      const unassignedBuildings = validBuildings.filter(building => 
         !building.assignedAgent
       );
 
-      if (!availableBuilding) {
+      if (unassignedBuildings.length === 0) {
         console.warn(`No available buildings for agent ${agent.name} (${agent.id})`);
         continue;
       }
+
+      // Randomly select a building from available ones
+      const randomIndex = Math.floor(Math.random() * unassignedBuildings.length);
+      const availableBuilding = unassignedBuildings[randomIndex];
 
       // Assign building to agent
       const result = await agentService.assignBuildingToAgent(agent.id, availableBuilding.id);

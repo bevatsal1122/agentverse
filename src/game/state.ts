@@ -117,10 +117,13 @@ export interface GameState {
   cameraPosition: { x: number; y: number };
   cameraFollowMode: 'player' | 'agent';
   cameraFollowAgentId: string | null;
+  isManualCameraControl: boolean;
   gridSize: number;
   tileSize: number;
   mapWidth: number;
   mapHeight: number;
+  screenWidth: number;
+  screenHeight: number;
   crewmates: Map<string, Crewmate>;
   lastCrewmateUpdate: number;
   aiAgents: Map<string, AIAgent>;
@@ -136,13 +139,16 @@ class GameStateManager {
     selectedTool: Tool.SELECT,
     mapData: new Map(),
     playerPosition: { x: 12, y: 12, pixelX: 768, pixelY: 768, isMoving: false, animationFrame: 0, direction: 'right' }, // Start at center of compact city
-    cameraPosition: { x: 0, y: 0 }, // Will be updated when window is available
+    cameraPosition: { x: 12, y: 12 }, // Start at player position (center of map)
     cameraFollowMode: 'player',
     cameraFollowAgentId: null,
+    isManualCameraControl: false,
     gridSize: 64,
     tileSize: 64,
     mapWidth: 25, // Default from defaultMap
     mapHeight: 25, // Default from defaultMap
+    screenWidth: 1024, // Default screen width
+    screenHeight: 768, // Default screen height
     crewmates: new Map(),
     lastCrewmateUpdate: 0,
     aiAgents: new Map(),
@@ -540,6 +546,9 @@ class GameStateManager {
 
     // No longer automatically spawn random agents - only real agents from backend should appear
 
+    // Update player path following (convert deltaTime from ms to seconds)
+    this.updatePlayerPathFollowing(deltaTime / 1000);
+
     for (const [id, agent] of Array.from(this.state.aiAgents.entries())) {
       this.updateAIAgentBehavior(agent, deltaTime, now);
     }
@@ -820,6 +829,7 @@ class GameStateManager {
     this.state.playerPath = path;
     this.state.playerPathIndex = 0;
     this.state.isPlayerFollowingPath = true;
+    console.log(`🎯 Player path set with ${path.length} nodes - starting algorithmic movement`);
     this.notifyListeners();
   }
 
@@ -828,6 +838,61 @@ class GameStateManager {
     this.state.playerPathIndex = 0;
     this.state.isPlayerFollowingPath = false;
     this.notifyListeners();
+  }
+
+  private updatePlayerPathFollowing(deltaTime: number): void {
+    if (!this.state.isPlayerFollowingPath || !this.state.playerPath || this.state.playerPath.length === 0) {
+      return;
+    }
+
+    const currentPos = this.state.playerPosition;
+    const pathIndex = this.state.playerPathIndex;
+    
+    if (pathIndex >= this.state.playerPath.length) {
+      // Reached end of path
+      console.log(`🏁 Player reached end of path at (${Math.round(currentPos.pixelX / this.state.tileSize)}, ${Math.round(currentPos.pixelY / this.state.tileSize)})`);
+      this.clearPlayerPath();
+      return;
+    }
+
+    const targetNode = this.state.playerPath[pathIndex];
+    const targetPixelX = targetNode.x * this.state.tileSize;
+    const targetPixelY = targetNode.y * this.state.tileSize;
+    
+    const dx = targetPixelX - currentPos.pixelX;
+    const dy = targetPixelY - currentPos.pixelY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    // If close enough to current target, move to next node
+    if (distance < 8) { // 8 pixel threshold for smoother movement
+      this.state.playerPathIndex++;
+      console.log(`📍 Player reached path node ${pathIndex + 1}/${this.state.playerPath.length} at (${targetNode.x}, ${targetNode.y})`);
+      return;
+    }
+    
+    // Move towards target with faster speed for more responsive movement
+    const moveSpeed = 300; // pixels per second (increased from 200)
+    const moveDistance = moveSpeed * deltaTime; // deltaTime is already in seconds
+    
+    if (distance > 0) {
+      const moveX = (dx / distance) * moveDistance;
+      const moveY = (dy / distance) * moveDistance;
+      
+      const newPixelX = currentPos.pixelX + moveX;
+      const newPixelY = currentPos.pixelY + moveY;
+      
+      // Update player position and animation
+      this.setPlayerPixelPosition(newPixelX, newPixelY);
+      
+      // Update animation direction based on movement
+      let direction: 'left' | 'right' | 'up' | 'down' = 'right';
+      if (Math.abs(dx) > Math.abs(dy)) {
+        direction = dx > 0 ? 'right' : 'left';
+      } else {
+        direction = dy > 0 ? 'down' : 'up';
+      }
+      this.updatePlayerAnimation(true, direction);
+    }
   }
 
   setPlayerPixelPosition(pixelX: number, pixelY: number) {
@@ -958,22 +1023,6 @@ class GameStateManager {
     return { x: constrainedX, y: constrainedY };
   }
 
-  initializeCamera() {
-    if (typeof window !== 'undefined') {
-      const playerPixelX = this.state.playerPosition.pixelX;
-      const playerPixelY = this.state.playerPosition.pixelY;
-      
-      // Center camera on player's exact pixel position
-      const cameraX = -playerPixelX + (window.innerWidth / 2) - 16; // 16 is half player size
-      const cameraY = -playerPixelY + (window.innerHeight / 2) - 16;
-      
-      // Constrain camera to map boundaries
-      const constrainedCamera = this.constrainCameraToMapBounds(cameraX, cameraY);
-      
-      this.state.cameraPosition = constrainedCamera;
-      this.notifyListeners();
-    }
-  }
 
   updateCameraToFollowPlayer() {
     if (typeof window !== 'undefined') {
@@ -1034,11 +1083,67 @@ class GameStateManager {
     this.notifyListeners();
   }
 
+  // Manual camera movement controls
+  moveCamera(deltaX: number, deltaY: number) {
+    this.state.isManualCameraControl = true; // Enable manual control
+    
+    const oldX = this.state.cameraPosition.x;
+    const oldY = this.state.cameraPosition.y;
+    
+    this.state.cameraPosition.x += deltaX;
+    this.state.cameraPosition.y += deltaY;
+    
+    // Apply map boundaries to camera
+    const mapWidth = this.state.mapWidth;
+    const mapHeight = this.state.mapHeight;
+    const screenWidth = this.state.screenWidth;
+    const screenHeight = this.state.screenHeight;
+    const tileSize = this.state.tileSize;
+    
+    const maxCameraX = Math.max(0, mapWidth - (screenWidth / tileSize));
+    const maxCameraY = Math.max(0, mapHeight - (screenHeight / tileSize));
+    
+    this.state.cameraPosition.x = Math.max(0, Math.min(maxCameraX, this.state.cameraPosition.x));
+    this.state.cameraPosition.y = Math.max(0, Math.min(maxCameraY, this.state.cameraPosition.y));
+    
+    console.log(`📷 Camera moved from (${oldX.toFixed(1)}, ${oldY.toFixed(1)}) to (${this.state.cameraPosition.x.toFixed(1)}, ${this.state.cameraPosition.y.toFixed(1)}) - delta: (${deltaX.toFixed(2)}, ${deltaY.toFixed(2)})`);
+    this.notifyListeners();
+  }
+
+  resetCameraToPlayer() {
+    this.state.isManualCameraControl = false; // Disable manual control, return to auto-follow
+    const playerPos = this.state.playerPosition;
+    const playerTileX = playerPos.pixelX / this.state.tileSize;
+    const playerTileY = playerPos.pixelY / this.state.tileSize;
+    
+    this.state.cameraPosition.x = playerTileX;
+    this.state.cameraPosition.y = playerTileY;
+    
+    console.log(`📷 Camera reset to player at (${playerTileX.toFixed(1)}, ${playerTileY.toFixed(1)}) - auto-follow enabled`);
+    this.notifyListeners();
+  }
+
+  // Initialize camera to player position (call this when the game starts)
+  initializeCamera() {
+    const playerPos = this.state.playerPosition;
+    const playerTileX = playerPos.pixelX / this.state.tileSize;
+    const playerTileY = playerPos.pixelY / this.state.tileSize;
+    
+    this.state.cameraPosition.x = playerTileX;
+    this.state.cameraPosition.y = playerTileY;
+    
+    console.log(`📷 Camera initialized to player position (${playerTileX.toFixed(1)}, ${playerTileY.toFixed(1)})`);
+    this.notifyListeners();
+  }
+
   updateCamera() {
-    if (this.state.cameraFollowMode === 'player') {
-      this.updateCameraToFollowPlayer();
-    } else if (this.state.cameraFollowMode === 'agent' && this.state.cameraFollowAgentId) {
-      this.updateCameraToFollowAgent(this.state.cameraFollowAgentId);
+    // Only auto-follow if not in manual control mode
+    if (!this.state.isManualCameraControl) {
+      if (this.state.cameraFollowMode === 'player') {
+        this.updateCameraToFollowPlayer();
+      } else if (this.state.cameraFollowMode === 'agent' && this.state.cameraFollowAgentId) {
+        this.updateCameraToFollowAgent(this.state.cameraFollowAgentId);
+      }
     }
   }
 

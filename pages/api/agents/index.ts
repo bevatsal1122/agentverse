@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { supabase } from "../../lib/supabase";
+import { agentService } from "../../services/agentService";
 
 export default async function handler(
   req: NextApiRequest,
@@ -10,23 +10,20 @@ export default async function handler(
   }
 
   try {
-    const { data: agents, error } = await supabase
-      .from("agents")
-      .select("*")
-      .order("created_at", { ascending: false });
+    const result = await agentService.getAgents();
 
-    if (error) {
-      console.error("Error fetching agents:", error);
+    if (!result.success) {
+      console.error("Error fetching agents:", result.error);
       return res.status(500).json({
         error: "Failed to fetch agents",
-        details: error.message,
+        details: result.error,
       });
     }
 
     res.status(200).json({
       success: true,
-      agents: agents || [],
-      count: agents?.length || 0,
+      agents: result.data || [],
+      count: result.data?.length || 0,
     });
   } catch (error) {
     console.error("Error in agents API:", error);

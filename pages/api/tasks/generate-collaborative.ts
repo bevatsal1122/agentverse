@@ -283,13 +283,8 @@ export default async function handler(
                 });
               } else {
                 console.warn(`Failed to calculate path from player to child agent ${childAgentId} location`);
-                // Fallback to direct movement - create a simple path
-                const directPath = [
-                  { x: playerX, y: playerY },
-                  { x: building.x, y: building.y }
-                ];
-                gameState.setPlayerPath(directPath);
-                console.log(`🚶 Player avatar using direct path to child agent ${childAgent?.name || childAgentId} (${i + 1}/${task.subtasks.length}) at building ${building.id} (${building.x}, ${building.y})`);
+                // The pathfinding system now handles fallbacks internally, so we don't need to create a direct path here
+                console.log(`❌ No path available to child agent ${childAgent?.name || childAgentId} (${i + 1}/${task.subtasks.length}) at building ${building.id} (${building.x}, ${building.y})`);
               }
             } else {
               console.warn(`Building ${childAgent.current_building_id} not found for child agent ${childAgentId}`);

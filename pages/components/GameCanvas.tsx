@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { gameState, Tool, TileType, GameState, Crewmate, CrewmateType, CrewmateActivity, AIAgent } from '../../src/game/state';
 import { MapLoader } from '../../src/maps/mapLoader';
 import { playerController } from '../../src/game/player';
-import { agentService } from '../services/agentService';
+// Removed direct agentService import to avoid client-side Redis import issues
 import { collaborativeTaskService } from '../services/collaborativeTaskService';
 import { useNotifications } from '../hooks/useNotifications';
 import NotificationSystem from './NotificationSystem';
@@ -64,27 +64,38 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
   // Load real agents from backend
   const loadRealAgents = async () => {
     try {
-      const agentsResult = await agentService.getAgents();
-      if (agentsResult.success && agentsResult.data) {
-        console.log(`Loading ${agentsResult.data.length} real agents from backend`);
+      console.log('🔄 Starting to load real agents from backend...');
+      const response = await fetch('/api/agents');
+      const agentsResult = await response.json();
+      console.log('📡 API response:', agentsResult);
+      
+      if (agentsResult.success && agentsResult.agents) {
+        console.log(`✅ Loading ${agentsResult.agents.length} real agents from backend`);
         
         // Clear existing agents first
         gameState.clearAllAIAgents();
         
-        for (const agent of agentsResult.data) {
+        let loadedCount = 0;
+        for (const agent of agentsResult.agents) {
           // Convert backend agent to game AI agent
           const gameAgent = convertBackendAgentToGameAgent(agent);
           if (gameAgent) {
             gameState.addAIAgent(gameAgent);
+            loadedCount++;
+            console.log(`✅ Loaded agent ${agent.name} at (${gameAgent.x}, ${gameAgent.y})`);
+          } else {
+            console.warn(`❌ Failed to convert agent ${agent.name} to game agent`);
           }
         }
+        console.log(`🎉 Successfully loaded ${loadedCount} agents into game state`);
       } else {
-        console.log('No agents found in backend, no agents will spawn on map');
+        console.log('❌ No agents found in backend, no agents will spawn on map');
+        console.log('API response:', agentsResult);
         // Clear existing agents if no agents in backend
         gameState.clearAllAIAgents();
       }
     } catch (error) {
-      console.error('Error loading agents from backend:', error);
+      console.error('❌ Error loading agents from backend:', error);
     }
   };
 
@@ -95,7 +106,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     
     // Get all available tiles from the loaded map
     const allTiles = Array.from(gameState.getState().mapData.entries());
+    console.log(`🗺️ Map tiles loaded: ${allTiles.length}`);
     if (allTiles.length === 0) {
+      console.error('❌ No map loaded, cannot place agent');
       return null; // No map loaded
     }
 
@@ -238,10 +251,17 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     generateTraffic(gameState.getState());
     
     // Load real agents from backend instead of spawning random ones
-    const currentState = gameState.getState();
-    if (currentState.aiAgents.size === 0) {
-      loadRealAgents();
-    }
+    // Wait a bit to ensure map is fully loaded
+    setTimeout(() => {
+      const currentState = gameState.getState();
+      console.log('🔍 Checking if agents need to be loaded. Current agents:', currentState.aiAgents.size);
+      if (currentState.aiAgents.size === 0) {
+        console.log('🚀 Loading real agents...');
+        loadRealAgents();
+      } else {
+        console.log('✅ Agents already loaded, skipping');
+      }
+    }, 100);
 
     // Expose loadRealAgents function globally for manual refresh
     (window as any).refreshGameAgents = loadRealAgents;
@@ -296,8 +316,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     const y = event.clientY - rect.top;
 
     // Convert screen coordinates to grid coordinates
-    const gridX = Math.floor((x - state.cameraPosition.x) / state.tileSize);
-    const gridY = Math.floor((y - state.cameraPosition.y) / state.tileSize);
+    const gridX = Math.floor((x + state.cameraPosition.x * state.tileSize) / state.tileSize);
+    const gridY = Math.floor((y + state.cameraPosition.y * state.tileSize) / state.tileSize);
 
     // Get the current selected tool from game state instead of closure
     const currentTool = state.selectedTool;
@@ -1018,14 +1038,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     // Save context for transformations
     ctx.save();
 
-    // Apply camera transformation
-    ctx.translate(state.cameraPosition.x, state.cameraPosition.y);
+    // Apply camera transformation (convert tile coordinates to pixel coordinates)
+    const cameraPixelX = -state.cameraPosition.x * state.tileSize;
+    const cameraPixelY = -state.cameraPosition.y * state.tileSize;
+    ctx.translate(cameraPixelX, cameraPixelY);
 
     // Calculate visible area to optimize rendering
-    const viewportLeft = Math.floor(-state.cameraPosition.x / state.tileSize) - 2;
-    const viewportRight = Math.floor((-state.cameraPosition.x + canvas.width) / state.tileSize) + 2;
-    const viewportTop = Math.floor(-state.cameraPosition.y / state.tileSize) - 2;
-    const viewportBottom = Math.floor((-state.cameraPosition.y + canvas.height) / state.tileSize) + 2;
+    const viewportLeft = Math.floor(state.cameraPosition.x) - 2;
+    const viewportRight = Math.floor(state.cameraPosition.x + canvas.width / state.tileSize) + 2;
+    const viewportTop = Math.floor(state.cameraPosition.y) - 2;
+    const viewportBottom = Math.floor(state.cameraPosition.y + canvas.height / state.tileSize) + 2;
 
     // Define map boundaries (25x25 grid from defaultMap)
     const mapWidth = 25;

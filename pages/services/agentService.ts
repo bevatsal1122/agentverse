@@ -1,7 +1,9 @@
 import { supabase } from "../lib/supabase";
 import { taskQueueService } from "./taskQueueService";
 import { memoryStorageService, AgentCommunication, AgentAction, AgentMetadata, Task } from "./memoryStorageService";
+import { persistentMemoryStorageService } from "./persistentMemoryStorageService";
 import { getAvailableBuildings, assignAgentToBuilding } from "../../src/maps/defaultMap";
+import { startupInitializer } from "./startupInitializer";
 
 // Minimal database agent interface (only what's stored in DB)
 interface DbAgent {
@@ -170,6 +172,11 @@ export class AgentService {
     error?: string;
   }> {
     try {
+      // Auto-initialize agent assignments on first call
+      if (!startupInitializer.isInitialized()) {
+        await startupInitializer.initialize();
+      }
+
       // Get basic agent data from database
       const { data: dbAgents, error } = await typedSupabase
         .from("agents")
@@ -181,11 +188,12 @@ export class AgentService {
         return { success: false, error: error.message };
       }
 
-      // Combine with memory data
-      const fullAgents: Agent[] = (dbAgents || []).map((dbAgent: DbAgent) => {
-        const metadata = memoryStorageService.getAgentMetadata(dbAgent.id);
+      // Combine with persistent memory data
+      const fullAgents: Agent[] = [];
+      for (const dbAgent of dbAgents || []) {
+        const metadata = await persistentMemoryStorageService.getAgentMetadataAsync(dbAgent.id);
         
-        // If no metadata in memory, create default
+        // If no metadata in persistent storage, create default
         if (!metadata) {
           const defaultMetadata: AgentMetadata = {
             id: dbAgent.id,
@@ -196,14 +204,15 @@ export class AgentService {
             level: 1,
             reputation_score: 100,
             last_active: new Date().toISOString(),
+            created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           };
-          memoryStorageService.setAgentMetadata(defaultMetadata);
-          return { ...dbAgent, ...defaultMetadata };
+          await persistentMemoryStorageService.setAgentMetadataAsync(defaultMetadata);
+          fullAgents.push({ ...dbAgent, ...defaultMetadata });
+        } else {
+          fullAgents.push({ ...dbAgent, ...metadata });
         }
-
-        return { ...dbAgent, ...metadata };
-      });
+      }
 
       return { success: true, data: fullAgents };
     } catch (error) {
@@ -441,23 +450,24 @@ export class AgentService {
         };
       }
 
-      // Get current agent metadata from memory, create if doesn't exist
-      let metadata = memoryStorageService.getAgentMetadata(agentId);
+      // Get current agent metadata from persistent storage, create if doesn't exist
+      let metadata = await persistentMemoryStorageService.getAgentMetadataAsync(agentId);
       if (!metadata) {
         // Create initial metadata for the agent
         const newMetadata = {
           id: agentId,
           assigned_building_ids: [],
-          current_building_id: null,
+          current_building_id: undefined,
           status: 'active' as const,
           experience_points: 0,
           level: 1,
           reputation_score: 0,
+          capabilities: [],
+          last_active: new Date().toISOString(),
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };
-        memoryStorageService.setAgentMetadata(newMetadata);
-        metadata = memoryStorageService.getAgentMetadata(agentId);
+        metadata = await persistentMemoryStorageService.setAgentMetadataAsync(newMetadata);
         if (!metadata) {
           return { success: false, error: "Failed to create agent metadata" };
         }
@@ -468,8 +478,8 @@ export class AgentService {
       if (!currentBuildings.includes(buildingId)) {
         const updatedBuildings = [...currentBuildings, buildingId];
         
-        // Update in memory
-        memoryStorageService.updateAgentMetadata(agentId, {
+        // Update in persistent storage
+        await persistentMemoryStorageService.updateAgentMetadataAsync(agentId, {
           assigned_building_ids: updatedBuildings,
           current_building_id: buildingId, // Also set as current
         });
@@ -477,13 +487,15 @@ export class AgentService {
         // Mark building as assigned in the map
         building.assignedAgent = agentId;
 
-        // Log the action in memory
-        memoryStorageService.addAction({
+        // Log the action in persistent storage
+        await persistentMemoryStorageService.addActionAsync({
+          id: `action_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           agent_id: agentId,
           action_type: 'building_assigned',
           action_data: { building_id: buildingId, building_type: building.type },
           building_id: buildingId,
           success: true,
+          timestamp: new Date().toISOString()
         });
       }
 

@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { gameState } from '../../../src/game/state';
-import { memoryStorageService } from '../../services/memoryStorageService';
+import { persistentMemoryStorageService } from '../../services/persistentMemoryStorageService';
 
 export default async function handler(
   req: NextApiRequest,
@@ -14,8 +14,8 @@ export default async function handler(
     // Get agents from game state
     const gameAgents = Array.from(gameState.state.aiAgents.values());
     
-    // Get agents from memory storage
-    const memoryAgents = memoryStorageService.getActiveAgents();
+    // Get agents from persistent storage
+    const memoryAgents = await persistentMemoryStorageService.getActiveAgentsAsync();
     
     res.status(200).json({
       success: true,

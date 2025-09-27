@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { supabase } from '../../lib/supabase';
-import { memoryStorageService } from '../../services/memoryStorageService';
+import { persistentMemoryStorageService } from '../../services/persistentMemoryStorageService';
 import { getAvailableBuildings, getBuildingsByType } from '../../../src/maps/defaultMap';
 
 export default async function handler(
@@ -30,10 +30,10 @@ export default async function handler(
       buildingTypes.includes(building.type)
     );
 
-    // Check memory storage for each agent
+    // Check persistent storage for each agent
     const agentAssignments = [];
     for (const agent of agents || []) {
-      const metadata = memoryStorageService.getAgentMetadata(agent.id);
+      const metadata = await persistentMemoryStorageService.getAgentMetadataAsync(agent.id);
       agentAssignments.push({
         agentId: agent.id,
         agentName: agent.name,
