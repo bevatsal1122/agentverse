@@ -25,8 +25,10 @@ export class Pathfinder {
    * Check if a tile is walkable (road/corridor only for building visits)
    */
   private isWalkable(x: number, y: number, allowBuildings: boolean = false): boolean {
-    // Check map boundaries first (25x25 grid: 0-24)
-    if (x < 0 || x >= 25 || y < 0 || y >= 25) {
+    // Check map boundaries first using actual map dimensions
+    const mapWidth = this.gameState.mapWidth;
+    const mapHeight = this.gameState.mapHeight;
+    if (x < 0 || x >= mapWidth || y < 0 || y >= mapHeight) {
       return false; // Outside map boundaries
     }
     
@@ -69,7 +71,9 @@ export class Pathfinder {
           const checkY = y + dy;
           
           // Skip if outside map boundaries
-          if (checkX < 0 || checkX >= 25 || checkY < 0 || checkY >= 25) continue;
+          const mapWidth = this.gameState.mapWidth;
+          const mapHeight = this.gameState.mapHeight;
+          if (checkX < 0 || checkX >= mapWidth || checkY < 0 || checkY >= mapHeight) continue;
           
           if (this.isWalkable(checkX, checkY)) {
             return { x: checkX, y: checkY };
