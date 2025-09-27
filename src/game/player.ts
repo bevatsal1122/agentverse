@@ -19,10 +19,19 @@ export class PlayerController {
   }
 
   initialize() {
-    if (this.isInitialized || typeof window === 'undefined') return;
+    console.log('PlayerController.initialize() called, window available:', typeof window !== 'undefined');
+    if (this.isInitialized || typeof window === 'undefined') {
+      console.log('PlayerController initialization skipped:', { 
+        isInitialized: this.isInitialized, 
+        windowAvailable: typeof window !== 'undefined' 
+      });
+      return;
+    }
+    console.log('PlayerController initializing...');
     this.isInitialized = true;
     this.setupCollisionSystem();
     this.setupKeyboardListeners();
+    console.log('PlayerController initialized successfully');
   }
 
   private setupCollisionSystem() {
@@ -30,22 +39,34 @@ export class PlayerController {
   }
 
   private setupKeyboardListeners() {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined') {
+      console.log('Cannot setup keyboard listeners - window not available');
+      return;
+    }
+    
+    console.log('Setting up keyboard listeners...');
     
     window.addEventListener('keydown', (e) => {
+      console.log('Key down:', e.code);
       this.keys.add(e.code);
     });
 
     window.addEventListener('keyup', (e) => {
+      console.log('Key up:', e.code);
       this.keys.delete(e.code);
     });
 
+    console.log('Keyboard listeners set up successfully');
     // Don't start separate game loop - let main game loop handle updates
   }
 
   // Public method to update player movement (called from main game loop)
   update(deltaTime: number) {
-    if (!deltaTime || !this.isInitialized) return;
+    if (!deltaTime || !this.isInitialized) {
+      console.log('Player update skipped:', { deltaTime, isInitialized: this.isInitialized });
+      return;
+    }
+    console.log('Player update called with deltaTime:', deltaTime);
     this.handlePhysicsMovement(deltaTime);
   }
 
@@ -64,15 +85,17 @@ export class PlayerController {
       const newPixelX = currentPos.pixelX + this.velocity.x * deltaTime;
       const newPixelY = currentPos.pixelY + this.velocity.y * deltaTime;
       
-      // Apply map boundary constraints (25x25 grid, 32px tiles)
-      const tileSize = 32;
-      const mapWidth = 25;
-      const mapHeight = 25;
+      // Apply map boundary constraints using actual map dimensions
+      const state = gameState.getState();
+      const tileSize = state.tileSize;
+      const mapWidth = state.mapWidth;
+      const mapHeight = state.mapHeight;
       const maxPixelX = (mapWidth - 1) * tileSize;
       const maxPixelY = (mapHeight - 1) * tileSize;
       
-      const constrainedPixelX = Math.max(0, Math.min(maxPixelX, newPixelX));
-      const constrainedPixelY = Math.max(0, Math.min(maxPixelY, newPixelY));
+      // TEMPORARILY DISABLE BOUNDARY CONSTRAINTS FOR TESTING
+      const constrainedPixelX = newPixelX;
+      const constrainedPixelY = newPixelY;
       
       // Only update state if position actually changed (reduces unnecessary updates)
       if (Math.abs(constrainedPixelX - currentPos.pixelX) > 0.5 || Math.abs(constrainedPixelY - currentPos.pixelY) > 0.5) {
@@ -87,21 +110,30 @@ export class PlayerController {
     let isMoving = false;
     let direction: 'left' | 'right' | 'up' | 'down' | undefined;
 
+    // Debug: log active keys
+    if (this.keys.size > 0) {
+      console.log('Active keys:', Array.from(this.keys));
+    }
+
     if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) {
+      console.log('Moving right');
       this.velocity.x = X_VELOCITY;
       isMoving = true;
       direction = 'right';
     } else if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) {
+      console.log('Moving left');
       this.velocity.x = -X_VELOCITY;
       isMoving = true;
       direction = 'left';
     }
 
     if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) {
+      console.log('Moving up');
       this.velocity.y = -X_VELOCITY;
       isMoving = true;
       direction = 'up';
     } else if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) {
+      console.log('Moving down');
       this.velocity.y = X_VELOCITY;
       isMoving = true;
       direction = 'down';

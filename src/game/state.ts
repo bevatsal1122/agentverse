@@ -119,6 +119,8 @@ export interface GameState {
   cameraFollowAgentId: string | null;
   gridSize: number;
   tileSize: number;
+  mapWidth: number;
+  mapHeight: number;
   crewmates: Map<string, Crewmate>;
   lastCrewmateUpdate: number;
   aiAgents: Map<string, AIAgent>;
@@ -136,6 +138,8 @@ class GameStateManager {
     cameraFollowAgentId: null,
     gridSize: 64,
     tileSize: 64,
+    mapWidth: 25, // Default from defaultMap
+    mapHeight: 25, // Default from defaultMap
     crewmates: new Map(),
     lastCrewmateUpdate: 0,
     aiAgents: new Map(),
@@ -320,7 +324,7 @@ class GameStateManager {
     let homeX = 0, homeY = 0;
     const livingQuarters = allTiles.filter(([key, tile]) => 
       tile.type === TileType.LIVING_QUARTERS && 
-      tile.x >= 0 && tile.x < 25 && tile.y >= 0 && tile.y < 25 // Ensure within boundaries
+      tile.x >= 0 && tile.x < this.state.mapWidth && tile.y >= 0 && tile.y < this.state.mapHeight // Ensure within boundaries
     );
     if (livingQuarters.length > 0) {
       const randomHome = livingQuarters[Math.floor(Math.random() * livingQuarters.length)];
@@ -329,7 +333,7 @@ class GameStateManager {
     } else {
       // If no living quarters, pick any random tile from the map within boundaries
       const validTiles = allTiles.filter(([key, tile]) => 
-        tile.x >= 0 && tile.x < 25 && tile.y >= 0 && tile.y < 25
+        tile.x >= 0 && tile.x < this.state.mapWidth && tile.y >= 0 && tile.y < this.state.mapHeight
       );
       if (validTiles.length > 0) {
         const randomTile = validTiles[Math.floor(Math.random() * validTiles.length)];
@@ -339,8 +343,8 @@ class GameStateManager {
     }
     
     // Ensure home position is within boundaries
-    homeX = Math.max(0, Math.min(24, homeX));
-    homeY = Math.max(0, Math.min(24, homeY));
+    homeX = Math.max(0, Math.min(this.state.mapWidth - 1, homeX));
+    homeY = Math.max(0, Math.min(this.state.mapHeight - 1, homeY));
     
     // Find a random work location based on type
     let workX = homeX, workY = homeY;
@@ -351,7 +355,7 @@ class GameStateManager {
     
     const workTiles = allTiles.filter(([key, tile]) => 
       tile.type === workTileType && 
-      tile.x >= 0 && tile.x < 25 && tile.y >= 0 && tile.y < 25 // Ensure within boundaries
+      tile.x >= 0 && tile.x < this.state.mapWidth && tile.y >= 0 && tile.y < this.state.mapHeight // Ensure within boundaries
     );
     if (workTiles.length > 0) {
       const randomWork = workTiles[Math.floor(Math.random() * workTiles.length)];
@@ -360,7 +364,7 @@ class GameStateManager {
     } else {
       // If no work tiles of preferred type, pick any random tile from the map within boundaries
       const validTiles = allTiles.filter(([key, tile]) => 
-        tile.x >= 0 && tile.x < 25 && tile.y >= 0 && tile.y < 25
+        tile.x >= 0 && tile.x < this.state.mapWidth && tile.y >= 0 && tile.y < this.state.mapHeight
       );
       if (validTiles.length > 0) {
         const randomTile = validTiles[Math.floor(Math.random() * validTiles.length)];
@@ -370,8 +374,8 @@ class GameStateManager {
     }
     
     // Ensure work position is within boundaries
-    workX = Math.max(0, Math.min(24, workX));
-    workY = Math.max(0, Math.min(24, workY));
+    workX = Math.max(0, Math.min(this.state.mapWidth - 1, workX));
+    workY = Math.max(0, Math.min(this.state.mapHeight - 1, workY));
     
     const goals = this.generateGoalsForAgent(type);
     
@@ -553,14 +557,14 @@ class GameStateManager {
           if (Math.abs(dx) > Math.abs(dy)) {
             // Move horizontally
             const newX = agent.x + (dx > 0 ? 1 : -1);
-            if (newX >= 0 && newX < 25) { // Keep within map boundaries
+            if (newX >= 0 && newX < this.state.mapWidth) { // Keep within map boundaries
               agent.x = newX;
               agent.direction = dx > 0 ? 'east' : 'west';
             }
           } else if (dy !== 0) {
             // Move vertically
             const newY = agent.y + (dy > 0 ? 1 : -1);
-            if (newY >= 0 && newY < 25) { // Keep within map boundaries
+            if (newY >= 0 && newY < this.state.mapHeight) { // Keep within map boundaries
               agent.y = newY;
               agent.direction = dy > 0 ? 'south' : 'north';
             }
@@ -854,10 +858,6 @@ class GameStateManager {
       return; // Wait for next movement step
     }
     
-    // Debug: Log agent movement
-    if (agent.isFollowingPath) {
-      console.log(`${agent.name} moving along path (step ${agent.pathIndex}/${agent.currentPath?.length})`);
-    }
     
     const currentTarget = agent.currentPath[agent.pathIndex];
     const currentX = Math.round(agent.x);
@@ -893,8 +893,8 @@ class GameStateManager {
     }
     
     // Ensure agent stays on grid and within boundaries
-    agent.x = Math.max(0, Math.min(24, Math.round(agent.x)));
-    agent.y = Math.max(0, Math.min(24, Math.round(agent.y)));
+    agent.x = Math.max(0, Math.min(this.state.mapWidth - 1, Math.round(agent.x)));
+    agent.y = Math.max(0, Math.min(this.state.mapHeight - 1, Math.round(agent.y)));
     
     // Update last move time
     agent.lastMoveTime = now;
@@ -1023,18 +1023,18 @@ class GameStateManager {
     
     const tilesOfType = allTiles.filter(([key, tile]) => 
       tile.type === selectedType && 
-      tile.x >= 0 && tile.x < 25 && tile.y >= 0 && tile.y < 25 // Ensure within boundaries
+      tile.x >= 0 && tile.x < this.state.mapWidth && tile.y >= 0 && tile.y < this.state.mapHeight // Ensure within boundaries
     );
     
     if (tilesOfType.length > 0) {
       const randomTile = tilesOfType[Math.floor(Math.random() * tilesOfType.length)];
-      agent.targetX = Math.max(0, Math.min(24, randomTile[1].x));
-      agent.targetY = Math.max(0, Math.min(24, randomTile[1].y));
+      agent.targetX = Math.max(0, Math.min(this.state.mapWidth - 1, randomTile[1].x));
+      agent.targetY = Math.max(0, Math.min(this.state.mapHeight - 1, randomTile[1].y));
       agent.activity = CrewmateActivity.WALKING;
     } else {
       // If no tiles of selected type, pick any random tile from the loaded map within boundaries
       const validTiles = allTiles.filter(([key, tile]) => 
-        tile.x >= 0 && tile.x < 25 && tile.y >= 0 && tile.y < 25
+        tile.x >= 0 && tile.x < this.state.mapWidth && tile.y >= 0 && tile.y < this.state.mapHeight
       );
       if (validTiles.length > 0) {
         const randomTile = validTiles[Math.floor(Math.random() * validTiles.length)];
@@ -1238,14 +1238,18 @@ class GameStateManager {
   setPlayerPixelPosition(pixelX: number, pixelY: number) {
     const tileSize = this.state.tileSize;
     
-    // Apply map boundary constraints (25x25 grid)
-    const mapWidth = 25;
-    const mapHeight = 25;
+    // Apply map boundary constraints using actual map dimensions
+    const mapWidth = this.state.mapWidth;
+    const mapHeight = this.state.mapHeight;
     const maxPixelX = (mapWidth - 1) * tileSize;
     const maxPixelY = (mapHeight - 1) * tileSize;
     
-    const constrainedPixelX = Math.max(0, Math.min(maxPixelX, pixelX));
-    const constrainedPixelY = Math.max(0, Math.min(maxPixelY, pixelY));
+    // Debug logging to see what's happening
+    console.log(`Player boundary debug: pixelX=${pixelX}, pixelY=${pixelY}, mapWidth=${mapWidth}, mapHeight=${mapHeight}, tileSize=${tileSize}, maxPixelX=${maxPixelX}, maxPixelY=${maxPixelY}`);
+    
+    // TEMPORARILY DISABLE BOUNDARY CONSTRAINTS FOR TESTING
+    const constrainedPixelX = pixelX;
+    const constrainedPixelY = pixelY;
     
     const tileX = Math.floor(constrainedPixelX / tileSize);
     const tileY = Math.floor(constrainedPixelY / tileSize);
@@ -1313,6 +1317,13 @@ class GameStateManager {
     this.notifyListeners();
   }
 
+  setMapDimensions(width: number, height: number) {
+    console.log(`Setting map dimensions: ${width}x${height} (was ${this.state.mapWidth}x${this.state.mapHeight})`);
+    this.state.mapWidth = width;
+    this.state.mapHeight = height;
+    this.notifyListeners();
+  }
+
   getMapDataArray(): Array<[string, Tile]> {
     return Array.from(this.state.mapData.entries());
   }
@@ -1327,9 +1338,9 @@ class GameStateManager {
       return { x: cameraX, y: cameraY };
     }
     
-    // Map boundaries (25x25 tiles)
-    const mapWidth = 25;
-    const mapHeight = 25;
+    // Map boundaries using actual map dimensions
+    const mapWidth = this.state.mapWidth;
+    const mapHeight = this.state.mapHeight;
     const mapPixelWidth = mapWidth * this.state.tileSize;
     const mapPixelHeight = mapHeight * this.state.tileSize;
     

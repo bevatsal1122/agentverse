@@ -3,6 +3,7 @@ import { gameState, Tool, TileType, GameState, Crewmate, CrewmateType, CrewmateA
 import { MapLoader } from '../../src/maps/mapLoader';
 import { playerController } from '../../src/game/player';
 import LiveFeed from './LiveFeed';
+import AgentsList from './AgentsList';
 
 
 interface GameCanvasProps {
@@ -24,6 +25,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
   const [, forceUpdate] = useState({});
   const [trafficElements, setTrafficElements] = useState<TrafficElement[]>([]);
   const [backgroundCanvas, setBackgroundCanvas] = useState<HTMLCanvasElement | null>(null);
+  const [showAgentsList, setShowAgentsList] = useState(false);
   const animationFrameRef = useRef<number>();
   const lastRenderTime = useRef<number>(0);
   const lastGameUpdateTime = useRef<number>(0);
@@ -1472,7 +1474,28 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
         className="block w-full h-full"
         style={{ imageRendering: 'pixelated' }}
       />
+      
+      {/* Game UI Overlay */}
+      <div className="absolute top-4 right-4 flex flex-col space-y-2 z-10">
+        {/* Agents List Button */}
+        <button
+          onClick={() => setShowAgentsList(true)}
+          className="bg-gray-900/80 hover:bg-gray-800 border border-gray-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center space-x-2 backdrop-blur-sm"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+          <span>Agents</span>
+        </button>
+      </div>
+
       <LiveFeed />
+      
+      {/* Agents List Modal */}
+      <AgentsList 
+        isVisible={showAgentsList} 
+        onClose={() => setShowAgentsList(false)} 
+      />
     </div>
   );
 };
