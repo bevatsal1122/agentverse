@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { useAuth } from './contexts/AuthContext';
+import { useAuth } from '../src/contexts/AuthContext';
 import Toolbar from './components/Toolbar';
 import GameCanvas from './components/GameCanvas';
-import { Tool, gameState } from './game/state';
-import { playerController } from './game/player';
+import { Tool, gameState } from '../src/game/state';
+import { playerController } from '../src/game/player';
 
 export default function Game() {
   const router = useRouter();

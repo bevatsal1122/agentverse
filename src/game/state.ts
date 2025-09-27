@@ -100,6 +100,8 @@ export interface GameState {
   mapData: Map<string, Tile>;
   playerPosition: Position;
   cameraPosition: { x: number; y: number };
+  cameraFollowMode: 'player' | 'agent';
+  cameraFollowAgentId: string | null;
   gridSize: number;
   tileSize: number;
   crewmates: Map<string, Crewmate>;
@@ -115,6 +117,8 @@ class GameStateManager {
     mapData: new Map(),
     playerPosition: { x: 12, y: 12, pixelX: 768, pixelY: 768, isMoving: false, animationFrame: 0, direction: 'right' }, // Start at center of compact city
     cameraPosition: { x: 0, y: 0 }, // Will be updated when window is available
+    cameraFollowMode: 'player',
+    cameraFollowAgentId: null,
     gridSize: 64,
     tileSize: 64,
     crewmates: new Map(),
@@ -168,6 +172,12 @@ class GameStateManager {
     const agent = this.state.aiAgents.get(id);
     if (agent) {
       this.state.aiAgents.set(id, { ...agent, ...updates });
+      
+      // Update camera if we're following this agent
+      if (this.state.cameraFollowMode === 'agent' && this.state.cameraFollowAgentId === id) {
+        this.updateCamera();
+      }
+      
       this.notifyListeners();
     }
   }
@@ -892,6 +902,11 @@ class GameStateManager {
       animationFrame: this.state.playerPosition.animationFrame,
       direction: this.state.playerPosition.direction
     };
+    
+    // Update camera based on current follow mode if pixel position changed
+    if (pixelX !== undefined || pixelY !== undefined) {
+      this.updateCamera();
+    }
     this.notifyListeners();
   }
 
@@ -909,6 +924,9 @@ class GameStateManager {
       animationFrame: this.state.playerPosition.animationFrame,
       direction: this.state.playerPosition.direction
     };
+    
+    // Update camera based on current follow mode
+    this.updateCamera();
     this.notifyListeners();
   }
 
@@ -931,7 +949,7 @@ class GameStateManager {
   isWalkable(x: number, y: number): boolean {
     const tile = this.getTile(x, y);
     // If no tile exists, treat as grass (walkable)
-    return !tile || tile.type === TileType.SPACE || tile.type === TileType.CORRIDOR || tile.type === TileType.RECREATION;
+    return !tile || tile.type === TileType.SPACE || tile.type === TileType.CORRIDOR || tile.type === TileType.RECREATION || tile.type === TileType.WATER;
   }
 
   // Initialize the map with space terrain
@@ -979,6 +997,57 @@ class GameStateManager {
       
       this.state.cameraPosition = { x: cameraX, y: cameraY };
       this.notifyListeners();
+    }
+  }
+
+  updateCameraToFollowPlayer() {
+    if (typeof window !== 'undefined') {
+      const playerPixelX = this.state.playerPosition.pixelX;
+      const playerPixelY = this.state.playerPosition.pixelY;
+      
+      // Center camera on player's exact pixel position
+      const cameraX = -playerPixelX + (window.innerWidth / 2) - 16; // 16 is half player size
+      const cameraY = -playerPixelY + (window.innerHeight / 2) - 16;
+      
+      this.state.cameraPosition = { x: cameraX, y: cameraY };
+    }
+  }
+
+  updateCameraToFollowAgent(agentId: string) {
+    if (typeof window !== 'undefined') {
+      const agent = this.state.aiAgents.get(agentId);
+      if (agent) {
+        const agentPixelX = agent.x * this.state.tileSize;
+        const agentPixelY = agent.y * this.state.tileSize;
+        
+        // Center camera on agent's position
+        const cameraX = -agentPixelX + (window.innerWidth / 2) - 16; // 16 is half agent size
+        const cameraY = -agentPixelY + (window.innerHeight / 2) - 16;
+        
+        this.state.cameraPosition = { x: cameraX, y: cameraY };
+      }
+    }
+  }
+
+  setCameraFollowMode(mode: 'player' | 'agent', agentId?: string) {
+    this.state.cameraFollowMode = mode;
+    this.state.cameraFollowAgentId = mode === 'agent' ? (agentId || null) : null;
+    
+    // Update camera position based on new mode
+    if (mode === 'player') {
+      this.updateCameraToFollowPlayer();
+    } else if (mode === 'agent' && agentId) {
+      this.updateCameraToFollowAgent(agentId);
+    }
+    
+    this.notifyListeners();
+  }
+
+  updateCamera() {
+    if (this.state.cameraFollowMode === 'player') {
+      this.updateCameraToFollowPlayer();
+    } else if (this.state.cameraFollowMode === 'agent' && this.state.cameraFollowAgentId) {
+      this.updateCameraToFollowAgent(this.state.cameraFollowAgentId);
     }
   }
 

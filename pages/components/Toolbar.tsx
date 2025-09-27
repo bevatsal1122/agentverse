@@ -1,7 +1,7 @@
 import React from 'react';
-import { Tool, gameState } from '../game/state';
-import { saveGame, loadGame, hasSavedGame } from '../game/storage';
-import { MapLoader } from '../maps/mapLoader';
+import { Tool, gameState } from '../../src/game/state';
+import { saveGame, loadGame, hasSavedGame } from '../../src/game/storage';
+import { MapLoader } from '../../src/maps/mapLoader';
 
 interface ToolbarProps {
   selectedTool: Tool;

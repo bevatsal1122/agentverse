@@ -1,7 +1,8 @@
-import type { AppProps } from "next/app";
-import { PrivyProvider } from "@privy-io/react-auth";
-import { AuthProvider } from "./contexts/AuthContext";
-import "./index.css";
+
+import type { AppProps } from 'next/app'
+import { PrivyProvider } from '@privy-io/react-auth'
+import { AuthProvider } from '../src/contexts/AuthContext'
+import './index.css'
 
 export default function App({ Component, pageProps }: AppProps) {
   const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { gameState, ChatMessage, AIAgent } from '../game/state';
+import { gameState, ChatMessage, AIAgent } from '../../src/game/state';
 
 interface LiveFeedProps {
   className?: string;

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { gameState, Tool, TileType, GameState, Crewmate, CrewmateType, CrewmateActivity, AIAgent } from '../game/state';
-import { MapLoader } from '../maps/mapLoader';
+import { gameState, Tool, TileType, GameState, Crewmate, CrewmateType, CrewmateActivity, AIAgent } from '../../src/game/state';
+import { MapLoader } from '../../src/maps/mapLoader';
 import LiveFeed from './LiveFeed';
 
 
@@ -1184,6 +1184,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
           ctx.fillStyle = '#FFFFFF';
           ctx.fillRect(x + 26, y + 51, 12, 1);
         }
+      
       }
 
       // Add enhanced 3D tile borders and depth
