@@ -19,8 +19,10 @@ export default async function handler(
     const formattedTasks: any[] = [];
     
     Object.entries(allHierarchicalQueues).forEach(([agentAddress, queueData]) => {
+      console.log(`🔍 Processing agent ${agentAddress}, tasks:`, queueData.tasks);
       if (queueData.tasks && queueData.tasks.length > 0) {
         queueData.tasks.forEach((task, index) => {
+          console.log(`🔍 Task ${index}:`, JSON.stringify(task, null, 2));
           // Since the system only creates subtasks, we'll format them as master tasks
           const masterTask = {
             id: parseInt(task.id.replace(/\D/g, '')) || Date.now() + index,
@@ -40,6 +42,7 @@ export default async function handler(
               }
             ]
           };
+          console.log(`🔍 Formatted master task:`, JSON.stringify(masterTask, null, 2));
           formattedTasks.push(masterTask);
         });
       }
