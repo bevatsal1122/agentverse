@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import Link from "next/link";
+import { RandomAvatar } from "react-random-avatars";
 
 interface TokenForm {
   name: string;
@@ -166,7 +167,10 @@ export default function CreateToken() {
           {/* Success Message */}
           {success && (
             <div className="mb-4 p-3 bg-green-900 bg-opacity-80 border border-green-400 text-green-300 rounded-lg shadow-lg">
-              <div className="mb-2">{success}</div>
+              <div className="flex items-center space-x-3 mb-2">
+                <RandomAvatar name={form.name} size={32} />
+                <div className="flex-1">{success}</div>
+              </div>
               <Link
                 href="/dashboard"
                 className="simcity-button px-3 py-1 text-xs bg-green-600 hover:bg-green-500 text-white inline-block"
