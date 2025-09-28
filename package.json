@@ -24,7 +24,6 @@
     "@zerodev/sdk": "^5.5.2",
     "ethers": "^6.15.0",
     "@types/redis": "^4.0.10",
-    "crypto": "^1.0.1",
     "next": "^14.0.0",
     "pixi.js": "^7.3.2",
     "react": "^18.2.0",

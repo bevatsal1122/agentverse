@@ -111,6 +111,9 @@ export interface AIAgent {
   level: number;
   totalInteractions: number;
   playerInteractions: number; // Interactions specifically with the player
+  // Capital system
+  totalCapital: number;
+  lastCapitalUpdate: number;
 }
 
 // Keep Crewmate interface for backward compatibility
@@ -148,6 +151,11 @@ export interface GameState {
   isPlayerFollowingPath: boolean;
   playerLastMoveTime?: number;
   playerWallet: PlayerWallet;
+  currentWorkflow?: {
+    steps: any[];
+    currentStep: number;
+    taskId: number;
+  };
 }
 
 class GameStateManager {
@@ -400,13 +408,16 @@ class GameStateManager {
       pathIndex: 0,
       isFollowingPath: false,
       lastBuildingVisitTime: 0,
-      visitCooldown: 15000 + Math.random() * 30000,
+      visitCooldown: 5000 + Math.random() * 10000, // 5-15 seconds between visits (was 15-45)
       moveInterval: 200 + Math.random() * 200, // 0.2-0.4 seconds between steps
       // XP and interaction system
-      experiencePoints: 0,
-      level: 1,
-      totalInteractions: 0,
-      playerInteractions: 0
+      experiencePoints: Math.floor(Math.random() * 500) + 50, // 50-550 XP
+      level: Math.floor(Math.random() * 5) + 1, // Level 1-5
+      totalInteractions: Math.floor(Math.random() * 20) + 5, // 5-25 interactions
+      playerInteractions: Math.floor(Math.random() * 10), // 0-10 player interactions
+      // Capital system
+      totalCapital: Math.floor(Math.random() * 10000) + 1000, // $1,000 - $11,000
+      lastCapitalUpdate: Date.now()
     };
     
     this.addCrewmate(crewmate);
@@ -538,13 +549,16 @@ class GameStateManager {
       pathIndex: 0,
       isFollowingPath: false,
       lastBuildingVisitTime: 0,
-      visitCooldown: 15000 + Math.random() * 30000, // 15-45 seconds between visits
+      visitCooldown: 5000 + Math.random() * 10000, // 5-15 seconds between visits (was 15-45) // 15-45 seconds between visits
       moveInterval: 150 + Math.random() * 150, // 0.15-0.3 seconds between steps
       // XP and interaction system
-      experiencePoints: 0,
-      level: 1,
-      totalInteractions: 0,
-      playerInteractions: 0
+      experiencePoints: Math.floor(Math.random() * 500) + 50, // 50-550 XP
+      level: Math.floor(Math.random() * 5) + 1, // Level 1-5
+      totalInteractions: Math.floor(Math.random() * 20) + 5, // 5-25 interactions
+      playerInteractions: Math.floor(Math.random() * 10), // 0-10 player interactions
+      // Capital system
+      totalCapital: Math.floor(Math.random() * 10000) + 1000, // $1,000 - $11,000
+      lastCapitalUpdate: Date.now()
     };
     
     this.addAIAgent(agent);
@@ -647,6 +661,9 @@ class GameStateManager {
   private updateAIAgentBehavior(agent: AIAgent, deltaTime: number, now: number): void {
     // Update animation frame
     agent.animationFrame = (agent.animationFrame + 1) % 8;
+    
+    // Update agent capital
+    this.updateAgentCapital(agent, now);
     
     // Clear expired chat bubble
     if (agent.chatBubble && now - agent.chatBubble.timestamp > agent.chatBubble.duration) {
@@ -817,19 +834,19 @@ class GameStateManager {
     
     const buildingName = 'Building';
     
-    // Set appropriate activity based on building type
+    // Set appropriate activity based on building type with specific tasks
     switch (agent.targetBuilding.type) {
       case TileType.RESEARCH_LAB:
         agent.activity = CrewmateActivity.RESEARCHING;
-        agent.currentThought = 'Conducting research experiments';
+        agent.currentThought = this.getResearchTask();
         break;
       case TileType.ENGINEERING_BAY:
         agent.activity = CrewmateActivity.MAINTAINING;
-        agent.currentThought = 'Performing system maintenance';
+        agent.currentThought = this.getEngineeringTask();
         break;
       case TileType.LIVING_QUARTERS:
         agent.activity = CrewmateActivity.RESTING;
-        agent.currentThought = 'Resting in living quarters';
+        agent.currentThought = 'Resting and recharging at home';
         break;
       case TileType.RECREATION:
         agent.activity = CrewmateActivity.EATING;
@@ -837,7 +854,7 @@ class GameStateManager {
         break;
       default:
         agent.activity = CrewmateActivity.WORKING;
-        agent.currentThought = 'Working on assigned tasks';
+        agent.currentThought = this.getGeneralTask();
     }
     
     // Add arrival message
@@ -847,11 +864,12 @@ class GameStateManager {
       duration: 3000
     };
 
-    // Only show important activity changes (not every single activity)
-    if (agent.activity === CrewmateActivity.WORKING || agent.activity === CrewmateActivity.RESEARCHING) {
+    // Show specific task activities when agents start working
+    if (agent.activity === CrewmateActivity.WORKING || agent.activity === CrewmateActivity.RESEARCHING || agent.activity === CrewmateActivity.MAINTAINING) {
       const activityMessages = {
-        [CrewmateActivity.WORKING]: `🔧 ${agent.name} started working`,
-        [CrewmateActivity.RESEARCHING]: `🔬 ${agent.name} began research`
+        [CrewmateActivity.WORKING]: `🔧 ${agent.name} started working: ${agent.currentThought}`,
+        [CrewmateActivity.RESEARCHING]: `🔬 ${agent.name} began research: ${agent.currentThought}`,
+        [CrewmateActivity.MAINTAINING]: `⚙️ ${agent.name} started maintenance: ${agent.currentThought}`
     };
     
     this.addChatMessage({
@@ -864,12 +882,12 @@ class GameStateManager {
     }
     
     // Schedule departure after some time
-    const stayDuration = 5000 + Math.random() * 10000; // 5-15 seconds
+    const stayDuration = 3000 + Math.random() * 5000; // 3-8 seconds (was 5-15)
     
     // Trigger a work-related conversation after arriving
     setTimeout(() => {
       this.triggerAgentConversation(agent, Date.now());
-    }, 6000); // Wait 6 seconds after arriving
+    }, 2000); // Wait 2 seconds after arriving (was 6)
     
     setTimeout(() => {
       // Work is done, now return to home
@@ -901,9 +919,14 @@ class GameStateManager {
     // Add task completion message (only sometimes and only if returning from actual work)
     if (isReturningFromWork && Math.random() > 0.4) { // Only 60% chance of showing completion
       const completionMessages = [
-        `✅ ${agent.name} completed tasks`,
-        `🎯 ${agent.name} finished work`,
-        `💪 ${agent.name} accomplished objectives`
+        `✅ ${agent.name} completed their work shift`,
+        `🏁 ${agent.name} finished assigned tasks`,
+        `📋 ${agent.name} wrapped up their duties`,
+        `🎯 ${agent.name} completed research project`,
+        `⚙️ ${agent.name} finished maintenance work`,
+        `📊 ${agent.name} completed data analysis`,
+        `🔧 ${agent.name} finished system repairs`,
+        `📈 ${agent.name} completed performance review`
       ];
       
       this.addChatMessage({
@@ -987,7 +1010,7 @@ class GameStateManager {
     }
     
     // Reset visit cooldown
-    agent.visitCooldown = 15000 + Math.random() * 30000;
+    agent.visitCooldown = 5000 + Math.random() * 10000; // 5-15 seconds (was 15-45)
   }
 
   private updateCrewmateAI(crewmate: Crewmate, deltaTime: number): void {
@@ -1185,6 +1208,105 @@ class GameStateManager {
     }
   }
 
+  // Method to start a task workflow from server-provided data
+  startTaskWorkflowFromData(workflowSteps: any[]) {
+    if (workflowSteps.length === 0) {
+      console.log('❌ No workflow steps provided');
+      return;
+    }
+
+    console.log(`🎯 Starting task workflow with ${workflowSteps.length} steps`);
+    this.startTaskWorkflow(workflowSteps, 0);
+  }
+
+  private startTaskWorkflow(workflowSteps: any[], currentStep: number) {
+    if (currentStep >= workflowSteps.length) {
+      // Workflow complete
+      this.addChatMessage({
+        id: `workflow_complete_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        agentId: 'player',
+        message: `🎉 Task workflow complete! Visited all ${workflowSteps.length} agents and buildings.`,
+        timestamp: Date.now(),
+        type: 'action'
+      });
+      return;
+    }
+
+    const step = workflowSteps[currentStep];
+    console.log(`🎯 Starting workflow step ${currentStep + 1}/${workflowSteps.length}: Visiting ${step.agentName} at ${step.buildingName}`);
+
+    // Add workflow step message
+    this.addChatMessage({
+      id: `workflow_step_${currentStep}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      agentId: 'player',
+      message: `🎯 Step ${currentStep + 1}/${workflowSteps.length}: Going to ${step.buildingName} to check on ${step.agentName}`,
+      timestamp: Date.now(),
+      type: 'action'
+    });
+
+    // Calculate path to the building
+    const currentPos = this.state.playerPosition;
+    const currentTileX = Math.round(currentPos.pixelX / this.state.tileSize);
+    const currentTileY = Math.round(currentPos.pixelY / this.state.tileSize);
+    
+    const path = this.pathfinder.findPath(
+      currentTileX, currentTileY, step.buildingX, step.buildingY
+    );
+    
+    if (path && path.nodes && path.nodes.length > 0) {
+      // Set up path completion callback to move to next step
+      this.setPlayerPath(path.nodes, { type: 'building', name: step.buildingName });
+      
+      // Store workflow state for continuation
+      this.state.currentWorkflow = {
+        steps: workflowSteps,
+        currentStep: currentStep,
+        taskId: workflowSteps[0].taskId || Date.now()
+      };
+    } else {
+      console.log(`❌ No path found to ${step.buildingName}, skipping to next step`);
+      // Skip to next step if no path found
+      setTimeout(() => {
+        this.startTaskWorkflow(workflowSteps, currentStep + 1);
+      }, 1000);
+    }
+  }
+
+  // Method to continue workflow after reaching a building
+  continueTaskWorkflow() {
+    if (!this.state.currentWorkflow) {
+      return;
+    }
+
+    const { steps, currentStep } = this.state.currentWorkflow;
+    const step = steps[currentStep];
+
+    // Add arrival message
+    this.addChatMessage({
+      id: `workflow_arrival_${currentStep}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      agentId: 'player',
+      message: `📍 Arrived at ${step.buildingName}! Checking on ${step.agentName}'s progress...`,
+      timestamp: Date.now(),
+      type: 'action'
+    });
+
+    // Wait a moment to simulate checking on the agent
+    setTimeout(() => {
+      this.addChatMessage({
+        id: `workflow_check_${currentStep}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        agentId: 'player',
+        message: `✅ ${step.agentName} is working on: "${step.subtaskPrompt.substring(0, 50)}..."`,
+        timestamp: Date.now(),
+        type: 'action'
+      });
+
+      // Move to next step after a delay
+      setTimeout(() => {
+        this.startTaskWorkflow(steps, currentStep + 1);
+      }, 2000);
+    }, 1500);
+  }
+
   // Create a simple fallback path when pathfinding fails
   private createFallbackPath(startX: number, startY: number, endX: number, endY: number): Array<{x: number, y: number}> {
     const path: Array<{x: number, y: number}> = [];
@@ -1213,6 +1335,11 @@ class GameStateManager {
     // Re-enable camera following when path is completed
     this.state.isManualCameraControl = false;
     console.log('📷 Camera following re-enabled after path completion');
+    
+    // Check if we're in a workflow and should continue to next step
+    if (this.state.currentWorkflow) {
+      this.continueTaskWorkflow();
+    }
     
     this.notifyListeners();
   }
@@ -1797,13 +1924,13 @@ class GameStateManager {
     const isAtWork = Math.round(agent.x) === Math.round(agent.workX) && Math.round(agent.y) === Math.round(agent.workY);
     
     // Guideline 1: If at home and rested enough, go to work (prevent staying at home for dummy moves)
-    if (isAtHome && timeSinceLastAction > 20000 && Math.random() > 0.2) { // 80% chance after 20s to leave home
+    if (isAtHome && timeSinceLastAction > 8000 && Math.random() > 0.1) { // 90% chance after 8s to leave home (was 20s)
       this.sendAgentToWork(agent, now);
       return;
     }
     
     // Guideline 2: If at work and worked enough, return home (but not for dummy moves)
-    if (isAtWork && timeSinceLastAction > 30000 && Math.random() > 0.4) { // 60% chance after 30s
+    if (isAtWork && timeSinceLastAction > 12000 && Math.random() > 0.2) { // 80% chance after 12s (was 30s)
       this.returnAgentToHome(agent, now);
       return;
     }
@@ -1825,7 +1952,7 @@ class GameStateManager {
     
     // Guideline 4: Occasional exploration (roaming to nearby interesting locations)
     // Only explore if not at home to avoid starting dummy moves from home
-    if (!isAtHome && timeSinceLastAction > 45000 && Math.random() > 0.8) { // 20% chance after 45s
+    if (!isAtHome && timeSinceLastAction > 15000 && Math.random() > 0.6) { // 40% chance after 15s (was 45s)
       this.exploreNearbyLocation(agent, now);
       return;
     }
@@ -1917,25 +2044,100 @@ class GameStateManager {
     return tile ? {x, y, type: tile.type} : null;
   }
 
-  private generateThinkingTopic(): string {
-    const topics = [
-      'the next task to complete',
-      'how to improve efficiency',
-      'what the other agents are working on',
-      'the weather conditions',
-      'new strategies for collaboration',
-      'upcoming projects',
-      'ways to help the team',
-      'optimizing workflow',
-      'learning new skills',
-      'the current mission objectives',
-      'how to better communicate',
-      'future plans and goals',
-      'the importance of teamwork',
-      'innovative solutions',
-      'the progress made today'
+  private generateTaskActivity(agent: AIAgent): string {
+    const activities = [
+      // Trading and Commerce
+      'negotiating trade deals with other agents',
+      'analyzing market prices for resources',
+      'processing trade transactions',
+      'updating inventory systems',
+      'coordinating supply chain logistics',
+      
+      // Research and Development
+      'conducting experiments in the lab',
+      'analyzing data from sensors',
+      'developing new technologies',
+      'testing prototype systems',
+      'documenting research findings',
+      
+      // Engineering and Maintenance
+      'repairing equipment and systems',
+      'performing routine maintenance checks',
+      'upgrading infrastructure components',
+      'troubleshooting technical issues',
+      'installing new equipment',
+      
+      // Communication and Coordination
+      'coordinating with other departments',
+      'updating mission status reports',
+      'scheduling team meetings',
+      'reviewing operational procedures',
+      'planning resource allocation',
+      
+      // Security and Monitoring
+      'monitoring system security',
+      'conducting safety inspections',
+      'patrolling assigned areas',
+      'checking access permissions',
+      'analyzing threat assessments',
+      
+      // Resource Management
+      'managing energy distribution',
+      'optimizing resource usage',
+      'tracking material consumption',
+      'coordinating waste disposal',
+      'monitoring environmental conditions'
     ];
-    return topics[Math.floor(Math.random() * topics.length)];
+    
+    return activities[Math.floor(Math.random() * activities.length)];
+  }
+
+  private getResearchTask(): string {
+    const tasks = [
+      'Analyzing quantum data patterns',
+      'Testing new AI algorithms',
+      'Studying energy efficiency models',
+      'Developing communication protocols',
+      'Researching material properties',
+      'Simulating system behaviors',
+      'Documenting experimental results',
+      'Calibrating measurement instruments',
+      'Reviewing scientific literature',
+      'Preparing research proposals'
+    ];
+    return tasks[Math.floor(Math.random() * tasks.length)];
+  }
+
+  private getEngineeringTask(): string {
+    const tasks = [
+      'Repairing power distribution systems',
+      'Upgrading network infrastructure',
+      'Maintaining life support equipment',
+      'Installing new sensor arrays',
+      'Troubleshooting communication systems',
+      'Calibrating environmental controls',
+      'Replacing worn components',
+      'Testing safety systems',
+      'Optimizing energy consumption',
+      'Updating system firmware'
+    ];
+    return tasks[Math.floor(Math.random() * tasks.length)];
+  }
+
+  private getGeneralTask(): string {
+    const tasks = [
+      'Coordinating daily operations',
+      'Managing resource allocation',
+      'Updating mission logs',
+      'Scheduling maintenance windows',
+      'Reviewing system status reports',
+      'Planning future expansions',
+      'Monitoring performance metrics',
+      'Coordinating with other teams',
+      'Processing incoming data',
+      'Maintaining operational protocols'
+    ];
+    return tasks[Math.floor(Math.random() * tasks.length)];
   }
 
   private checkForWalkingConversations(agent: AIAgent, now: number): void {
@@ -1959,19 +2161,20 @@ class GameStateManager {
                    agent.activity === CrewmateActivity.WORKING || 
                    agent.activity === CrewmateActivity.RESEARCHING;
     
-    if (!canTalk || Math.random() > 0.1) { // Reduced to 10% chance (was 30% for testing)
+    if (!canTalk || Math.random() > 0.2) { // 20% chance for conversations (was 10%)
       return;
     }
     
 
-    // Add thinking message to chat feed (much less frequent)
-    if (Math.random() > 0.95) { // Only 5% chance of showing thinking (reduced from 30%)
+    // Add task activity message to chat feed (more frequent and realistic)
+    if (Math.random() > 0.5) { // 50% chance of showing task activity (was 30%)
+      const activity = this.generateTaskActivity(agent);
       this.addChatMessage({
-        id: `agent_thinking_${agent.id}_${now}_${Math.random().toString(36).substr(2, 9)}`,
+        id: `agent_task_${agent.id}_${now}_${Math.random().toString(36).substr(2, 9)}`,
         agentId: agent.id,
-        message: `💭 ${agent.name} is thinking about ${this.generateThinkingTopic()}`,
+        message: `⚙️ ${agent.name} is ${activity}`,
         timestamp: now,
-        type: 'thinking'
+        type: 'action'
       });
     }
 
@@ -2178,6 +2381,7 @@ class GameStateManager {
         body: JSON.stringify({
           experience_points: agent.experiencePoints,
           level: agent.level,
+          total_capital: agent.totalCapital,
           // Note: totalInteractions is not stored in the backend schema
           // but we could add it if needed
         }),
@@ -2188,6 +2392,45 @@ class GameStateManager {
       }
     } catch (error) {
       console.error(`❌ Error saving XP data for ${agent.name}:`, error);
+    }
+  }
+
+  private updateAgentCapital(agent: AIAgent, now: number): void {
+    // Update capital every 30 seconds
+    if (now - agent.lastCapitalUpdate < 30000) {
+      return;
+    }
+
+    // Capital changes based on agent activity and level
+    let capitalChange = 0;
+    
+    switch (agent.activity) {
+      case CrewmateActivity.WORKING:
+        capitalChange = Math.floor(Math.random() * 50) + 10; // +10 to +60
+        break;
+      case CrewmateActivity.RESEARCHING:
+        capitalChange = Math.floor(Math.random() * 100) + 20; // +20 to +120
+        break;
+      case CrewmateActivity.MAINTAINING:
+        capitalChange = Math.floor(Math.random() * 30) + 5; // +5 to +35
+        break;
+      case CrewmateActivity.RESTING:
+        capitalChange = -Math.floor(Math.random() * 20) - 5; // -5 to -25 (living costs)
+        break;
+      default:
+        capitalChange = Math.floor(Math.random() * 20) - 10; // -10 to +10 (neutral)
+    }
+
+    // Higher level agents earn more
+    capitalChange = Math.floor(capitalChange * (1 + agent.level * 0.2));
+
+    // Apply capital change
+    agent.totalCapital = Math.max(0, agent.totalCapital + capitalChange);
+    agent.lastCapitalUpdate = now;
+
+    // Save to backend if significant change
+    if (Math.abs(capitalChange) > 10) {
+      this.saveAgentXPData(agent);
     }
   }
 }

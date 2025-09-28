@@ -47,6 +47,7 @@ interface AgentMetadata {
   avatar_url?: string;
   experience_points: number;
   level: number;
+  total_capital: number;
   reputation_score: number;
   last_active: string;
   created_at: string;

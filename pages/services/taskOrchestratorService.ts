@@ -135,7 +135,7 @@ class TaskOrchestratorService {
 
       return {
         success: true,
-        tasks
+        tasks: tasks.slice(0, 1) // Only return the first task
       };
 
     } catch (error) {
@@ -230,7 +230,7 @@ class TaskOrchestratorService {
 
       return {
         success: true,
-        tasks
+        tasks: tasks.slice(0, 1) // Only return the first task
       };
 
     } catch (error) {

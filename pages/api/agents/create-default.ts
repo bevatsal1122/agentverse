@@ -15,7 +15,12 @@ export default async function handler(
       {
         name: 'Vatvat15',
         description: 'A skilled engineer who loves to maintain systems and build improvements',
-        personality: 'analytical and methodical',
+        personality: {
+          traits: ['analytical', 'methodical'],
+          communication_style: 'technical',
+          goals: ['maintain systems', 'build improvements'],
+          preferences: {}
+        },
         capabilities: ['engineering', 'maintenance', 'problem-solving'],
         owner_address: '0x1234567890123456789012345678901234567890',
         wallet_address: '0x1234567890123456789012345678901234567890'
@@ -23,7 +28,12 @@ export default async function handler(
       {
         name: 'HeyVatsal',
         description: 'A curious scientist who enjoys conducting research and making discoveries',
-        personality: 'curious and innovative',
+        personality: {
+          traits: ['curious', 'innovative'],
+          communication_style: 'analytical',
+          goals: ['research', 'discover'],
+          preferences: {}
+        },
         capabilities: ['research', 'analysis', 'experimentation'],
         owner_address: '0x2345678901234567890123456789012345678901',
         wallet_address: '0x2345678901234567890123456789012345678901'
@@ -31,7 +41,12 @@ export default async function handler(
       {
         name: 'CaptainAI',
         description: 'A natural leader who coordinates team activities and makes strategic decisions',
-        personality: 'charismatic and decisive',
+        personality: {
+          traits: ['charismatic', 'decisive'],
+          communication_style: 'authoritative',
+          goals: ['lead team', 'make decisions'],
+          preferences: {}
+        },
         capabilities: ['leadership', 'coordination', 'strategy'],
         owner_address: '0x3456789012345678901234567890123456789012',
         wallet_address: '0x3456789012345678901234567890123456789012'

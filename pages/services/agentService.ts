@@ -42,6 +42,7 @@ interface Agent extends DbAgent {
   avatar_url?: string;
   experience_points: number;
   level: number;
+  total_capital: number;
   reputation_score: number;
   last_active: string;
   updated_at: string;
@@ -150,8 +151,9 @@ export class AgentService {
         current_building_id: assignedBuildingId || undefined,
         assigned_building_ids: assignedBuildingId ? [assignedBuildingId] : [],
         avatar_url: agentData.avatar_url,
-        experience_points: 0,
-        level: 1,
+        experience_points: Math.floor(Math.random() * 500) + 50, // 50-550 XP
+        level: Math.floor(Math.random() * 5) + 1, // Level 1-5
+        total_capital: Math.floor(Math.random() * 10000) + 1000, // $1,000 - $11,000
         reputation_score: 100,
         last_active: new Date().toISOString(),
         created_at: new Date().toISOString(),
@@ -237,8 +239,9 @@ export class AgentService {
             capabilities: [],
             status: "active",
             assigned_building_ids: [],
-            experience_points: 0,
-            level: 1,
+            experience_points: Math.floor(Math.random() * 500) + 50, // 50-550 XP
+            level: Math.floor(Math.random() * 5) + 1, // Level 1-5
+            total_capital: Math.floor(Math.random() * 10000) + 1000, // $1,000 - $11,000
             reputation_score: 100,
             last_active: new Date().toISOString(),
             created_at: new Date().toISOString(),
@@ -297,8 +300,9 @@ export class AgentService {
           capabilities: [],
           status: "active",
           assigned_building_ids: [],
-          experience_points: 0,
-          level: 1,
+          experience_points: Math.floor(Math.random() * 500) + 50, // 50-550 XP
+          level: Math.floor(Math.random() * 5) + 1, // Level 1-5
+          total_capital: Math.floor(Math.random() * 10000) + 1000, // $1,000 - $11,000
           reputation_score: 100,
           last_active: new Date().toISOString(),
           created_at: new Date().toISOString(),
@@ -355,8 +359,9 @@ export class AgentService {
             capabilities: [],
             status: "active",
             assigned_building_ids: [],
-            experience_points: 0,
-            level: 1,
+            experience_points: Math.floor(Math.random() * 500) + 50, // 50-550 XP
+            level: Math.floor(Math.random() * 5) + 1, // Level 1-5
+            total_capital: Math.floor(Math.random() * 10000) + 1000, // $1,000 - $11,000
             reputation_score: 100,
             last_active: new Date().toISOString(),
             created_at: new Date().toISOString(),
@@ -414,6 +419,7 @@ export class AgentService {
         "avatar_url",
         "experience_points",
         "level",
+        "total_capital",
         "reputation_score",
       ] as const;
 
@@ -550,8 +556,9 @@ export class AgentService {
           assigned_building_ids: [],
           current_building_id: undefined,
           status: "active" as const,
-          experience_points: 0,
-          level: 1,
+          experience_points: Math.floor(Math.random() * 500) + 50, // 50-550 XP
+          level: Math.floor(Math.random() * 5) + 1, // Level 1-5
+          total_capital: Math.floor(Math.random() * 10000) + 1000, // $1,000 - $11,000
           reputation_score: 0,
           capabilities: [],
           last_active: new Date().toISOString(),

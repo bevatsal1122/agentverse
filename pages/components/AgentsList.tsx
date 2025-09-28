@@ -11,6 +11,7 @@ const AgentsList: React.FC<AgentsListProps> = ({ isVisible, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
   const fetchAgents = async () => {
     try {
@@ -40,6 +41,14 @@ const AgentsList: React.FC<AgentsListProps> = ({ isVisible, onClose }) => {
   useEffect(() => {
     if (isVisible) {
       fetchAgents();
+      
+      // Auto-refresh every 10 seconds to show dynamic values
+      const interval = setInterval(() => {
+        fetchAgents();
+        setLastUpdate(new Date());
+      }, 10000);
+      
+      return () => clearInterval(interval);
     }
   }, [isVisible]);
 
@@ -246,7 +255,7 @@ const AgentsList: React.FC<AgentsListProps> = ({ isVisible, onClose }) => {
                   )}
 
                   {/* Agent Stats */}
-                  <div className="grid grid-cols-3 gap-2 mb-3">
+                  <div className="grid grid-cols-2 gap-2 mb-3">
                     <div className="bg-gray-800 border border-gray-600 p-2 text-center" style={{ imageRendering: 'pixelated' }}>
                       <div className="text-cyan-300 font-bold text-sm" style={{ fontFamily: 'Courier New, monospace' }}>{agent.level}</div>
                       <div className="text-xs text-gray-400 font-bold" style={{ fontFamily: 'Courier New, monospace' }}>LVL</div>
@@ -255,8 +264,20 @@ const AgentsList: React.FC<AgentsListProps> = ({ isVisible, onClose }) => {
                       <div className="text-yellow-300 font-bold text-sm" style={{ fontFamily: 'Courier New, monospace' }}>{agent.experience_points}</div>
                       <div className="text-xs text-gray-400 font-bold" style={{ fontFamily: 'Courier New, monospace' }}>EXP</div>
                     </div>
+                  </div>
+                  
+                  {/* Capital and Reputation */}
+                  <div className="grid grid-cols-2 gap-2 mb-3">
                     <div className="bg-gray-800 border border-gray-600 p-2 text-center" style={{ imageRendering: 'pixelated' }}>
-                      <div className="text-green-300 font-bold text-sm" style={{ fontFamily: 'Courier New, monospace' }}>{agent.reputation_score}</div>
+                      <div className="text-green-400 font-bold text-sm" style={{ fontFamily: 'Courier New, monospace' }}>
+                        ${agent.total_capital?.toLocaleString() || '0'}
+                      </div>
+                      <div className="text-xs text-gray-400 font-bold" style={{ fontFamily: 'Courier New, monospace' }}>CAPITAL</div>
+                    </div>
+                    <div className="bg-gray-800 border border-gray-600 p-2 text-center" style={{ imageRendering: 'pixelated' }}>
+                      <div className={`font-bold text-sm ${agent.reputation_score >= 80 ? 'text-green-300' : agent.reputation_score >= 60 ? 'text-yellow-300' : 'text-red-300'}`} style={{ fontFamily: 'Courier New, monospace' }}>
+                        {agent.reputation_score}
+                      </div>
                       <div className="text-xs text-gray-400 font-bold" style={{ fontFamily: 'Courier New, monospace' }}>REP</div>
                     </div>
                   </div>
@@ -319,6 +340,9 @@ const AgentsList: React.FC<AgentsListProps> = ({ isVisible, onClose }) => {
         <div className="bg-gray-700 border-t border-gray-500 p-4 flex items-center justify-between" style={{ background: 'linear-gradient(145deg, #404040, #2A2A2A)', borderColor: '#1A1A1A' }}>
           <div className="text-sm text-green-300 font-bold" style={{ fontFamily: 'Courier New, monospace' }}>
             DISPLAYING.{filteredAgents.length}.OF.{agents.length}.UNITS
+            <div className="text-xs text-gray-400 mt-1">
+              LAST.UPDATE: {lastUpdate.toLocaleTimeString()}
+            </div>
           </div>
           <button
             onClick={fetchAgents}

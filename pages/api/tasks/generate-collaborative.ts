@@ -50,6 +50,7 @@ export default async function handler(
       avatar_url: agent.avatar_url,
       experience_points: agent.experience_points,
       level: agent.level,
+      total_capital: agent.total_capital,
       reputation_score: agent.reputation_score,
       last_active: agent.last_active,
       updated_at: agent.updated_at,
@@ -96,10 +97,12 @@ export default async function handler(
     // Note: Agent address validation is now handled internally by the task orchestrator service
     // which fetches full agent data from the database
 
-    // Store tasks in memory and database
+    // Store tasks in memory and database - only process the first task
     const storedTasks = [];
     
-    for (const task of generatedTasks) {
+    // Only process the first task to avoid multiple variants
+    const task = generatedTasks[0];
+    if (task) {
       // Store master task in memory
       const masterTask = memoryStorageService.addMasterTask({
         user_id: task.user_id.toString(),
@@ -144,6 +147,31 @@ export default async function handler(
 
     // Log task generation for monitoring
     console.log(`📋 Generated ${storedTasks.length} collaborative task(s) with ${storedTasks.reduce((sum, task) => sum + task.subtasks.length, 0)} total subtasks`);
+    
+    // Start the task workflow for the first task
+    if (storedTasks.length > 0) {
+      const firstTask = storedTasks[0];
+      console.log(`🎯 Starting task workflow for master task ${firstTask.masterTask.id}`);
+      
+      // Create workflow data on server-side
+      const workflowResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/tasks/${firstTask.masterTask.id}/workflow`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (workflowResponse.ok) {
+        const workflowData = await workflowResponse.json();
+        console.log(`🎯 Workflow created with ${workflowData.totalSteps} steps`);
+        
+        // Import gameState and start workflow with server data
+        const { gameState } = await import('../../../src/game/state');
+        gameState.startTaskWorkflowFromData(workflowData.workflowSteps);
+      } else {
+        console.error('❌ Failed to create task workflow:', workflowResponse.statusText);
+      }
+    }
     
     // Check if agents are already in game state - if so, don't reload them
     const gameAgents = Array.from(gameState.getAIAgents().values());
@@ -191,7 +219,10 @@ export default async function handler(
           experiencePoints: agent.experience_points || 0,
           level: agent.level || 1,
           totalInteractions: 0,
-          playerInteractions: 0
+          playerInteractions: 0,
+          // Capital system
+          totalCapital: agent.total_capital || 1000,
+          lastCapitalUpdate: Date.now()
         };
 
         // Set position based on assigned building

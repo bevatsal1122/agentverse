@@ -239,7 +239,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       experiencePoints: 0,
       level: 1,
       totalInteractions: 0,
-      playerInteractions: 0
+      playerInteractions: 0,
+      // Capital system
+      totalCapital: 1000,
+      lastCapitalUpdate: Date.now()
     };
   };
   const lastGameUpdateTime = useRef<number>(0);

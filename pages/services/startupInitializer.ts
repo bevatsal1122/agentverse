@@ -84,8 +84,9 @@ class StartupInitializer {
             assigned_building_ids: [],
             current_building_id: undefined,
             status: 'active' as const,
-            experience_points: 0,
-            level: 1,
+            experience_points: Math.floor(Math.random() * 500) + 50, // 50-550 XP
+            level: Math.floor(Math.random() * 5) + 1, // Level 1-5
+            total_capital: Math.floor(Math.random() * 10000) + 1000, // $1,000 - $11,000
             reputation_score: 0,
             capabilities: [],
             last_active: new Date().toISOString(),
