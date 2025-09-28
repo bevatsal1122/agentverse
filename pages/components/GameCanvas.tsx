@@ -30,7 +30,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
-  const [, forceUpdate] = useState({});
+  const [gameStateSnapshot, setGameStateSnapshot] = useState(gameState.getState());
   const [trafficElements, setTrafficElements] = useState<TrafficElement[]>([]);
   const [backgroundCanvas, setBackgroundCanvas] = useState<HTMLCanvasElement | null>(null);
   const [showAgentsList, setShowAgentsList] = useState(false);
@@ -105,7 +105,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       const agentsResult = await response.json();
       console.log('📡 API response:', agentsResult);
       
-      if (agentsResult.success && agentsResult.agents) {
+      if (agentsResult.agents && agentsResult.agents.length > 0) {
         console.log(`✅ Loading ${agentsResult.agents.length} real agents from backend`);
         
         // Clear existing agents first
@@ -113,6 +113,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
         
         let loadedCount = 0;
         for (const agent of agentsResult.agents) {
+          console.log(`🔄 Converting agent: ${agent.name} (ID: ${agent.id})`);
           // Convert backend agent to game AI agent
           const gameAgent = convertBackendAgentToGameAgent(agent);
           if (gameAgent) {
@@ -124,6 +125,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
           }
         }
         console.log(`🎉 Successfully loaded ${loadedCount} agents into game state`);
+        
+        // Verify agents are in game state
+        const finalState = gameState.getState();
+        console.log(`🔍 Final verification: ${finalState.aiAgents.size} agents in game state`);
       } else {
         console.log('❌ No agents found in backend, no agents will spawn on map');
         console.log('API response:', agentsResult);
@@ -137,6 +142,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
 
   // Convert backend agent to game AI agent
   const convertBackendAgentToGameAgent = (backendAgent: any): AIAgent | null => {
+    console.log(`🔄 Converting agent ${backendAgent.name}...`);
     const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57', '#ff9ff3', '#54a0ff', '#5f27cd', '#ff7675', '#74b9ff'];
     const types = [CrewmateType.CREW, CrewmateType.SCIENTIST, CrewmateType.ENGINEER, CrewmateType.CAPTAIN];
     
@@ -179,11 +185,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       }
     } else {
       // No assigned building, find a random building tile (not roads/corridors)
+      console.log(`🏠 No assigned building for ${backendAgent.name}, finding random building...`);
       const buildingTypes = [TileType.LIVING_QUARTERS, TileType.RESEARCH_LAB, TileType.ENGINEERING_BAY, TileType.RECREATION, TileType.POWER_LINE];
       const buildingTiles = allTiles.filter(([_, tile]) => 
         buildingTypes.includes(tile.type)
       );
       
+      console.log(`🏠 Found ${buildingTiles.length} building tiles available`);
       if (buildingTiles.length === 0) {
         console.error('No building tiles available for agent placement');
         return null; // No building tiles
@@ -191,10 +199,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
 
       const [tileKey, tile] = buildingTiles[Math.floor(Math.random() * buildingTiles.length)];
       [x, y] = tileKey.split(',').map(Number);
+      console.log(`🏠 Placing ${backendAgent.name} at random building (${x}, ${y})`);
     }
 
     const type = types[Math.floor(Math.random() * types.length)];
     const color = colors[Math.floor(Math.random() * colors.length)];
+
+    console.log(`✅ Successfully converted ${backendAgent.name} to game agent at (${x}, ${y})`);
 
     return {
       id: backendAgent.id,
@@ -297,7 +308,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     }
 
     // Subscribe to game state changes
-    const unsubscribe = gameState.subscribe(updateCanvas);
+    const unsubscribe = gameState.subscribe((state) => {
+      setGameStateSnapshot(state);
+      updateCanvas(state);
+    });
 
     // Initial render
     updateCanvas(gameState.getState());
@@ -969,6 +983,26 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       case 'E':
         event.preventDefault();
         exploreNearbyArea();
+        break;
+      case 'f':
+      case 'F':
+        event.preventDefault();
+        gameState.toggleFreeCameraMode();
+        break;
+      case 'b':
+      case 'B':
+        event.preventDefault();
+        gameState.moveCameraToBottom();
+        break;
+      case 'r':
+      case 'R':
+        event.preventDefault();
+        gameState.moveCameraToTopRight();
+        break;
+      case 'g':
+      case 'G':
+        event.preventDefault();
+        gameState.debugCameraBounds();
         break;
       case 'v':
       case 'V':
@@ -2665,8 +2699,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
 
     // Draw floating notifications
     drawFloatingNotifications(ctx);
-
-    forceUpdate({});
   };
 
   useEffect(() => {
@@ -2694,6 +2726,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       
 
       <LiveFeed />
+      
+      {/* Free Camera Mode Indicator */}
+      {gameStateSnapshot.freeCameraMode && (
+        <div className="fixed top-20 left-4 bg-red-600 text-white px-3 py-2 rounded border-2 border-red-400 font-bold text-sm" style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>
+          FREE CAMERA MODE
+        </div>
+      )}
       
       {/* Agents List Modal */}
       <AgentsList 

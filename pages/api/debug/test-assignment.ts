@@ -49,7 +49,7 @@ export default async function handler(
       console.log('Creating metadata for agent...');
       memoryStorageService.updateAgentMetadata(agent.id, {
         assigned_building_ids: [],
-        current_building_id: null,
+        current_building_id: undefined,
         status: 'active',
         experience_points: 0,
         level: 1,

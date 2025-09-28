@@ -47,7 +47,7 @@ export default async function handler(
         // Clear agent metadata
         memoryStorageService.updateAgentMetadata(agent.id, {
           assigned_building_ids: [],
-          current_building_id: null,
+          current_building_id: undefined,
         });
       }
     }
@@ -92,7 +92,7 @@ export default async function handler(
         // Initialize agent metadata
         memoryStorageService.updateAgentMetadata(agent.id, {
           assigned_building_ids: [],
-          current_building_id: null,
+          current_building_id: undefined,
           status: 'active',
           experience_points: 0,
           level: 1,

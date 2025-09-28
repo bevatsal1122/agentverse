@@ -131,6 +131,7 @@ export interface GameState {
   cameraFollowMode: 'player' | 'agent';
   cameraFollowAgentId: string | null;
   isManualCameraControl: boolean;
+  freeCameraMode: boolean;
   gridSize: number;
   tileSize: number;
   mapWidth: number;
@@ -158,10 +159,11 @@ class GameStateManager {
     cameraFollowMode: 'player',
     cameraFollowAgentId: null,
     isManualCameraControl: false,
+    freeCameraMode: false,
     gridSize: 64,
     tileSize: 64,
-    mapWidth: 25, // Default from defaultMap
-    mapHeight: 25, // Default from defaultMap
+    mapWidth: 30, // Default from defaultMap
+    mapHeight: 350, // Default from defaultMap
     screenWidth: 1024, // Default screen width
     screenHeight: 768, // Default screen height
     crewmates: new Map(),
@@ -1433,19 +1435,26 @@ class GameStateManager {
     // X bounds: camera can't go left of 0, and right edge can't go beyond map width
     const minCameraX = 0;
     // Allow camera to scroll so the rightmost tile (mapWidth-1) is visible
-    let maxCameraX = Math.max(0, mapWidth - screenWidthInTiles);
+    // The camera position is the top-left corner, so we need to allow it to go right enough
+    // to show the right edge of the map
+    // Add a small buffer to ensure we can see the very right edge
+    let maxCameraX = Math.max(0, mapWidth - screenWidthInTiles + 0.5);
     
     // Y bounds: camera can't go above 0, and bottom edge can't go beyond map height  
     const minCameraY = 0;
     // Allow camera to scroll so the bottommost tile (mapHeight-1) is visible
-    let maxCameraY = Math.max(0, mapHeight - screenHeightInTiles);
+    // The camera position is the top-left corner, so we need to allow it to go down enough
+    // to show the bottom of the map. We need to account for the fact that the camera
+    // position is the top-left corner of the viewport.
+    // Add a small buffer to ensure we can see the very bottom
+    let maxCameraY = Math.max(0, mapHeight - screenHeightInTiles + 0.5);
     
-    // If screen is wider than map, ensure we can see the full map
+    // If screen is wider than map, center the map horizontally
     if (screenWidthInTiles > mapWidth) {
       maxCameraX = 0;
     }
     
-    // If screen is taller than map, ensure we can see the full map
+    // If screen is taller than map, center the map vertically
     if (screenHeightInTiles > mapHeight) {
       maxCameraY = 0;
     }
@@ -1454,11 +1463,10 @@ class GameStateManager {
     const constrainedX = Math.max(minCameraX, Math.min(maxCameraX, cameraX));
     const constrainedY = Math.max(minCameraY, Math.min(maxCameraY, cameraY));
     
-    // Debug logging - always log to see what's happening
-    console.log(`📷 Camera: (${cameraX.toFixed(1)}, ${cameraY.toFixed(1)}) → (${constrainedX.toFixed(1)}, ${constrainedY.toFixed(1)})`);
-    console.log(`📷 Map: ${mapWidth}x${mapHeight}, Screen: ${screenWidthInTiles.toFixed(1)}x${screenHeightInTiles.toFixed(1)}`);
-    console.log(`📷 Bounds: X[${minCameraX}, ${maxCameraX}], Y[${minCameraY}, ${maxCameraY}]`);
-    console.log(`📷 Can scroll to bottom-right: X=${maxCameraX.toFixed(1)}, Y=${maxCameraY.toFixed(1)}`);
+    // Debug logging - only log when camera is actually constrained
+    if (constrainedX !== cameraX || constrainedY !== cameraY) {
+      console.log(`📷 Camera constrained: (${cameraX.toFixed(1)}, ${cameraY.toFixed(1)}) → (${constrainedX.toFixed(1)}, ${constrainedY.toFixed(1)})`);
+    }
     
     return { x: constrainedX, y: constrainedY };
   }
@@ -1538,11 +1546,74 @@ class GameStateManager {
     this.state.cameraPosition.y += deltaY;
     
     // Apply map boundaries to camera using the constraint function
-    const constrainedCamera = this.constrainCameraToMapBounds(this.state.cameraPosition.x, this.state.cameraPosition.y);
-    this.state.cameraPosition = constrainedCamera;
+    // Only constrain if not in free camera mode
+    if (!this.state.freeCameraMode) {
+      const constrainedCamera = this.constrainCameraToMapBounds(this.state.cameraPosition.x, this.state.cameraPosition.y);
+      this.state.cameraPosition = constrainedCamera;
+    }
     
     console.log(`📷 Camera moved from (${oldX.toFixed(1)}, ${oldY.toFixed(1)}) to (${this.state.cameraPosition.x.toFixed(1)}, ${this.state.cameraPosition.y.toFixed(1)}) - delta: (${deltaX.toFixed(2)}, ${deltaY.toFixed(2)})`);
     this.notifyListeners();
+  }
+
+  // Toggle free camera mode (allows viewing beyond map boundaries)
+  toggleFreeCameraMode() {
+    this.state.freeCameraMode = !this.state.freeCameraMode;
+    console.log(`📷 Free camera mode: ${this.state.freeCameraMode ? 'ENABLED' : 'DISABLED'}`);
+    this.notifyListeners();
+  }
+
+  // Set free camera mode
+  setFreeCameraMode(enabled: boolean) {
+    this.state.freeCameraMode = enabled;
+    console.log(`📷 Free camera mode: ${enabled ? 'ENABLED' : 'DISABLED'}`);
+    this.notifyListeners();
+  }
+
+  // Test method to move camera to bottom of map
+  moveCameraToBottom() {
+    const mapHeight = this.state.mapHeight;
+    const screenHeightInTiles = typeof window !== 'undefined' ? window.innerHeight / this.state.tileSize : 10;
+    
+    // Move camera to show the bottom of the map (with buffer)
+    const cameraY = mapHeight - screenHeightInTiles + 0.5;
+    this.setCameraPosition(0, cameraY);
+    console.log(`📷 Moved camera to bottom: Y=${cameraY.toFixed(1)} (map height: ${mapHeight}, screen height: ${screenHeightInTiles.toFixed(1)})`);
+  }
+
+  // Test method to move camera to top-right corner of map
+  moveCameraToTopRight() {
+    const mapWidth = this.state.mapWidth;
+    const mapHeight = this.state.mapHeight;
+    const screenWidthInTiles = typeof window !== 'undefined' ? window.innerWidth / this.state.tileSize : 16;
+    const screenHeightInTiles = typeof window !== 'undefined' ? window.innerHeight / this.state.tileSize : 10;
+    
+    // Move camera to show the top-right of the map
+    const cameraX = mapWidth - screenWidthInTiles;
+    const cameraY = 0;
+    this.setCameraPosition(cameraX, cameraY);
+    console.log(`📷 Moved camera to top-right: X=${cameraX.toFixed(1)}, Y=${cameraY.toFixed(1)} (map: ${mapWidth}x${mapHeight}, screen: ${screenWidthInTiles.toFixed(1)}x${screenHeightInTiles.toFixed(1)})`);
+  }
+
+  // Debug method to show camera bounds
+  debugCameraBounds() {
+    if (typeof window === 'undefined') return;
+    
+    const mapWidth = this.state.mapWidth;
+    const mapHeight = this.state.mapHeight;
+    const screenWidthInTiles = window.innerWidth / this.state.tileSize;
+    const screenHeightInTiles = window.innerHeight / this.state.tileSize;
+    
+    const maxCameraX = Math.max(0, mapWidth - screenWidthInTiles);
+    const maxCameraY = Math.max(0, mapHeight - screenHeightInTiles);
+    
+    console.log(`📷 DEBUG CAMERA BOUNDS:`);
+    console.log(`📷 Map: ${mapWidth}x${mapHeight}`);
+    console.log(`📷 Screen: ${screenWidthInTiles.toFixed(1)}x${screenHeightInTiles.toFixed(1)} tiles`);
+    console.log(`📷 Max camera X: ${maxCameraX.toFixed(1)} (allows viewing up to tile ${(maxCameraX + screenWidthInTiles).toFixed(1)})`);
+    console.log(`📷 Max camera Y: ${maxCameraY.toFixed(1)} (allows viewing up to tile ${(maxCameraY + screenHeightInTiles).toFixed(1)})`);
+    console.log(`📷 Map tiles: 0 to ${mapWidth-1} (X), 0 to ${mapHeight-1} (Y)`);
+    console.log(`📷 Current camera: (${this.state.cameraPosition.x.toFixed(1)}, ${this.state.cameraPosition.y.toFixed(1)})`);
   }
 
   resetCameraToPlayer() {
@@ -1869,7 +1940,7 @@ class GameStateManager {
 
   private checkForWalkingConversations(agent: AIAgent, now: number): void {
     // Check for conversations when agents are walking and meet each other
-    if (Math.random() > 0.05) return; // Only 5% chance when walking
+    if (Math.random() > 0.05) return; // Reduced to 5% chance when walking (was 20% for testing)
     
     const nearbyAgents = this.findNearbyAgents(agent, 1); // Within 1 tile when walking
     if (nearbyAgents.length === 0) return;
@@ -1888,12 +1959,13 @@ class GameStateManager {
                    agent.activity === CrewmateActivity.WORKING || 
                    agent.activity === CrewmateActivity.RESEARCHING;
     
-    if (!canTalk || Math.random() > 0.08) { // Increased from 0.02 to 0.08 (8% chance)
+    if (!canTalk || Math.random() > 0.1) { // Reduced to 10% chance (was 30% for testing)
       return;
     }
+    
 
     // Add thinking message to chat feed (much less frequent)
-    if (Math.random() > 0.7) { // Only 30% chance of showing thinking
+    if (Math.random() > 0.95) { // Only 5% chance of showing thinking (reduced from 30%)
       this.addChatMessage({
         id: `agent_thinking_${agent.id}_${now}_${Math.random().toString(36).substr(2, 9)}`,
         agentId: agent.id,
@@ -1939,10 +2011,12 @@ class GameStateManager {
   private selectConversationType(agent: AIAgent, otherAgent: AIAgent, now: number): string | null {
     // Check if agents have interacted recently
     const lastInteractionKey = `${agent.id}-${otherAgent.id}`;
-    const lastInteraction = agent.lastInteractionTime || 0;
+    const agentLastInteraction = agent.lastInteractionTime || 0;
+    const otherAgentLastInteraction = otherAgent.lastInteractionTime || 0;
     
-    // Don't interact too frequently (at least 30 seconds between conversations)
-    if (now - lastInteraction < 30000) {
+    // Don't interact too frequently (at least 10 seconds between conversations for testing)
+    // Check both agents to ensure neither has interacted too recently
+    if (now - agentLastInteraction < 10000 || now - otherAgentLastInteraction < 10000) {
       return null;
     }
 
@@ -1980,10 +2054,15 @@ class GameStateManager {
     
     // Give XP to both agents for interacting
     const xpGain = 5 + Math.floor(Math.random() * 10); // 5-15 XP per interaction
+    
     agent.experiencePoints += xpGain;
     agent.totalInteractions += 1;
     otherAgent.experiencePoints += xpGain;
     otherAgent.totalInteractions += 1;
+    
+    // Save XP and interaction data to backend
+    this.saveAgentXPData(agent);
+    this.saveAgentXPData(otherAgent);
     
     // Check for level ups
     const agentNewLevel = Math.floor(agent.experiencePoints / 100) + 1;
@@ -2020,7 +2099,7 @@ class GameStateManager {
     agent.lastInteractionTime = now;
 
     // Add conversation message to chat feed (only sometimes)
-    if (Math.random() > 0.5) { // Only 50% chance of showing conversations
+    if (Math.random() > 0.8) { // Only 20% chance of showing conversations (reduced from 50%)
       this.addChatMessage({
         id: `conversation_${agent.id}_${now}_${Math.random().toString(36).substr(2, 9)}`,
         agentId: agent.id,
@@ -2075,7 +2154,7 @@ class GameStateManager {
         otherAgent.lastInteractionTime = Date.now();
 
         // Add response message to chat feed (only sometimes)
-        if (Math.random() > 0.3) { // Only 70% chance of showing responses
+        if (Math.random() > 0.7) { // Only 30% chance of showing responses (reduced from 70%)
           this.addChatMessage({
             id: `conversation_response_${otherAgent.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             agentId: otherAgent.id,
@@ -2086,8 +2165,30 @@ class GameStateManager {
         }
       }
     }, 4000); // 4 second delay for response
-    
-    console.log(`💬 ${agent.name} to ${otherAgent.name}: "${message}"`);
+  }
+
+  // Save agent XP and interaction data to backend
+  private async saveAgentXPData(agent: AIAgent): Promise<void> {
+    try {
+      const response = await fetch(`/api/agents/${agent.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          experience_points: agent.experiencePoints,
+          level: agent.level,
+          // Note: totalInteractions is not stored in the backend schema
+          // but we could add it if needed
+        }),
+      });
+
+      if (!response.ok) {
+        console.error(`❌ Failed to save XP data for ${agent.name}:`, response.statusText);
+      }
+    } catch (error) {
+      console.error(`❌ Error saving XP data for ${agent.name}:`, error);
+    }
   }
 }
 

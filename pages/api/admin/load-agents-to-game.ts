@@ -41,7 +41,7 @@ export default async function handler(
     const loadedAgents = [];
 
     for (const agent of agents) {
-      let x: number, y: number;
+      let x: number = 0, y: number = 0;
       let buildingId: string | null = null;
 
       // Check if agent has an assigned building in memory
@@ -103,7 +103,11 @@ export default async function handler(
         isFollowingPath: false,
         lastBuildingVisitTime: 0,
         visitCooldown: 5000,
-        moveInterval: 200 + Math.random() * 200
+        moveInterval: 200 + Math.random() * 200,
+        experiencePoints: agent.experience_points || 0,
+        level: agent.level || 1,
+        totalInteractions: 0,
+        playerInteractions: 0
       };
 
       gameState.addAIAgent(gameAgent);

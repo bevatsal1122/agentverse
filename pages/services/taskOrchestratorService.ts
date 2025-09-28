@@ -25,6 +25,13 @@ interface TaskOrchestrationRequest {
   userId: string;
 }
 
+interface UserAssignedTaskRequest {
+  userTaskDescription: string;
+  targetAgent: Agent;
+  availableAgents: Agent[];
+  userId: string;
+}
+
 interface TaskOrchestrationResponse {
   success: boolean;
   tasks?: MasterTaskResponse[];
@@ -140,6 +147,101 @@ class TaskOrchestratorService {
     }
   }
 
+  async generateUserAssignedTask(request: UserAssignedTaskRequest): Promise<TaskOrchestrationResponse> {
+    if (!this.apiKey) {
+      return {
+        success: false,
+        error: 'OpenAI API key not configured'
+      };
+    }
+
+    try {
+      // Fetch full agent data from database for each agent
+      const enrichedAgents = await Promise.all(
+        request.availableAgents.map(async (agent) => {
+          try {
+            const fullAgentResult = await agentService.getAgentById(agent.id);
+            if (fullAgentResult.success && fullAgentResult.data) {
+              return fullAgentResult.data;
+            } else {
+              console.warn(`Failed to fetch full data for agent ${agent.id}, using provided data`);
+              return agent;
+            }
+          } catch (error) {
+            console.warn(`Error fetching agent ${agent.id}:`, error);
+            return agent;
+          }
+        })
+      );
+
+      // Update the request with enriched agent data
+      const enrichedRequest = {
+        ...request,
+        availableAgents: enrichedAgents
+      };
+
+      const prompt = this.buildUserAssignedTaskPrompt(enrichedRequest);
+      
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content: this.getUserAssignedTaskSystemPrompt()
+            },
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 2048,
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+        throw new Error('Invalid response format from OpenAI API');
+      }
+
+      const aiResponse = data.choices[0].message.content;
+      const tasks = this.parseTaskResponse(aiResponse, enrichedRequest.userId);
+
+      // Validate agent addresses with enriched agent data
+      const validation = this.validateAgentAddresses(tasks, enrichedAgents);
+      if (!validation.valid) {
+        return {
+          success: false,
+          error: 'Invalid agent addresses in generated tasks',
+          details: validation.errors.join('; ')
+        };
+      }
+
+      return {
+        success: true,
+        tasks
+      };
+
+    } catch (error) {
+      console.error('Error calling OpenAI API for user-assigned task orchestration:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      };
+    }
+  }
+
   private getSystemPrompt(): string {
     return `You are the task orchestrator for an AI agent metaverse.  
 Your role is to design meaningful, collaborative tasks that a set of available agents (each with unique capabilities, personalities, and descriptions) can complete together end-to-end.  
@@ -191,6 +293,59 @@ CONSTRAINTS:
 `;
   }
 
+  private getUserAssignedTaskSystemPrompt(): string {
+    return `You are the task orchestrator for an AI agent metaverse.  
+Your role is to design meaningful, collaborative tasks based on a user's specific request and assign them to a target agent along with other available agents.
+
+CRITICAL OBJECTIVES:  
+1. Use ONLY the provided agent IDs (NOT agent names), capabilities, and descriptions.  
+2. Generate exactly one collaborative task where:  
+   - The target agent (specified by the user) is designated as the parent (master) agent.  
+   - One or more agents (including the target agent and others) are designated as children with subtasks.  
+3. Ensure the master task is based on the user's specific request and logically requires the child subtasks for successful completion.  
+4. Write all prompts in first-person language (e.g., "I will...", "I need to...").  
+5. Tasks must be realistically achievable by the given agents' capabilities and personalities.  
+6. The target agent should be the master agent coordinating the user's request.
+
+STRUCTURE & RULES:  
+- The target agent (specified by user) becomes the parent (master) agent.  
+- Assign child agents subtasks that align directly with their skills and personalities.  
+- Ensure every child task contributes to the master task's completion.  
+- Make tasks engaging, cooperative, and directly related to the user's request.  
+- Always return output in the exact JSON schema below with **no extra text**:  
+
+[
+    {
+        "id": <unique_task_id>,
+        "user_id": <user_id>,
+        "agent_address": "<target_agent_id>",
+        "prompt": "<master agent instruction based on user request in first-person view>",
+        "media_b64": "<optional media base64 string or null>",
+        "created_at": "<YYYY-MM-DD HH:MM:SS>",
+        "agentic_tasks": [
+            {
+                "id": <unique_subtask_id>,
+                "task_id": <unique_task_id>,
+                "prompt": "<child agent instruction in first-person view>",
+                "media_b64": "<optional media base64 string or null>",
+                "agent_address": "<child_agent_id>",
+                "created_at": "<YYYY-MM-DD HH:MM:SS>"
+            }
+        ]
+    }
+]
+
+CONSTRAINTS:  
+- No text outside of the JSON.  
+- Use ONLY valid agent IDs from the provided list (NOT agent names like "CaptainAI" or "Vatvat15").  
+- All timestamps must follow "YYYY-MM-DD HH:MM:SS" format.  
+- Each task must be logically necessary for completion of the master task.  
+- The JSON must be valid and parseable without modification.  
+- IMPORTANT: agent_address must be the exact agent ID (UUID format), not the agent name.  
+- The target agent must be the master agent (agent_address in the main task object).
+`;
+  }
+
   private buildOrchestrationPrompt(request: TaskOrchestrationRequest): string {
     const agentSummaries = request.availableAgents.map(agent => ({
       id: agent.id,
@@ -232,6 +387,61 @@ EXAMPLES BASED ON AGENT TYPES:
 REMEMBER: agent_address must be the UUID (like "6cbfaab7-b36c-4728-83c6-16dc24637c86"), NOT the name (like "CaptainAI").
 
 Create a task that leverages the unique strengths of these specific agents and ensures they can work together effectively to complete it.`;
+  }
+
+  private buildUserAssignedTaskPrompt(request: UserAssignedTaskRequest): string {
+    const agentSummaries = request.availableAgents.map(agent => ({
+      id: agent.id,
+      name: agent.name,
+      description: agent.description || 'No description provided',
+      capabilities: agent.capabilities || [],
+      personality: agent.personality || 'friendly',
+      level: agent.level || 1,
+      experience_points: agent.experience_points || 0,
+      reputation_score: agent.reputation_score || 100,
+      owner_address: agent.owner_address,
+      wallet_address: agent.wallet_address,
+      created_at: agent.created_at
+    }));
+
+    return `Generate a collaborative task based on the user's specific request and assign it to the target agent.
+
+CRITICAL: Use ONLY the agent IDs (not names) from the list below. The agent_address field must contain the exact agent ID (UUID format).
+
+USER'S TASK REQUEST: "${request.userTaskDescription}"
+
+TARGET AGENT (must be the master agent):
+- ID: ${request.targetAgent.id}
+- Name: ${request.targetAgent.name}
+- Description: ${request.targetAgent.description || 'No description provided'}
+- Capabilities: ${JSON.stringify(request.targetAgent.capabilities || [])}
+- Personality: ${JSON.stringify(request.targetAgent.personality || 'friendly')}
+
+AVAILABLE AGENTS:
+${JSON.stringify(agentSummaries, null, 2)}
+
+USER ID: ${request.userId}
+
+TASK REQUIREMENTS:
+1. Create a task based on the user's specific request: "${request.userTaskDescription}"
+2. The target agent (${request.targetAgent.id}) must be the master agent coordinating this task
+3. Assign subtasks to other agents that match their specific skills and personality
+4. Ensure the task directly addresses the user's request and is realistic and achievable
+5. Make sure all subtasks are necessary for the master task completion
+6. Use the exact agent ID (UUID) in the agent_address field, NOT the agent name
+7. The master task should be based on the user's request and assigned to the target agent
+
+EXAMPLES BASED ON USER REQUESTS:
+- If user asks for "research on DeFi protocols": create a research task with the target agent coordinating and others gathering data, analyzing, etc.
+- If user asks for "build a trading strategy": create a development task with the target agent leading and others providing market analysis, risk assessment, etc.
+- If user asks for "create content": create a content creation task with the target agent managing and others researching, writing, editing, etc.
+
+REMEMBER: 
+- agent_address must be the UUID (like "6cbfaab7-b36c-4728-83c6-16dc24637c86"), NOT the name (like "CaptainAI")
+- The target agent (${request.targetAgent.id}) must be the master agent (agent_address in the main task object)
+- The task must directly address the user's request: "${request.userTaskDescription}"
+
+Create a task that directly fulfills the user's request and leverages the unique strengths of these specific agents, with the target agent coordinating the effort.`;
   }
 
   private parseTaskResponse(aiResponse: string, userId: string): MasterTaskResponse[] {
@@ -356,4 +566,4 @@ Create a task that leverages the unique strengths of these specific agents and e
 }
 
 export const taskOrchestratorService = new TaskOrchestratorService();
-export type { MasterTaskResponse, AgenticTask, TaskOrchestrationRequest, TaskOrchestrationResponse };
+export type { MasterTaskResponse, AgenticTask, TaskOrchestrationRequest, UserAssignedTaskRequest, TaskOrchestrationResponse };

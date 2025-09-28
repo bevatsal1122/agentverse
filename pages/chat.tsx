@@ -140,20 +140,79 @@ export default function Chat() {
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    const messageText = inputText;
     setInputText("");
     setIsLoading(true);
 
-    // Simulate agent response
-    setTimeout(() => {
+    try {
+      // Check if the message is a task assignment (contains keywords like "task", "assign", "work", etc.)
+      const isTaskAssignment = /task|assign|work|do|help|create|build|research|analyze|develop|plan|make|find|get|organize|prepare|design|write|code|program|fix|solve|check|review|study|learn|teach|explain|show|tell|guide|assist|support|manage|handle|process|generate|produce|deliver|complete|finish|implement|execute|perform|carry|out/i.test(messageText);
+      
+      console.log('🔍 Message:', messageText);
+      console.log('🔍 Is task assignment:', isTaskAssignment);
+      console.log('🔍 Agent ID:', agentId);
+      
+      // Always try to assign as task if we have an agent ID (for testing purposes)
+      if (agentId) {
+        // This is a task assignment - call the user-assigned task API
+        const response = await fetch('/api/tasks/assign-user-task', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: '2', // Default user ID
+            taskDescription: messageText,
+            targetAgentId: Array.isArray(agentId) ? agentId[0] : agentId
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('🔍 API Response:', data);
+
+        if (data.success) {
+          const agentResponse: Message = {
+            id: (Date.now() + 1).toString(),
+            text: `🎯 Task assigned successfully! I've created a collaborative task based on your request: "${messageText}". The task has been broken down into subtasks and assigned to me and other agents. We'll work together to complete this task.`,
+            sender: "agent",
+            timestamp: new Date(),
+          };
+          setMessages((prev) => [...prev, agentResponse]);
+        } else {
+          const agentResponse: Message = {
+            id: (Date.now() + 1).toString(),
+            text: `❌ Sorry, I couldn't create the task. ${data.error || 'An error occurred while processing your request.'}`,
+            sender: "agent",
+            timestamp: new Date(),
+          };
+          setMessages((prev) => [...prev, agentResponse]);
+        }
+      } else {
+        // Regular chat message - simulate agent response
+        const agentResponse: Message = {
+          id: (Date.now() + 1).toString(),
+          text: `I understand you said: "${messageText}". This is a simulated response from the agent. In a real implementation, this would connect to the actual agent's API.`,
+          sender: "agent",
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, agentResponse]);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
       const agentResponse: Message = {
         id: (Date.now() + 1).toString(),
-        text: `I understand you said: "${inputText}". This is a simulated response from the agent. In a real implementation, this would connect to the actual agent's API.`,
+        text: `❌ Sorry, there was an error processing your message. Please try again.`,
         sender: "agent",
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, agentResponse]);
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   const formatTime = (date: Date) => {
@@ -231,14 +290,14 @@ export default function Chat() {
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <div className="mr-3">
-                <RandomAvatar name={agentName} size={40} />
+                <RandomAvatar name={Array.isArray(agentName) ? agentName[0] : agentName} size={40} />
               </div>
               <div>
                 <h1 className="text-lg font-bold text-white">
                   Chat with {agentName}
                 </h1>
                 <p className="text-sm text-blue-300">
-                  Agent ID: {agentId.toString().slice(0, 8)}...
+                  Agent ID: {(Array.isArray(agentId) ? agentId[0] : agentId).slice(0, 8)}...
                 </p>
               </div>
             </div>
@@ -265,7 +324,7 @@ export default function Chat() {
               >
                 {message.sender === "agent" && (
                   <div className="flex-shrink-0 mr-2">
-                    <RandomAvatar name={agentName} size={24} />
+                    <RandomAvatar name={Array.isArray(agentName) ? agentName[0] : agentName} size={24} />
                   </div>
                 )}
                 <div
@@ -290,7 +349,7 @@ export default function Chat() {
             {isLoading && (
               <div className="flex justify-start">
                 <div className="flex-shrink-0 mr-2">
-                  <RandomAvatar name={agentName} size={24} />
+                  <RandomAvatar name={Array.isArray(agentName) ? agentName[0] : agentName} size={24} />
                 </div>
                 <div className="bg-gray-700 text-gray-100 px-4 py-2 rounded-lg">
                   <div className="flex items-center space-x-2">
@@ -318,7 +377,7 @@ export default function Chat() {
               type="text"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              placeholder="Type your message..."
+              placeholder="Type your message or assign a task (e.g., 'research DeFi protocols', 'build a trading strategy')..."
               className="flex-1 p-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
               disabled={isLoading}
             />

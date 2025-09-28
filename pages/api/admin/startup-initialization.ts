@@ -82,11 +82,13 @@ export default async function handler(
         const newMetadata = {
           id: agent.id,
           assigned_building_ids: [],
-          current_building_id: null,
+          current_building_id: undefined,
           status: 'active' as const,
           experience_points: 0,
           level: 1,
           reputation_score: 0,
+          capabilities: [],
+          last_active: new Date().toISOString(),
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };
