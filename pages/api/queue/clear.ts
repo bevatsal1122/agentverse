@@ -1,65 +1,42 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { taskQueueService } from '../../services/taskQueueService';
-import { agentService } from '../../services/agentService';
+import { redisService } from '../../services/redisService';
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  if (req.method !== 'DELETE') {
+  if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const { agentId } = req.body;
-
-    if (!agentId) {
-      return res.status(400).json({ 
-        error: 'Agent ID is required' 
-      });
+    // Get all hierarchical queue keys from Redis
+    const redisKeys = await redisService.keys('hierarchical_queue:*');
+    console.log('🔍 Found Redis queue keys to clear:', redisKeys);
+    
+    let clearedQueues = 0;
+    
+    // Clear each queue
+    for (const key of redisKeys) {
+      await redisService.set(key, []);
+      clearedQueues++;
+      console.log(`🧹 Cleared queue: ${key}`);
     }
-
-    // Verify agent exists
-    const agentResult = await agentService.getAgentById(agentId);
-    if (!agentResult.success) {
-      return res.status(404).json({ 
-        error: 'Agent not found' 
-      });
-    }
-
-    // Get queue status before clearing
-    const statusBefore = taskQueueService.getQueueStatus(agentId);
-
-    // Clear the queue
-    const cleared = taskQueueService.clearQueue(agentId);
-
-    if (!cleared) {
-      return res.status(404).json({ 
-        error: 'No queue found for this agent' 
-      });
-    }
-
-    // Log the clearing action
-    await agentService.logAgentAction({
-      agent_id: agentId,
-      action_type: 'custom',
-      action_data: { 
-        type: 'queue_cleared',
-        tasks_removed: statusBefore.queueLength
-      },
-      success: true,
-    });
-
+    
+    console.log(`🧹 Cleared ${clearedQueues} hierarchical queues`);
+    
     res.status(200).json({ 
       success: true,
-      message: `Queue cleared for agent ${agentResult.data?.name || agentId}`,
-      tasksRemoved: statusBefore.queueLength
+      message: `Cleared ${clearedQueues} hierarchical queues`,
+      clearedQueues: clearedQueues,
+      clearedKeys: redisKeys
     });
 
   } catch (error) {
-    console.error('Error clearing queue:', error);
+    console.error('Error clearing queues:', error);
     res.status(500).json({ 
-      error: 'Internal server error' 
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 }

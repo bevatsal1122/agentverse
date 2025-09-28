@@ -40,6 +40,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
   // Notification system
   const { notifications, addNotification, removeNotification } = useNotifications();
 
+  // Helper function to get display name (ENS if available, otherwise agent name)
+  const getAgentDisplayName = (agent: any): string => {
+    return agent.ens || agent.name;
+  };
+
   // Set up notification callback for collaborative task service
   useEffect(() => {
     collaborativeTaskService.setNotificationCallback(addNotification);
@@ -113,15 +118,15 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
         
         let loadedCount = 0;
         for (const agent of agentsResult.agents) {
-          console.log(`🔄 Converting agent: ${agent.name} (ID: ${agent.id})`);
+          console.log(`🔄 Converting agent: ${getAgentDisplayName(agent)} (ID: ${agent.id})`);
           // Convert backend agent to game AI agent
           const gameAgent = convertBackendAgentToGameAgent(agent);
           if (gameAgent) {
             gameState.addAIAgent(gameAgent);
             loadedCount++;
-            console.log(`✅ Loaded agent ${agent.name} at (${gameAgent.x}, ${gameAgent.y})`);
+            console.log(`✅ Loaded agent ${getAgentDisplayName(agent)} at (${gameAgent.x}, ${gameAgent.y})`);
           } else {
-            console.warn(`❌ Failed to convert agent ${agent.name} to game agent`);
+            console.warn(`❌ Failed to convert agent ${getAgentDisplayName(agent)} to game agent`);
           }
         }
         console.log(`🎉 Successfully loaded ${loadedCount} agents into game state`);
@@ -210,6 +215,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     return {
       id: backendAgent.id,
       name: backendAgent.name,
+      ens: backendAgent.ens,
       type,
       x,
       y,
@@ -452,7 +458,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       gameState.addChatMessage({
         id: `agent_levelup_${agent.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         agentId: agent.id,
-        message: `🎉 ${agent.name} leveled up to level ${newLevel}!`,
+        message: `🎉 ${getAgentDisplayName(agent)} leveled up to level ${newLevel}!`,
         timestamp: Date.now(),
         type: 'action'
       });
@@ -490,7 +496,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     gameState.addChatMessage({
       id: `player_interact_${agent.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       agentId: 'player',
-      message: `👋 Player approaches ${agent.name} (+${xpGain} XP to ${agent.name}, +${playerXpGain} XP to player)`,
+      message: `👋 Player approaches ${getAgentDisplayName(agent)} (+${xpGain} XP to ${getAgentDisplayName(agent)}, +${playerXpGain} XP to player)`,
       timestamp: Date.now(),
       type: 'interaction'
     });
@@ -501,7 +507,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
         `Hello! Nice to meet you!`,
         `Hi there! How can I help you?`,
         `Good to see you! What brings you here?`,
-        `Hello! I'm ${agent.name}, nice to meet you!`,
+        `Hello! I'm ${getAgentDisplayName(agent)}, nice to meet you!`,
         `Hi! I'm working on some interesting projects.`,
         `Hello! Welcome to our space station!`
       ];
@@ -512,7 +518,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       gameState.addChatMessage({
         id: `agent_response_${agent.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         agentId: agent.id,
-        message: `💬 ${agent.name}: "${response}"`,
+        message: `💬 ${getAgentDisplayName(agent)}: "${response}"`,
         timestamp: Date.now(),
         type: 'interaction'
       });
@@ -1328,9 +1334,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     // Draw agent name tag
     ctx.font = '10px Arial';
     ctx.fillStyle = agent.color;
-    const nameWidth = ctx.measureText(agent.name).width;
+    const displayName = getAgentDisplayName(agent);
+    const nameWidth = ctx.measureText(displayName).width;
     ctx.fillText(
-      agent.name,
+      displayName,
       bubbleX + bubbleWidth / 2 - nameWidth / 2,
       bubbleY - 5
     );

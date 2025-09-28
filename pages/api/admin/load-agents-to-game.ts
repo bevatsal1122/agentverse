@@ -107,7 +107,10 @@ export default async function handler(
         experiencePoints: agent.experience_points || 0,
         level: agent.level || 1,
         totalInteractions: 0,
-        playerInteractions: 0
+        playerInteractions: 0,
+        // Capital system
+        totalCapital: agent.total_capital || 1000,
+        lastCapitalUpdate: Date.now()
       };
 
       gameState.addAIAgent(gameAgent);

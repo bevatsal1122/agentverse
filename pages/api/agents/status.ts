@@ -12,7 +12,7 @@ export default async function handler(
 
   try {
     // Get agents from game state
-    const gameAgents = Array.from(gameState.state.aiAgents.values());
+    const gameAgents = Array.from(gameState.getAIAgents().values());
     
     // Get agents from persistent storage
     const memoryAgents = await persistentMemoryStorageService.getActiveAgentsAsync();

@@ -83,7 +83,7 @@ export default function App({ Component, pageProps }: AppProps) {
                 </div>
                 <div>
                   <h1 className="text-3xl font-bold text-black mb-1">
-                    AGENTVERSE
+                    AGENTICVERSE
                   </h1>
                   <p className="text-sm text-gray-700">CITY BUILDER</p>
                 </div>

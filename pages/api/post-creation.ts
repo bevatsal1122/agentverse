@@ -40,16 +40,16 @@ const sendEthHelper = async (owner: string, amount: string = "0.0005") => {
     });
 
     // Create provider and wallet
-    const provider = new ethers.JsonRpcProvider(finalRpcUrl);
+    const provider = new ethers.providers.JsonRpcProvider(finalRpcUrl);
     const wallet = new ethers.Wallet(privateKey as string, provider);
 
     console.log("💰 Sender wallet address:", wallet.address);
 
     // Check wallet balance
     const balance = await provider.getBalance(wallet.address);
-    console.log("💰 Sender balance:", ethers.formatEther(balance), "ETH");
+    console.log("💰 Sender balance:", ethers.utils.formatEther(balance), "ETH");
 
-    const amountWei = ethers.parseEther(amount);
+    const amountWei = ethers.utils.parseEther(amount);
     if (balance < amountWei) {
       console.error("❌ Insufficient balance for transfer");
       return;
@@ -66,7 +66,7 @@ const sendEthHelper = async (owner: string, amount: string = "0.0005") => {
       hash: tx.hash,
       from: tx.from,
       to: tx.to,
-      value: ethers.formatEther(tx.value || 0) + " ETH",
+      value: ethers.utils.formatEther(tx.value || 0) + " ETH",
     });
 
     // Wait for confirmation
@@ -77,8 +77,8 @@ const sendEthHelper = async (owner: string, amount: string = "0.0005") => {
       console.log("✅ ETH transfer confirmed:", {
         blockNumber: receipt.blockNumber,
         gasUsed: receipt.gasUsed?.toString(),
-        effectiveGasPrice: receipt.gasPrice
-          ? ethers.formatUnits(receipt.gasPrice, "gwei") + " gwei"
+        effectiveGasPrice: receipt.effectiveGasPrice
+          ? ethers.utils.formatUnits(receipt.effectiveGasPrice, "gwei") + " gwei"
           : "unknown",
       });
     } else {
@@ -113,18 +113,18 @@ const ensSubnameRegister = async (label: string, owner: string) => {
     }
 
     // Create provider and wallet
-    const provider = new ethers.JsonRpcProvider(finalRpcUrl);
+    const provider = new ethers.providers.JsonRpcProvider(finalRpcUrl);
     const wallet = new ethers.Wallet(privateKey as string, provider);
 
-    console.log("💰 Wallet address:", wallet.address);
+    console.log("💰 ethers.Wallet address:", wallet.address);
 
     // Check wallet balance
     const balance = await provider.getBalance(wallet.address);
-    console.log("💰 Wallet balance:", ethers.formatEther(balance), "ETH");
+    console.log("💰 ethers.Wallet balance:", ethers.utils.formatEther(balance), "ETH");
 
-    if (balance === BigInt(0)) {
+    if (balance.isZero()) {
       console.warn(
-        "⚠️  Warning: Wallet has 0 ETH balance. Transaction may fail due to insufficient gas."
+        "⚠️  Warning: ethers.Wallet has 0 ETH balance. Transaction may fail due to insufficient gas."
       );
     }
 
@@ -150,13 +150,13 @@ const ensSubnameRegister = async (label: string, owner: string) => {
     const feeData = await provider.getFeeData();
     console.log("⛽ Gas price:", {
       gasPrice: feeData.gasPrice
-        ? ethers.formatUnits(feeData.gasPrice, "gwei") + " gwei"
+        ? ethers.utils.formatUnits(feeData.gasPrice, "gwei") + " gwei"
         : "null",
       maxFeePerGas: feeData.maxFeePerGas
-        ? ethers.formatUnits(feeData.maxFeePerGas, "gwei") + " gwei"
+        ? ethers.utils.formatUnits(feeData.maxFeePerGas, "gwei") + " gwei"
         : "null",
       maxPriorityFeePerGas: feeData.maxPriorityFeePerGas
-        ? ethers.formatUnits(feeData.maxPriorityFeePerGas, "gwei") + " gwei"
+        ? ethers.utils.formatUnits(feeData.maxPriorityFeePerGas, "gwei") + " gwei"
         : "null",
     });
 
@@ -179,8 +179,8 @@ const ensSubnameRegister = async (label: string, owner: string) => {
       console.log("✅ Transaction confirmed:", {
         blockNumber: receipt.blockNumber,
         gasUsed: receipt.gasUsed?.toString(),
-        effectiveGasPrice: receipt.gasPrice
-          ? ethers.formatUnits(receipt.gasPrice, "gwei") + " gwei"
+        effectiveGasPrice: receipt.effectiveGasPrice
+          ? ethers.utils.formatUnits(receipt.effectiveGasPrice, "gwei") + " gwei"
           : "unknown",
       });
 

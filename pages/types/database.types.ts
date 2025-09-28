@@ -13,6 +13,7 @@ export interface Agent {
   owner_address: string;
   wallet_address?: string;
   created_at: string;
+  ens?: string;
   // Memory-only fields
   description?: string;
   personality?: {
@@ -648,3 +649,67 @@ export const Constants = {
     Enums: {},
   },
 } as const
+
+// Additional types for services
+export interface Token {
+  id: string;
+  name: string;
+  symbol: string;
+  total_supply: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TokenInsert {
+  name: string;
+  symbol: string;
+  total_supply: number;
+}
+
+export interface TokenUpdate {
+  name?: string;
+  symbol?: string;
+  total_supply?: number;
+}
+
+export interface City {
+  id: string;
+  name: string;
+  description: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CityInsert {
+  name: string;
+  description: string;
+}
+
+export interface CityUpdate {
+  name?: string;
+  description?: string;
+}
+
+export interface Building {
+  id: string;
+  name: string;
+  type: string;
+  x: number;
+  y: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BuildingInsert {
+  name: string;
+  type: string;
+  x: number;
+  y: number;
+}
+
+export interface BuildingUpdate {
+  name?: string;
+  type?: string;
+  x?: number;
+  y?: number;
+}

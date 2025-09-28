@@ -65,6 +65,7 @@ export interface ChatMessage {
 export interface AIAgent {
   id: string;
   name: string;
+  ens?: string;
   type: CrewmateType;
   color: string;
   x: number;

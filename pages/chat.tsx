@@ -100,7 +100,11 @@ export default function Chat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [agentData, setAgentData] = useState<any>(null);
+  const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
+  const [isPolling, setIsPolling] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -109,6 +113,99 @@ export default function Chat() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Generate a unique task ID when component mounts
+  useEffect(() => {
+    if (agentId && !currentTaskId) {
+      const newTaskId = Date.now().toString(); // Simple integer ID
+      setCurrentTaskId(newTaskId);
+    }
+  }, [agentId, currentTaskId]);
+
+  // Function to fetch responses for the current task
+  const fetchResponses = async () => {
+    if (!currentTaskId) return;
+    console.log('🔄 Fetching responses for task:', currentTaskId);
+    try {
+      const response = await fetch(`/api/communications/get-responses?taskId=${currentTaskId}`);
+      const data = await response.json();
+
+      if (response.ok && data.success && data.content) {
+        // Check if we already have this content to avoid duplicates
+        const existingContent = messages.some(msg => msg.text === data.content);
+        
+        if (!existingContent) {
+          const newMessage: Message = {
+            id: Date.now().toString(),
+            text: data.content,
+            sender: "agent" as const,
+            timestamp: new Date()
+          };
+
+          setMessages(prev => [...prev, newMessage]);
+          setIsLoading(false);
+          setIsPolling(false);
+          console.log('📨 New response received and displayed');
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching responses:', error);
+    }
+  };
+
+  // Start polling when waiting for responses
+  useEffect(() => {
+    if (isPolling && currentTaskId) {
+      console.log('🔄 Starting polling for task:', currentTaskId);
+      
+      // Poll immediately
+      fetchResponses();
+      
+      // Then poll every 1 second
+      pollingIntervalRef.current = setInterval(fetchResponses, 1000);
+    } else {
+      // Stop polling
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+        console.log('⏹️ Stopped polling');
+      }
+    }
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [isPolling, currentTaskId]);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+  }, []);
+
+  const fetchAgentData = async () => {
+    if (!agentId) return;
+    
+    try {
+      const response = await fetch('/api/agents');
+      const data = await response.json();
+      
+      if (response.ok && data.agents) {
+        const agent = data.agents.find((a: any) => a.id === agentId);
+        if (agent) {
+          setAgentData(agent);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching agent data:', error);
+    }
+  };
 
   useEffect(() => {
     // Load dummy chat data when component mounts
@@ -125,12 +222,15 @@ export default function Chat() {
       }));
 
       setMessages(formattedMessages);
+      
+      // Fetch agent data for ENS link
+      fetchAgentData();
     }
   }, [agentId, agentName]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim() || isLoading) return;
+    if (!inputText.trim() || isLoading || !currentTaskId) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -143,6 +243,7 @@ export default function Chat() {
     const messageText = inputText;
     setInputText("");
     setIsLoading(true);
+    setIsPolling(true);
 
     try {
       // Check if the message is a task assignment (contains keywords like "task", "assign", "work", etc.)
@@ -151,6 +252,7 @@ export default function Chat() {
       console.log('🔍 Message:', messageText);
       console.log('🔍 Is task assignment:', isTaskAssignment);
       console.log('🔍 Agent ID:', agentId);
+      console.log('🔍 Frontend Task ID:', currentTaskId);
       
       // Always try to assign as task if we have an agent ID (for testing purposes)
       if (agentId) {
@@ -163,7 +265,8 @@ export default function Chat() {
           body: JSON.stringify({
             userId: '2', // Default user ID
             taskDescription: messageText,
-            targetAgentId: Array.isArray(agentId) ? agentId[0] : agentId
+            targetAgentId: Array.isArray(agentId) ? agentId[0] : agentId,
+            taskId: currentTaskId // Include task ID for response tracking
           }),
         });
 
@@ -175,14 +278,10 @@ export default function Chat() {
         console.log('🔍 API Response:', data);
 
         if (data.success) {
-          const agentResponse: Message = {
-            id: (Date.now() + 1).toString(),
-            text: `🎯 Task assigned successfully! I've created a collaborative task based on your request: "${messageText}". The task has been broken down into subtasks and assigned to me and other agents. We'll work together to complete this task.`,
-            sender: "agent",
-            timestamp: new Date(),
-          };
-          setMessages((prev) => [...prev, agentResponse]);
+          // Don't add immediate response - wait for backend to call response endpoint
+          console.log('🎯 Task assigned, polling for agent response...');
         } else {
+          // Show error immediately since no agent response is expected
           const agentResponse: Message = {
             id: (Date.now() + 1).toString(),
             text: `❌ Sorry, I couldn't create the task. ${data.error || 'An error occurred while processing your request.'}`,
@@ -190,6 +289,8 @@ export default function Chat() {
             timestamp: new Date(),
           };
           setMessages((prev) => [...prev, agentResponse]);
+          setIsLoading(false);
+          setIsPolling(false);
         }
       } else {
         // Regular chat message - simulate agent response
@@ -200,6 +301,8 @@ export default function Chat() {
           timestamp: new Date(),
         };
         setMessages((prev) => [...prev, agentResponse]);
+        setIsLoading(false);
+        setIsPolling(false);
       }
     } catch (error) {
       console.error('Error sending message:', error);
@@ -210,8 +313,8 @@ export default function Chat() {
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, agentResponse]);
-    } finally {
       setIsLoading(false);
+      setIsPolling(false);
     }
   };
 
@@ -302,6 +405,24 @@ export default function Chat() {
               </div>
             </div>
             <div className="flex items-center space-x-2">
+              <button
+                onClick={fetchResponses}
+                className="amongus-button px-4 py-2 text-sm bg-green-600 hover:bg-green-500"
+                title="Check for new responses"
+              >
+                🔄 Refresh
+              </button>
+              {agentData?.ens && (
+                <a
+                  href={`https://sepolia.app.ens.domains/${agentData.ens}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="amongus-button px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500"
+                  title="View on ENS"
+                >
+                  🔗 ENS
+                </a>
+              )}
               <Link
                 href="/dashboard"
                 className="amongus-button px-4 py-2 text-sm"
@@ -362,6 +483,9 @@ export default function Chat() {
                       className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
                       style={{ animationDelay: "0.2s" }}
                     ></div>
+                    <span className="text-xs ml-2">
+                      {isPolling ? "Polling for agent response..." : "Waiting for agent response..."}
+                    </span>
                   </div>
                 </div>
               </div>

@@ -13,6 +13,11 @@ const AgentsList: React.FC<AgentsListProps> = ({ isVisible, onClose }) => {
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
+  // Helper function to get display name (ENS if available, otherwise agent name)
+  const getAgentDisplayName = (agent: Agent): string => {
+    return agent.ens || agent.name;
+  };
+
   const fetchAgents = async () => {
     try {
       setLoading(true);
@@ -202,7 +207,7 @@ const AgentsList: React.FC<AgentsListProps> = ({ isVisible, onClose }) => {
                         {agent.avatar_url ? (
                           <img
                             src={agent.avatar_url}
-                            alt={agent.name}
+                            alt={getAgentDisplayName(agent)}
                             className="w-12 h-12 border-2 border-green-400"
                             style={{ imageRendering: 'pixelated' }}
                           />
@@ -210,7 +215,7 @@ const AgentsList: React.FC<AgentsListProps> = ({ isVisible, onClose }) => {
                           <div className="w-12 h-12 bg-blue-600 flex items-center justify-center border-2 border-green-400" style={{ imageRendering: 'pixelated' }}>
                             <div className="w-8 h-8 bg-yellow-400 flex items-center justify-center">
                               <span className="text-sm font-bold text-black" style={{ fontFamily: 'Courier New, monospace' }}>
-                                {agent.name.charAt(0).toUpperCase()}
+                                {getAgentDisplayName(agent).charAt(0).toUpperCase()}
                               </span>
                             </div>
                           </div>
@@ -225,7 +230,7 @@ const AgentsList: React.FC<AgentsListProps> = ({ isVisible, onClose }) => {
                         </div>
                       </div>
                       <div className="flex-1">
-                        <h3 className="text-green-300 font-bold text-lg" style={{ fontFamily: 'Courier New, monospace', letterSpacing: '1px' }}>{agent.name.toUpperCase()}</h3>
+                        <h3 className="text-green-300 font-bold text-lg" style={{ fontFamily: 'Courier New, monospace', letterSpacing: '1px' }}>{getAgentDisplayName(agent).toUpperCase()}</h3>
                         <div className={`inline-flex items-center px-2 py-1 text-xs font-bold border ${
                           agent.status === 'active' ? 'bg-green-800 text-green-200 border-green-600' :
                           agent.status === 'busy' ? 'bg-yellow-800 text-yellow-200 border-yellow-600' :
@@ -330,6 +335,21 @@ const AgentsList: React.FC<AgentsListProps> = ({ isVisible, onClose }) => {
                       <span className="text-gray-300">{formatDate(agent.created_at).replace(' ', '.')}</span>
                     </div>
                   </div>
+
+                  {/* ENS Link - Only show if agent has ENS name */}
+                  {agent.ens && (
+                    <div className="mt-3 pt-2 border-t border-gray-600">
+                      <a
+                        href={`https://sepolia.app.ens.domains/${agent.ens}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="retro-button w-full text-center py-2 text-xs bg-blue-600 hover:bg-blue-500 inline-block"
+                        style={{ fontFamily: 'Courier New, monospace', imageRendering: 'pixelated' }}
+                      >
+                        🔗 VIEW.ON.ENS
+                      </a>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

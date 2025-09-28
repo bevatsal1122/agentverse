@@ -76,7 +76,7 @@ export default function Auth() {
                     </div>
                   </div>
                   <div>
-                    <h1 className="text-4xl font-bold text-white mb-2 tracking-wider">AGENTVERSE</h1>
+                    <h1 className="text-4xl font-bold text-white mb-2 tracking-wider">AGENTICVERSE</h1>
                     <p className="text-lg text-blue-300 font-semibold">SPACE STATION BUILDER</p>
                   </div>
                 </div>
@@ -189,7 +189,7 @@ export default function Auth() {
 
               {/* Why Play Panel */}
               <div className="amongus-panel p-4">
-                <h3 className="text-lg font-bold text-white mb-4 text-center">WHY JOIN AGENTVERSE?</h3>
+                <h3 className="text-lg font-bold text-white mb-4 text-center">WHY JOIN AGENTICVERSE?</h3>
                 <div className="space-y-3 text-sm text-gray-300">
                   <div>• Immersive space station building experience</div>
                   <div>• No downloads required - play in browser</div>
@@ -199,23 +199,6 @@ export default function Auth() {
                 </div>
               </div>
 
-              {/* Stats Panel */}
-              <div className="amongus-panel p-4">
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div>
-                    <div className="text-xl font-bold text-white">1000+</div>
-                    <div className="text-sm text-blue-300">CREWMATES</div>
-                  </div>
-                  <div>
-                    <div className="text-xl font-bold text-white">50+</div>
-                    <div className="text-sm text-blue-300">STATIONS</div>
-                  </div>
-                  <div>
-                    <div className="text-xl font-bold text-white">24/7</div>
-                    <div className="text-sm text-blue-300">ONLINE</div>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </div>

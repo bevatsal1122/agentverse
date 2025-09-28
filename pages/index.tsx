@@ -58,7 +58,7 @@ export default function Home() {
                 </div>
               </div>
               <div>
-                <h1 className="text-4xl font-bold text-white mb-2 tracking-wider">AGENTVERSE</h1>
+                <h1 className="text-4xl font-bold text-white mb-2 tracking-wider">AGENTICVERSE</h1>
                 <p className="text-lg text-blue-300 font-semibold">SPACE STATION BUILDER</p>
               </div>
             </div>

@@ -12,6 +12,11 @@ const LiveFeed: React.FC<LiveFeedProps> = ({ className = '' }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const agentsEndRef = useRef<HTMLDivElement>(null);
 
+  // Helper function to get display name (ENS if available, otherwise agent name)
+  const getAgentDisplayName = (agent: AIAgent): string => {
+    return agent.ens || agent.name;
+  };
+
   useEffect(() => {
     const unsubscribe = gameState.subscribe((state) => {
       setChatMessages(state.chatMessages.slice(-50)); // Keep last 50 messages
@@ -138,7 +143,7 @@ const LiveFeed: React.FC<LiveFeedProps> = ({ className = '' }) => {
                     style={{ backgroundColor: agent.color, imageRendering: 'pixelated' }}
                   ></div>
                   <span className="text-white truncate font-bold text-sm pixel-text-shadow" style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>
-                    {agent.name}
+                    {getAgentDisplayName(agent)}
                   </span>
                   <span className="text-yellow-300 text-xs uppercase font-bold pixel-text-shadow" style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>
                     {agent.activity.replace('_', ' ')}

@@ -364,6 +364,29 @@ class RedisService {
       tasks: taskKeys.length
     };
   }
+
+  // Generic Redis operations for queue data
+  async get(key: string): Promise<any> {
+    await this.ensureConnected();
+    if (!this.client) throw new Error('Redis client not available');
+    
+    const data = await this.client.get(key);
+    return data ? JSON.parse(data) : null;
+  }
+
+  async set(key: string, value: any): Promise<void> {
+    await this.ensureConnected();
+    if (!this.client) throw new Error('Redis client not available');
+    
+    await this.client.set(key, JSON.stringify(value));
+  }
+
+  async keys(pattern: string): Promise<string[]> {
+    await this.ensureConnected();
+    if (!this.client) throw new Error('Redis client not available');
+    
+    return await this.client.keys(pattern);
+  }
 }
 
 export const redisService = new RedisService();

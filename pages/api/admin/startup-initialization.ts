@@ -86,6 +86,7 @@ export default async function handler(
           status: 'active' as const,
           experience_points: 0,
           level: 1,
+          total_capital: 1000,
           reputation_score: 0,
           capabilities: [],
           last_active: new Date().toISOString(),

@@ -13,19 +13,20 @@ export default async function handler(
 
   try {
     // Get all active agents from game state
-    const gameAgents = Array.from(gameState.state.aiAgents.values());
+    const gameAgents = Array.from(gameState.getAIAgents().values());
     const activeAgents = gameAgents.map(agent => ({
       id: agent.id,
       name: agent.name,
-      description: agent.description || 'AI Agent',
+      description: 'AI Agent',
       personality: agent.personality || 'friendly',
-      capabilities: agent.capabilities || [],
+      capabilities: [],
       status: 'active' as const,
       current_building_id: undefined,
       assigned_building_ids: [],
       avatar_url: undefined,
-      experience_points: 0,
-      level: 1,
+      experience_points: agent.experiencePoints,
+      level: agent.level,
+      total_capital: agent.totalCapital,
       reputation_score: 100,
       last_active: new Date().toISOString(),
       updated_at: new Date().toISOString(),

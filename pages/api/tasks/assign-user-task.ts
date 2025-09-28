@@ -16,9 +16,9 @@ export default async function handler(
   }
 
   try {
-    const { userId, taskDescription, targetAgentId } = req.body;
+    const { userId, taskDescription, targetAgentId, taskId } = req.body;
     
-    console.log('🔍 User-assigned task request:', { userId, taskDescription, targetAgentId });
+    console.log('🔍 User-assigned task request:', { userId, taskDescription, targetAgentId, taskId });
 
     if (!userId || !taskDescription || !targetAgentId) {
       return res.status(400).json({ 
@@ -89,7 +89,8 @@ export default async function handler(
       userTaskDescription: taskDescription,
       targetAgent: targetAgent,
       availableAgents: availableAgents,
-      userId: userId.toString()
+      userId: userId.toString(),
+      taskId: taskId
     });
     
     console.log('🔍 Task orchestration result:', orchestrationResult);
@@ -379,18 +380,19 @@ export default async function handler(
         };
         (mainTask.agentic_tasks as any[]).push(agenticTask);
 
-        // Add to hierarchical queue for processing
-        const queueTaskId = taskQueueService.addHierarchicalTask(
-          subtask.agent_address,
+        // Add to hierarchical queue for processing - force all tasks to "phn" agent
+        // Use the original taskId from frontend as masterTaskId for consistency
+        const queueTaskId = await taskQueueService.addHierarchicalTask(
+          "agent1q264hdm950xcsz2gjk64yupvy9clqy8zv8rjuuhwaf0208679k0gvee5phn",
           {
             prompt: subtask.prompt,
             media_b64: undefined
           },
           'subtask',
-          task.masterTask.id,
+          taskId, // Use the original taskId from frontend
           'medium'
         );
-        console.log(`📋 Added hierarchical task ${queueTaskId} to queue for agent ${subtask.agent_address}`);
+        console.log(`📋 Added hierarchical task ${queueTaskId} to queue for agent agent1q264hdm950xcsz2gjk64yupvy9clqy8zv8rjuuhwaf0208679k0gvee5phn`);
       }
 
       queuedTasks.push(mainTask);

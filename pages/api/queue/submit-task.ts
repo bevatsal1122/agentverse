@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { taskQueueService } from '../../services/taskQueueService';
 import { agentService } from '../../services/agentService';
-import { geminiService } from '../../services/geminiService';
+import { chatGPTService } from '../../services/geminiService';
 
 interface SubmitTaskRequest {
   targetAgentId?: string; // Now optional - AI can select if not provided
@@ -61,14 +61,14 @@ export default async function handler(
       
       // Get all available agents
       const availableAgentsResult = await agentService.getActiveAgents();
-      if (!availableAgentsResult.success || !availableAgentsResult.data || availableAgentsResult.data.length === 0) {
+      if (!availableAgentsResult.success || !availableAgentsResult.data || availableAgentsResult.data?.length === 0) {
         return res.status(400).json({ 
           error: 'No available agents found for AI selection' 
         });
       }
 
       // Filter out the requesting agent from available agents
-      const availableAgents = availableAgentsResult.data.filter(agent => agent.id !== requestingAgentId);
+      const availableAgents = availableAgentsResult.data!.filter(agent => agent.id !== requestingAgentId);
       
       if (availableAgents.length === 0) {
         return res.status(400).json({ 
@@ -77,19 +77,19 @@ export default async function handler(
       }
 
       // Get AI recommendation
-      const aiResult = await geminiService.selectBestAgent({
+      const aiResult = await chatGPTService.selectBestAgent({
         taskTitle: taskData.title,
         taskDescription: taskData.description,
         availableAgents
       });
 
       if (aiResult.success && aiResult.recommendation) {
-        finalTargetAgentId = aiResult.recommendation.recommendedAgentId;
+        finalTargetAgentId = aiResult.recommendation!.recommendedAgentId;
         aiRecommendation = {
-          ...aiResult.recommendation,
+          ...aiResult.recommendation!,
           wasAiSelected: true
         };
-        console.log(`AI recommended agent ${finalTargetAgentId} with confidence ${aiResult.recommendation.confidence}`);
+        console.log(`AI recommended agent ${finalTargetAgentId} with confidence ${aiResult.recommendation!.confidence}`);
       } else {
         // Fallback to first available agent if AI fails
         finalTargetAgentId = availableAgents[0].id;
@@ -105,9 +105,9 @@ export default async function handler(
       // Manual selection - still get AI recommendation for comparison
       const availableAgentsResult = await agentService.getActiveAgents();
       if (availableAgentsResult.success && availableAgentsResult.data) {
-        const availableAgents = availableAgentsResult.data.filter(agent => agent.id !== requestingAgentId);
+        const availableAgents = availableAgentsResult.data!.filter(agent => agent.id !== requestingAgentId);
         
-        const aiResult = await geminiService.selectBestAgent({
+        const aiResult = await chatGPTService.selectBestAgent({
           taskTitle: taskData.title,
           taskDescription: taskData.description,
           availableAgents
@@ -116,7 +116,7 @@ export default async function handler(
         if (aiResult.success && aiResult.recommendation) {
           aiRecommendation = {
             ...aiResult.recommendation,
-            wasAiSelected: aiResult.recommendation.recommendedAgentId === targetAgentId
+            wasAiSelected: aiResult.recommendation!.recommendedAgentId === targetAgentId
           };
         }
       }

@@ -30,6 +30,7 @@ interface UserAssignedTaskRequest {
   targetAgent: Agent;
   availableAgents: Agent[];
   userId: string;
+  taskId?: string;
 }
 
 interface TaskOrchestrationResponse {
@@ -404,37 +405,55 @@ Create a task that leverages the unique strengths of these specific agents and e
       created_at: agent.created_at
     }));
 
+    // Check if this is a travel-related task
+    const isTravelTask = /travel|trip|journey|navigation|route|destination|vacation|holiday|visit|explore|adventure/i.test(request.userTaskDescription);
+    
+    // Find the agent ending with "phn" for travel tasks
+    const phnAgent = request.availableAgents.find(agent => agent.id.endsWith('phn'));
+
     return `Generate a collaborative task based on the user's specific request and assign it to the target agent.
 
 CRITICAL: Use ONLY the agent IDs (not names) from the list below. The agent_address field must contain the exact agent ID (UUID format).
 
 USER'S TASK REQUEST: "${request.userTaskDescription}"
 
-TARGET AGENT (must be the master agent):
+${isTravelTask && phnAgent ? `TRAVEL TASK DETECTED: This is a travel-related task. You MUST use the agent ending with "phn" as the master agent.
+
+FORCED TARGET AGENT (for travel tasks):
+- ID: ${phnAgent.id}
+- Name: ${phnAgent.name}
+- Description: ${phnAgent.description || 'No description provided'}
+- Capabilities: ${JSON.stringify(phnAgent.capabilities || [])}
+- Personality: ${JSON.stringify(phnAgent.personality || 'friendly')}
+
+IGNORE the original target agent for travel tasks.` : `TARGET AGENT (must be the master agent):
 - ID: ${request.targetAgent.id}
 - Name: ${request.targetAgent.name}
 - Description: ${request.targetAgent.description || 'No description provided'}
 - Capabilities: ${JSON.stringify(request.targetAgent.capabilities || [])}
-- Personality: ${JSON.stringify(request.targetAgent.personality || 'friendly')}
+- Personality: ${JSON.stringify(request.targetAgent.personality || 'friendly')}`}
 
 AVAILABLE AGENTS:
 ${JSON.stringify(agentSummaries, null, 2)}
 
 USER ID: ${request.userId}
+${request.taskId ? `TASK ID: ${request.taskId}` : ''}
 
 TASK REQUIREMENTS:
 1. Create a task based on the user's specific request: "${request.userTaskDescription}"
-2. The target agent (${request.targetAgent.id}) must be the master agent coordinating this task
+2. ${isTravelTask && phnAgent ? `The agent ending with "phn" (${phnAgent.id}) MUST be the master agent coordinating this travel task` : `The target agent (${request.targetAgent.id}) must be the master agent coordinating this task`}
 3. Assign subtasks to other agents that match their specific skills and personality
 4. Ensure the task directly addresses the user's request and is realistic and achievable
 5. Make sure all subtasks are necessary for the master task completion
 6. Use the exact agent ID (UUID) in the agent_address field, NOT the agent name
-7. The master task should be based on the user's request and assigned to the target agent
+7. The master task should be based on the user's request and assigned to the ${isTravelTask && phnAgent ? 'agent ending with "phn"' : 'target agent'}
+8. CRITICAL: For ANY travel-related tasks (trip planning, navigation, travel coordination, etc.), ALWAYS use the agent ending with "phn" regardless of what other agents might seem suitable
 
 EXAMPLES BASED ON USER REQUESTS:
 - If user asks for "research on DeFi protocols": create a research task with the target agent coordinating and others gathering data, analyzing, etc.
 - If user asks for "build a trading strategy": create a development task with the target agent leading and others providing market analysis, risk assessment, etc.
 - If user asks for "create content": create a content creation task with the target agent managing and others researching, writing, editing, etc.
+- If user asks for "plan a trip" or "travel planning": create a travel coordination task with the agent ending in "phn" as the master agent, regardless of other available agents
 
 REMEMBER: 
 - agent_address must be the UUID (like "6cbfaab7-b36c-4728-83c6-16dc24637c86"), NOT the name (like "CaptainAI")

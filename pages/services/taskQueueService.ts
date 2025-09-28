@@ -1,3 +1,5 @@
+import { redisService } from './redisService';
+
 interface QueuedTask {
   id: string;
   targetAgentId: string;
@@ -41,6 +43,12 @@ class TaskQueueService {
   private processing: Map<string, boolean> = new Map();
   private hierarchicalQueues: Map<string, HierarchicalTask[]> = new Map();
   private hierarchicalProcessing: Map<string, boolean> = new Map();
+  private instanceId: string;
+
+  constructor() {
+    this.instanceId = `taskQueue_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    console.log(`🔧 TaskQueueService instance created: ${this.instanceId}`);
+  }
 
   addTaskToQueue(
     targetAgentId: string, 
@@ -169,16 +177,29 @@ class TaskQueueService {
     return result;
   }
 
-  getAllHierarchicalQueues(): Record<string, { queueLength: number; processing: boolean; tasks: HierarchicalTask[] }> {
+  async getAllHierarchicalQueues(): Promise<Record<string, { queueLength: number; processing: boolean; tasks: HierarchicalTask[] }>> {
     const result: Record<string, any> = {};
     
-    console.log(`🔍 getAllHierarchicalQueues called - hierarchicalQueues size:`, this.hierarchicalQueues.size);
+    console.log(`🔍 getAllHierarchicalQueues called on instance ${this.instanceId} - hierarchicalQueues size:`, this.hierarchicalQueues.size);
     console.log(`🔍 hierarchicalQueues keys:`, Array.from(this.hierarchicalQueues.keys()));
     
-    this.hierarchicalQueues.forEach((queue, agentId) => {
-      console.log(`🔍 Agent ${agentId} queue length:`, queue.length);
-      result[agentId] = this.getHierarchicalQueueStatus(agentId);
-    });
+    // Load all hierarchical queues from Redis
+    const redisKeys = await redisService.keys('hierarchical_queue:*');
+    console.log(`🔍 Found ${redisKeys.length} hierarchical queues in Redis:`, redisKeys);
+    
+    for (const key of redisKeys) {
+      const agentId = key.replace('hierarchical_queue:', '');
+      const tasks = await redisService.get(key) || [];
+      
+      console.log(`🔍 Agent ${agentId} queue length from Redis:`, tasks.length);
+      console.log(`🔍 Agent ${agentId} queue tasks from Redis:`, tasks.map((t: any) => ({ id: t.id, status: t.status, prompt: t.taskData.prompt.substring(0, 50) })));
+      
+      result[agentId] = {
+        queueLength: tasks.filter((t: any) => t.status === 'queued').length,
+        processing: this.hierarchicalProcessing.get(agentId) || false,
+        tasks: tasks
+      };
+    }
     
     return result;
   }
@@ -212,14 +233,14 @@ class TaskQueueService {
 
   // ===== HIERARCHICAL TASK MANAGEMENT =====
 
-  addHierarchicalTask(
+  async addHierarchicalTask(
     targetAgentId: string,
     taskData: HierarchicalTask['taskData'],
     type: 'master' | 'subtask',
     masterTaskId?: string,
     priority: 'low' | 'medium' | 'high' | 'urgent' = 'medium',
     dependencies?: string[]
-  ): string {
+  ): Promise<string> {
     const taskId = `hierarchical_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     const hierarchicalTask: HierarchicalTask = {
@@ -234,17 +255,22 @@ class TaskQueueService {
       dependencies
     };
 
+    // Store in Redis
+    const queueKey = `hierarchical_queue:${targetAgentId}`;
+    const existingTasks = await redisService.get(queueKey) || [];
+    const updatedTasks = [...existingTasks, hierarchicalTask];
+    await redisService.set(queueKey, updatedTasks);
+
+    // Also update local cache
     if (!this.hierarchicalQueues.has(targetAgentId)) {
       this.hierarchicalQueues.set(targetAgentId, []);
       console.log(`🔍 Created new hierarchical queue for agent ${targetAgentId}`);
     }
 
     const agentQueue = this.hierarchicalQueues.get(targetAgentId)!;
-    
-    // Add task to queue with priority ordering
     this.insertTaskByPriority(agentQueue, hierarchicalTask);
     
-    console.log(`🔍 Hierarchical task ${taskId} (${type}) added to queue for agent ${targetAgentId}. Queue length: ${agentQueue.length}`);
+    console.log(`🔍 Hierarchical task ${taskId} (${type}) added to queue for agent ${targetAgentId} on instance ${this.instanceId}. Queue length: ${agentQueue.length}`);
     console.log(`🔍 Total hierarchical queues now:`, this.hierarchicalQueues.size);
     return taskId;
   }

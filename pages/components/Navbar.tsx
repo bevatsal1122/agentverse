@@ -33,7 +33,7 @@ export default function Navbar({ currentPage }: NavbarProps) {
               {/* Pixel-style glow effect */}
               <div className="absolute inset-0 w-10 h-10 bg-orange-400 rounded-full opacity-20 blur-sm animate-pulse"></div>
             </div>
-            <span className="text-2xl font-bold text-white tracking-wider pixel-text-shadow">AGENTVERSE</span>
+            <span className="text-2xl font-bold text-white tracking-wider pixel-text-shadow">AGENTICVERSE</span>
           </Link>
         </div>
 

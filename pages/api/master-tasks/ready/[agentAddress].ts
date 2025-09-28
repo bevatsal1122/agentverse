@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { memoryStorageService } from '../../../../services/memoryStorageService';
+import { memoryStorageService } from '../../../services/memoryStorageService';
 
 export default async function handler(
   req: NextApiRequest,

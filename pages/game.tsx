@@ -109,7 +109,7 @@ export default function Game() {
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold text-black mb-1">
-                    AGENTVERSE
+                    AGENTICVERSE
                   </h1>
                   <p className="text-sm text-gray-700">CITY BUILDER</p>
                 </div>
@@ -197,7 +197,7 @@ export default function Game() {
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold text-black mb-1">
-                    AGENTVERSE
+                    AGENTICVERSE
                   </h1>
                   <p className="text-sm text-gray-700">CITY BUILDER</p>
                 </div>

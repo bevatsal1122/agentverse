@@ -98,6 +98,11 @@ interface AgentCardProps {
 const AgentCard: React.FC<AgentCardProps> = ({ agent }) => {
   const [copied, setCopied] = useState(false);
 
+  // Helper function to get display name (ENS if available, otherwise agent name)
+  const getAgentDisplayName = (agent: Agent): string => {
+    return agent.ens || agent.name;
+  };
+
   const getStatusColor = (status: string | null) => {
     switch (status) {
       case "active":
@@ -157,7 +162,7 @@ const AgentCard: React.FC<AgentCardProps> = ({ agent }) => {
           <div className="min-w-0 flex-1">
             <div className="flex items-center space-x-2">
               <h3 className="text-sm font-bold text-white truncate">
-                {agent.name}
+                {getAgentDisplayName(agent)}
               </h3>
               <div className="flex items-center space-x-1 flex-shrink-0">
                 <div
@@ -235,15 +240,26 @@ const AgentCard: React.FC<AgentCardProps> = ({ agent }) => {
         </div>
 
         {/* Action Buttons */}
-        <div className="w-20 flex justify-center">
+        <div className={`flex justify-center space-x-2 ${agent.ens ? 'w-32' : 'w-20'}`}>
           <Link
             href={`/chat?agentId=${agent.id}&agentName=${encodeURIComponent(
-              agent.name
+              getAgentDisplayName(agent)
             )}`}
             className="amongus-button px-3 py-1 text-xs bg-green-600 hover:bg-green-500 inline-block"
           >
             Chat
           </Link>
+          {agent.ens && (
+            <a
+              href={`https://sepolia.app.ens.domains/${agent.ens}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="amongus-button px-3 py-1 text-xs bg-blue-600 hover:bg-blue-500 inline-block"
+              title="View on ENS"
+            >
+              View On Ens
+            </a>
+          )}
         </div>
       </div>
     </div>
