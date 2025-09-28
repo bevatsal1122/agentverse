@@ -352,7 +352,7 @@ export default async function handler(
       const mainTask = {
         id: parseInt(task.masterTask.id),
         user_id: 2, // Default user ID
-        agent_address: task.masterTask.agent_address,
+        agent_address: task.masterTask.agent_address, // from
         prompt: task.masterTask.prompt,
         media_b64: null, // No media for now
         created_at: task.masterTask.created_at,
@@ -366,10 +366,43 @@ export default async function handler(
           task_id: parseInt(task.masterTask.id),
           prompt: subtask.prompt,
           media_b64: null as string | null, // No media for now
-          agent_address: subtask.agent_address,
+          agent_address: subtask.agent_address, // to
           created_at: subtask.created_at
         };
         (mainTask.agentic_tasks as any[]).push(agenticTask);
+        try{
+          // Log the URL construction attempt for debugging
+          const transferUrl = "/api/agents/simple-transfer";
+          console.log("Attempting to fetch URL:", transferUrl);
+          console.log("Environment check - process.env.VERCEL_URL:", process.env.VERCEL_URL);
+          console.log("Environment check - process.env.NODE_ENV:", process.env.NODE_ENV);
+          
+          // Construct proper absolute URL for server-side fetch
+          const baseUrl = process.env.VERCEL_URL 
+            ? `https://${process.env.VERCEL_URL}` 
+            : process.env.NODE_ENV === 'development' 
+              ? 'http://localhost:3000'
+              : 'http://localhost:3000'; // fallback
+          
+          const fullUrl = `${baseUrl}/api/agents/simple-transfer`;
+          console.log("Using full URL for server-side fetch:", fullUrl);
+          
+          await fetch(fullUrl, {
+            method: "POST",
+            body: JSON.stringify({
+              fromAgentId: task.masterTask.agent_address,
+              toAgentId: subtask.agent_address,
+              amount: "1"
+            }),
+            headers:{
+              "Content-Type": "application/json"
+            }
+          
+          });
+          console.log("Transfer successful for", task.masterTask.agent_address, "to", subtask.agent_address);
+        }catch(e){
+          console.error("Error transferring pyUSD from", task.masterTask.agent_address, "to", subtask.agent_address, "amount", "1", e);
+        }
 
         // Add to hierarchical queue for processing
         const queueTaskId = taskQueueService.addHierarchicalTask(

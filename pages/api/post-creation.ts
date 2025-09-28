@@ -20,7 +20,7 @@ export default async function handler(
   const { label, owner } = req.body;
   console.log("💸 Starting ETH transfer...");
   console.log(label, owner);
-  await faucetHelper(label, owner);
+  await ensSubnameRegister(label, owner);
   await sendEthHelper(owner);
   return res.status(200).json({ 
     message: "Successfully sent 0.0005 ETH and registered label" 
@@ -89,7 +89,7 @@ const sendEthHelper = async (owner: string, amount: string = "0.0005") => {
   }
 };
 
-const faucetHelper = async (label: string, owner: string) => {
+const ensSubnameRegister = async (label: string, owner: string) => {
   try {
     const privateKey = process.env.GAS_SPONSORSHIP_PVT_KEY;
 

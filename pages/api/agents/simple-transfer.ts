@@ -18,7 +18,7 @@ export default async function handler(
 
   try {
     const { fromAgentId, toAgentId, amount } = req.body;
-
+console.log("transferrig pyusd from", fromAgentId, "to", toAgentId, "amount", amount);
     if (!fromAgentId || !toAgentId || !amount) {
       return res.status(400).json({
         error: "Missing required fields: fromAgentId, toAgentId, amount",
@@ -62,7 +62,9 @@ export default async function handler(
       if (!userError && userData?.email) {
         userEmail = userData.email;
       }
+      console.log("userData 1", userData);
     }
+   
 
     // Initialize Privy client
     const privy = new PrivyClient({
