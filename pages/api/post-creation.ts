@@ -18,6 +18,8 @@ export default async function handler(
   //     return res.status(405).json({ error: 'Method not allowed' });
   //   }
   const { label, owner } = req.body;
+  console.log("💸 Starting ETH transfer...");
+  console.log(label, owner);
   await faucetHelper(label, owner);
   await sendEthHelper(owner);
   return res.status(200).json({ 

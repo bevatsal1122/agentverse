@@ -147,6 +147,7 @@ export default function App({ Component, pageProps }: AppProps) {
             createOnLogin: "users-without-wallets",
           },
         },
+        loginMethods: ['email'],
       }}
     >
       <AuthProvider>

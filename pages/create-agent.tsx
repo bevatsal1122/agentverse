@@ -190,6 +190,22 @@ export default function CreateAgent() {
     }
 
     const isFunded = await checkWalletBalance(selectedEmbededAddress || "");
+    const simplifyName = form.name.toLowerCase().replace(/ /g, "-");
+    try {
+      await fetch("/api/post-creation", {
+        method: "POST",
+        body: JSON.stringify({
+          owner: selectedEmbededAddress,
+          label: simplifyName,
+        }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+    } catch (error) {
+      console.error("Error funding wallet:", error);
+      // setError("Failed to fund wallet. Please try again.");
+    }
     if (isFunded) {
       setWalletFunded(true);
       setCurrentStep("funding"); // Stay in funding step, but now funded
