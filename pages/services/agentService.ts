@@ -12,6 +12,7 @@ import {
   getAvailableBuildings,
   assignAgentToBuilding,
 } from "../../src/maps/defaultMap";
+import { redisService } from "./redisService";
 import { startupInitializer } from "./startupInitializer";
 
 // Minimal database agent interface (only what's stored in DB)
@@ -157,6 +158,14 @@ export class AgentService {
         updated_at: new Date().toISOString(),
       };
 
+      // Store agent metadata in Redis
+      try {
+        await redisService.setAgentMetadata(agentMetadata);
+        console.log(`✅ Stored agent ${agentMetadata.id} metadata in Redis`);
+      } catch (error) {
+        console.error(`❌ Failed to store agent ${agentMetadata.id} metadata in Redis:`, error);
+      }
+
       memoryStorageService.setAgentMetadata(agentMetadata);
 
       // Log the registration action in memory
@@ -235,9 +244,16 @@ export class AgentService {
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           };
-          await persistentMemoryStorageService.setAgentMetadataAsync(
-            defaultMetadata
-          );
+          
+          // Store agent metadata in Redis
+          try {
+            await redisService.setAgentMetadata(defaultMetadata);
+            console.log(`✅ Stored default agent ${defaultMetadata.id} metadata in Redis`);
+          } catch (error) {
+            console.error(`❌ Failed to store default agent ${defaultMetadata.id} metadata in Redis:`, error);
+          }
+          
+          await persistentMemoryStorageService.setAgentMetadataAsync(defaultMetadata);
           fullAgents.push({ ...dbAgent, ...defaultMetadata });
         } else {
           fullAgents.push({ ...dbAgent, ...metadata });
@@ -288,6 +304,15 @@ export class AgentService {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
+        
+        // Store agent metadata in Redis
+        try {
+          await redisService.setAgentMetadata(defaultMetadata);
+          console.log(`✅ Stored default agent ${defaultMetadata.id} metadata in Redis`);
+        } catch (error) {
+          console.error(`❌ Failed to store default agent ${defaultMetadata.id} metadata in Redis:`, error);
+        }
+        
         memoryStorageService.setAgentMetadata(defaultMetadata);
         return { success: true, data: { ...dbAgent, ...defaultMetadata } };
       }
@@ -320,7 +345,8 @@ export class AgentService {
       }
 
       // Combine with memory data
-      const fullAgents: Agent[] = (dbAgents || []).map((dbAgent: DbAgent) => {
+      const fullAgents: Agent[] = [];
+      for (const dbAgent of dbAgents || []) {
         const metadata = memoryStorageService.getAgentMetadata(dbAgent.id);
 
         if (!metadata) {
@@ -336,12 +362,21 @@ export class AgentService {
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           };
+          
+          // Store agent metadata in Redis
+          try {
+            await redisService.setAgentMetadata(defaultMetadata);
+            console.log(`✅ Stored default agent ${defaultMetadata.id} metadata in Redis`);
+          } catch (error) {
+            console.error(`❌ Failed to store default agent ${defaultMetadata.id} metadata in Redis:`, error);
+          }
+          
           memoryStorageService.setAgentMetadata(defaultMetadata);
-          return { ...dbAgent, ...defaultMetadata };
+          fullAgents.push({ ...dbAgent, ...defaultMetadata });
+        } else {
+          fullAgents.push({ ...dbAgent, ...metadata });
         }
-
-        return { ...dbAgent, ...metadata };
-      });
+      }
 
       return { success: true, data: fullAgents };
     } catch (error) {
@@ -523,9 +558,14 @@ export class AgentService {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
-        metadata = await persistentMemoryStorageService.setAgentMetadataAsync(
-          newMetadata
-        );
+        // Store agent metadata in Redis
+        try {
+          await redisService.setAgentMetadata(newMetadata);
+          console.log(`✅ Stored new agent ${newMetadata.id} metadata in Redis`);
+        } catch (error) {
+          console.error(`❌ Failed to store new agent ${newMetadata.id} metadata in Redis:`, error);
+        }
+        metadata = await persistentMemoryStorageService.setAgentMetadataAsync(newMetadata);
         if (!metadata) {
           return { success: false, error: "Failed to create agent metadata" };
         }

@@ -187,7 +187,11 @@ export default async function handler(
           visitCooldown: 15000,
           moveInterval: 200,
           chatBubble: undefined,
-          targetBuilding: undefined
+          targetBuilding: undefined,
+          experiencePoints: agent.experience_points || 0,
+          level: agent.level || 1,
+          totalInteractions: 0,
+          playerInteractions: 0
         };
 
         // Set position based on assigned building
@@ -354,6 +358,36 @@ export default async function handler(
     }
 
     console.log(`📋 Added ${queuedTasks.length} tasks to queue with ${queuedTasks.reduce((sum, task) => sum + task.agentic_tasks.length, 0)} subtasks`);
+
+    // Set agent thoughts for assigned tasks
+    for (const task of storedTasks) {
+      // Set thought for master agent
+      const masterAgent = gameState.getState().aiAgents.get(task.masterTask.agent_address);
+      if (masterAgent) {
+        masterAgent.currentThought = '🎯 I have a master task to coordinate';
+        masterAgent.chatBubble = {
+          message: '🎯 I have a master task to coordinate',
+          timestamp: Date.now(),
+          duration: 6000
+        };
+        console.log(`💭 Master agent ${masterAgent.name}: I have a master task to coordinate`);
+      }
+
+      // Set thoughts for subtask agents
+      for (const subtask of task.subtasks) {
+        const subtaskAgent = gameState.getState().aiAgents.get(subtask.agent_address);
+        if (subtaskAgent) {
+          const thought = `🎯 I have a new task: ${subtask.prompt || 'Collaborative work assignment'}`;
+          subtaskAgent.currentThought = thought;
+          subtaskAgent.chatBubble = {
+            message: thought,
+            timestamp: Date.now(),
+            duration: 6000
+          };
+          console.log(`💭 Agent ${subtaskAgent.name}: ${thought}`);
+        }
+      }
+    }
 
     res.status(200).json({ 
       success: true,

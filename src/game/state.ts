@@ -76,6 +76,7 @@ export interface AIAgent {
   direction: 'north' | 'south' | 'east' | 'west';
   animationFrame: number;
   lastMoveTime: number;
+  lastActionTime?: number;
   homeX: number;
   homeY: number;
   workX: number;
@@ -105,10 +106,22 @@ export interface AIAgent {
   lastBuildingVisitTime: number;
   visitCooldown: number; // Time between building visits
   moveInterval: number; // Time between movement steps (ms)
+  // XP and interaction system
+  experiencePoints: number;
+  level: number;
+  totalInteractions: number;
+  playerInteractions: number; // Interactions specifically with the player
 }
 
 // Keep Crewmate interface for backward compatibility
 export interface Crewmate extends AIAgent {}
+
+export interface PlayerWallet {
+  totalMoney: number;
+  experiencePoints: number;
+  level: number;
+  lastUpdated: number;
+}
 
 export interface GameState {
   selectedTool: Tool;
@@ -133,6 +146,7 @@ export interface GameState {
   playerPathIndex: number;
   isPlayerFollowingPath: boolean;
   playerLastMoveTime?: number;
+  playerWallet: PlayerWallet;
 }
 
 class GameStateManager {
@@ -158,18 +172,75 @@ class GameStateManager {
     playerPath: undefined,
     playerPathIndex: 0,
     isPlayerFollowingPath: false,
-    playerLastMoveTime: undefined
+    playerLastMoveTime: undefined,
+    playerWallet: {
+      totalMoney: 1000, // Starting money
+      experiencePoints: 0,
+      level: 1,
+      lastUpdated: Date.now()
+    }
   };
 
   private listeners: Array<(state: GameState) => void> = [];
   private pathfinder: Pathfinder;
+  private playerId: string = 'default_player';
 
   constructor() {
     this.pathfinder = new Pathfinder(this.state);
+    // Only load wallet in browser environment
+    if (typeof window !== 'undefined') {
+      this.loadPlayerWallet();
+    }
   }
 
   getState(): GameState {
     return { ...this.state };
+  }
+
+  private async loadPlayerWallet(): Promise<void> {
+    try {
+      const response = await fetch(`/api/player/wallet?playerId=${this.playerId}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.wallet) {
+          this.state.playerWallet = {
+            totalMoney: data.wallet.totalMoney,
+            experiencePoints: data.wallet.experiencePoints,
+            level: data.wallet.level,
+            lastUpdated: data.wallet.lastUpdated
+          };
+          console.log('💰 Loaded player wallet from Redis:', this.state.playerWallet);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load player wallet from Redis:', error);
+    }
+  }
+
+  private async savePlayerWallet(): Promise<void> {
+    try {
+      const response = await fetch('/api/player/wallet', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          playerId: this.playerId,
+          action: 'update',
+          totalMoney: this.state.playerWallet.totalMoney,
+          experiencePoints: this.state.playerWallet.experiencePoints,
+          level: this.state.playerWallet.level
+        })
+      });
+      
+      if (response.ok) {
+        console.log('💰 Saved player wallet to Redis');
+      } else {
+        console.error('Failed to save player wallet to Redis');
+      }
+    } catch (error) {
+      console.error('Failed to save player wallet to Redis:', error);
+    }
   }
 
   // Crewmate management methods
@@ -328,7 +399,12 @@ class GameStateManager {
       isFollowingPath: false,
       lastBuildingVisitTime: 0,
       visitCooldown: 15000 + Math.random() * 30000,
-      moveInterval: 200 + Math.random() * 200 // 0.2-0.4 seconds between steps
+      moveInterval: 200 + Math.random() * 200, // 0.2-0.4 seconds between steps
+      // XP and interaction system
+      experiencePoints: 0,
+      level: 1,
+      totalInteractions: 0,
+      playerInteractions: 0
     };
     
     this.addCrewmate(crewmate);
@@ -461,7 +537,12 @@ class GameStateManager {
       isFollowingPath: false,
       lastBuildingVisitTime: 0,
       visitCooldown: 15000 + Math.random() * 30000, // 15-45 seconds between visits
-      moveInterval: 150 + Math.random() * 150 // 0.15-0.3 seconds between steps
+      moveInterval: 150 + Math.random() * 150, // 0.15-0.3 seconds between steps
+      // XP and interaction system
+      experiencePoints: 0,
+      level: 1,
+      totalInteractions: 0,
+      playerInteractions: 0
     };
     
     this.addAIAgent(agent);
@@ -577,17 +658,15 @@ class GameStateManager {
       }
       this.followPath(agent, deltaTime, now);
     } else {
-      // Random roaming removed - agents only move when following ChatGPT tasks
-      
-      // Grid-based movement towards target (road-only)
+      // Intelligent roaming with guidelines
       const currentX = Math.round(agent.x);
       const currentY = Math.round(agent.y);
       const targetX = Math.round(agent.targetX);
       const targetY = Math.round(agent.targetY);
       
       if (currentX === targetX && currentY === targetY) {
-        // Reached target, stop moving (no random activity switching)
-        agent.activity = CrewmateActivity.RESTING;
+        // Reached target, decide next action based on guidelines
+        this.decideNextAgentAction(agent, now);
       } else {
         // Check if enough time has passed for the next movement step
         if (now - agent.lastMoveTime >= agent.moveInterval) {
@@ -622,7 +701,13 @@ class GameStateManager {
       }
     }
     
-    // Agent interactions removed - agents only respond to ChatGPT tasks
+    // Trigger natural conversations between agents
+    this.triggerAgentConversation(agent, now);
+    
+    // Also check for conversations when agents are walking and meet each other
+    if (agent.activity === CrewmateActivity.WALKING) {
+      this.checkForWalkingConversations(agent, now);
+    }
     
     this.state.aiAgents.set(agent.id, agent);
   }
@@ -641,6 +726,39 @@ class GameStateManager {
       
       if (agent.targetBuilding) {
         this.arriveAtBuilding(agent, now);
+      } else {
+        // Check if agent has returned home
+        const currentX = Math.round(agent.x);
+        const currentY = Math.round(agent.y);
+        const homeX = Math.round(agent.homeX);
+        const homeY = Math.round(agent.homeY);
+        
+        if (currentX === homeX && currentY === homeY) {
+          // Agent has returned home
+          agent.activity = CrewmateActivity.RESTING;
+          agent.currentThought = 'Resting and recharging at home';
+          
+          agent.chatBubble = {
+            message: `${agent.name} is back home`,
+            timestamp: now,
+            duration: 3000
+          };
+          
+          this.addChatMessage({
+            id: `home_arrival_${now}_${Math.random().toString(36).substr(2, 9)}`,
+            agentId: agent.id,
+            message: `${agent.name} has returned home and is resting`,
+            timestamp: now,
+            type: 'action'
+          });
+          
+          console.log(`🏠 Agent ${agent.name} has successfully returned home and is now resting`);
+          
+          // Trigger a conversation after returning home
+          setTimeout(() => {
+            this.triggerAgentConversation(agent, Date.now());
+          }, 8000); // Wait 8 seconds after arriving homess
+        }
       }
       return;
     }
@@ -701,18 +819,23 @@ class GameStateManager {
     switch (agent.targetBuilding.type) {
       case TileType.RESEARCH_LAB:
         agent.activity = CrewmateActivity.RESEARCHING;
+        agent.currentThought = 'Conducting research experiments';
         break;
       case TileType.ENGINEERING_BAY:
         agent.activity = CrewmateActivity.MAINTAINING;
+        agent.currentThought = 'Performing system maintenance';
         break;
       case TileType.LIVING_QUARTERS:
         agent.activity = CrewmateActivity.RESTING;
+        agent.currentThought = 'Resting in living quarters';
         break;
       case TileType.RECREATION:
         agent.activity = CrewmateActivity.EATING;
+        agent.currentThought = 'Taking a break in recreation area';
         break;
       default:
         agent.activity = CrewmateActivity.WORKING;
+        agent.currentThought = 'Working on assigned tasks';
     }
     
     // Add arrival message
@@ -721,26 +844,149 @@ class GameStateManager {
       timestamp: now,
       duration: 3000
     };
+
+    // Only show important activity changes (not every single activity)
+    if (agent.activity === CrewmateActivity.WORKING || agent.activity === CrewmateActivity.RESEARCHING) {
+      const activityMessages = {
+        [CrewmateActivity.WORKING]: `🔧 ${agent.name} started working`,
+        [CrewmateActivity.RESEARCHING]: `🔬 ${agent.name} began research`
+    };
     
     this.addChatMessage({
-      id: `arrive_${now}_${Math.random().toString(36).substr(2, 9)}`,
+        id: `agent_activity_${agent.id}_${now}_${Math.random().toString(36).substr(2, 9)}`,
       agentId: agent.id,
-      message: `${agent.name} arrives at ${buildingName} and starts ${agent.activity}`,
+        message: activityMessages[agent.activity],
       timestamp: now,
       type: 'action'
     });
+    }
     
     // Schedule departure after some time
     const stayDuration = 5000 + Math.random() * 10000; // 5-15 seconds
+    
+    // Trigger a work-related conversation after arriving
     setTimeout(() => {
-      agent.activity = CrewmateActivity.WALKING;
-      agent.targetBuilding = undefined;
-      // Reset visit cooldown
-      agent.visitCooldown = 15000 + Math.random() * 30000;
+      this.triggerAgentConversation(agent, Date.now());
+    }, 6000); // Wait 6 seconds after arriving
+    
+    setTimeout(() => {
+      // Work is done, now return to home
+      this.returnAgentToHome(agent, now);
     }, stayDuration);
   }
 
+  // Public method to manually trigger agent return to home (useful for API integration)
+  public triggerAgentReturnToHome(agentId: string): boolean {
+    const agent = this.state.aiAgents.get(agentId);
+    if (!agent) {
+      console.log(`❌ Agent ${agentId} not found for return to home`);
+      return false;
+    }
+    
+    const now = Date.now();
+    this.returnAgentToHome(agent, now);
+    this.state.aiAgents.set(agentId, agent);
+    this.notifyListeners();
+    return true;
+  }
 
+  private returnAgentToHome(agent: AIAgent, now: number): void {
+    // Check if agent is actually returning from work (not a dummy move)
+    const isReturningFromWork = agent.activity === CrewmateActivity.WORKING || 
+                                agent.activity === CrewmateActivity.RESEARCHING || 
+                                agent.activity === CrewmateActivity.MAINTAINING;
+    
+    // Add task completion message (only sometimes and only if returning from actual work)
+    if (isReturningFromWork && Math.random() > 0.4) { // Only 60% chance of showing completion
+      const completionMessages = [
+        `✅ ${agent.name} completed tasks`,
+        `🎯 ${agent.name} finished work`,
+        `💪 ${agent.name} accomplished objectives`
+      ];
+      
+      this.addChatMessage({
+        id: `task_complete_${agent.id}_${now}_${Math.random().toString(36).substr(2, 9)}`,
+        agentId: agent.id,
+        message: completionMessages[Math.floor(Math.random() * completionMessages.length)],
+        timestamp: now,
+        type: 'action'
+      });
+    }
+
+    // Clear current target building
+    agent.targetBuilding = undefined;
+    
+    // Calculate path back to home
+    const currentX = Math.round(agent.x);
+    const currentY = Math.round(agent.y);
+    const homeX = Math.round(agent.homeX);
+    const homeY = Math.round(agent.homeY);
+    
+    // Check if already at home
+    if (currentX === homeX && currentY === homeY) {
+      agent.activity = CrewmateActivity.RESTING;
+      agent.chatBubble = {
+        message: `${agent.name} is back home`,
+        timestamp: now,
+        duration: 3000
+      };
+      
+      this.addChatMessage({
+        id: `home_${now}_${Math.random().toString(36).substr(2, 9)}`,
+        agentId: agent.id,
+        message: `${agent.name} has returned home and is resting`,
+        timestamp: now,
+        type: 'action'
+      });
+      return;
+    }
+    
+    // Find path back to home
+    const path = this.pathfinder.findPath(currentX, currentY, homeX, homeY);
+    
+    if (path && path.nodes && path.nodes.length > 0) {
+      // Set path to home
+      agent.currentPath = path.nodes;
+      agent.pathIndex = 0;
+      agent.isFollowingPath = true;
+      agent.activity = CrewmateActivity.WALKING;
+      
+      // Update thought to indicate returning home
+      agent.currentThought = 'Returning home after completing work';
+      
+      agent.chatBubble = {
+        message: `${agent.name} is returning home`,
+        timestamp: now,
+        duration: 3000
+      };
+      
+      this.addChatMessage({
+        id: `return_home_${now}_${Math.random().toString(36).substr(2, 9)}`,
+        agentId: agent.id,
+        message: `${agent.name} is walking back to their home at (${homeX}, ${homeY})`,
+        timestamp: now,
+        type: 'action'
+      });
+      
+      console.log(`🏠 Agent ${agent.name} is returning home from (${currentX}, ${currentY}) to (${homeX}, ${homeY})`);
+    } else {
+      // Fallback: direct movement to home
+      console.log(`🏠 No path found for ${agent.name} to return home, using direct movement`);
+      agent.targetX = homeX;
+      agent.targetY = homeY;
+      agent.activity = CrewmateActivity.WALKING;
+      agent.currentThought = 'Returning home after completing work';
+      
+      agent.chatBubble = {
+        message: `${agent.name} is returning home`,
+        timestamp: now,
+        duration: 3000
+      };
+    }
+    
+    // Reset visit cooldown
+    agent.visitCooldown = 15000 + Math.random() * 30000;
+  }
 
   private updateCrewmateAI(crewmate: Crewmate, deltaTime: number): void {
     const currentTile = this.state.mapData.get(`${crewmate.x},${crewmate.y}`);
@@ -830,7 +1076,7 @@ class GameStateManager {
     this.notifyListeners();
   }
 
-  setPlayerPath(path: Array<{x: number, y: number}>) {
+  setPlayerPath(path: Array<{x: number, y: number}>, destinationInfo?: {type: 'agent' | 'building', name: string}) {
     // Remove the starting position from the path if it matches the player's current position
     const currentPos = this.state.playerPosition;
     const currentTileX = Math.round(currentPos.pixelX / this.state.tileSize);
@@ -846,6 +1092,26 @@ class GameStateManager {
     this.state.playerPathIndex = 0;
     this.state.isPlayerFollowingPath = true;
     
+    // Add path start message to show destination
+    if (filteredPath.length > 0) {
+      let destinationMessage = '🎯 Starting journey';
+      if (destinationInfo) {
+        if (destinationInfo.type === 'agent') {
+          destinationMessage = `🎯 Starting journey to meet ${destinationInfo.name}`;
+        } else if (destinationInfo.type === 'building') {
+          destinationMessage = `🎯 Starting journey to ${destinationInfo.name}`;
+        }
+      }
+      
+      this.addChatMessage({
+        id: `player_path_start_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        agentId: 'player',
+        message: destinationMessage,
+        timestamp: Date.now(),
+        type: 'action'
+      });
+    }
+    
     // Disable camera following during path movement to prevent glitchy camera movement
     this.state.isManualCameraControl = true;
     console.log('📷 Camera following disabled during path movement');
@@ -854,14 +1120,6 @@ class GameStateManager {
     if (filteredPath.length > 0) {
       console.log(`🎯 First target: (${filteredPath[0].x}, ${filteredPath[0].y}) pixel(${filteredPath[0].x * this.state.tileSize}, ${filteredPath[0].y * this.state.tileSize})`);
       
-      // Add path start to activity logs
-      this.addChatMessage({
-        id: `player_path_start_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        agentId: 'player',
-        message: `Player started following path with ${filteredPath.length} waypoints`,
-        timestamp: Date.now(),
-        type: 'action'
-      });
     }
     
     this.notifyListeners();
@@ -912,7 +1170,7 @@ class GameStateManager {
     
     if (path && path.nodes && path.nodes.length > 0) {
       console.log(`🗺️ Pathfinding result: Found path with ${path.nodes.length} nodes`);
-      this.setPlayerPath(path.nodes);
+      this.setPlayerPath(path.nodes, {type: 'agent', name: randomAgent.name});
     } else {
       console.log('🗺️ No path found, using fallback pathfinding');
       // Fallback: create a simple path
@@ -920,7 +1178,7 @@ class GameStateManager {
       if (fallbackPath.length > 0) {
         console.log(`🔄 Using fallback pathfinding from (${currentTileX}, ${currentTileY}) to (${targetX}, ${targetY})`);
         console.log(`✅ Fallback path created with ${fallbackPath.length} nodes: ${fallbackPath.map(p => `(${p.x},${p.y})`).join(' -> ')}`);
-        this.setPlayerPath(fallbackPath);
+        this.setPlayerPath(fallbackPath, {type: 'agent', name: randomAgent.name});
       }
     }
   }
@@ -976,7 +1234,7 @@ class GameStateManager {
       this.addChatMessage({
         id: `player_path_complete_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         agentId: 'player',
-        message: `Player completed path at (${currentTileX}, ${currentTileY})`,
+        message: `🏁 Journey complete! Arrived at destination (${currentTileX}, ${currentTileY})`,
         timestamp: Date.now(),
         type: 'action'
       });
@@ -994,13 +1252,6 @@ class GameStateManager {
       console.log(`📍 Player reached path node ${pathIndex + 1}/${this.state.playerPath.length} at (${targetNode.x}, ${targetNode.y})`);
       
       // Add path node reached to activity logs
-      this.addChatMessage({
-        id: `player_node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        agentId: 'player',
-        message: `Player reached waypoint ${pathIndex + 1}/${this.state.playerPath.length} at (${targetNode.x}, ${targetNode.y})`,
-        timestamp: Date.now(),
-        type: 'action'
-      });
       
       // If we've reached the end of the path, clear it
       if (this.state.playerPathIndex >= this.state.playerPath.length) {
@@ -1050,14 +1301,8 @@ class GameStateManager {
     
     console.log(`🚶 Player moving: from (${currentTileX}, ${currentTileY}) to (${newTileX}, ${newTileY}) - direction: ${direction}`);
     
-    // Add movement to activity logs
-    this.addChatMessage({
-      id: `player_move_${now}_${Math.random().toString(36).substr(2, 9)}`,
-      agentId: 'player',
-      message: `Player moved ${direction} to (${newTileX}, ${newTileY})`,
-      timestamp: now,
-      type: 'action'
-    });
+    // Only log movement in console, not in chat feed to reduce spam
+    // Individual step movements are too verbose for the AI feed
     
     // Update player position and animation
     this.setPlayerPixelPosition(newPixelX, newPixelY);
@@ -1099,7 +1344,7 @@ class GameStateManager {
     
     // Only update camera if not following a path (to prevent glitchy camera movement)
     if (!this.state.isPlayerFollowingPath) {
-      this.updateCamera();
+    this.updateCamera();
     }
     this.notifyListeners();
   }
@@ -1176,25 +1421,44 @@ class GameStateManager {
     // Map boundaries using actual map dimensions
     const mapWidth = this.state.mapWidth;
     const mapHeight = this.state.mapHeight;
-    const mapPixelWidth = mapWidth * this.state.tileSize;
-    const mapPixelHeight = mapHeight * this.state.tileSize;
     
-    // Screen dimensions
-    const screenWidth = window.innerWidth;
-    const screenHeight = window.innerHeight;
+    // Screen dimensions in tile units
+    const screenWidthInTiles = window.innerWidth / this.state.tileSize;
+    const screenHeightInTiles = window.innerHeight / this.state.tileSize;
     
-    // Calculate camera bounds
-    // Camera X: left edge should not go beyond 0, right edge should not show past map
-    const minCameraX = Math.min(0, screenWidth - mapPixelWidth);
-    const maxCameraX = 0;
+    // Calculate camera bounds in tile coordinates
+    // Camera position is the top-left corner of the viewport
+    // We need to ensure the camera doesn't show beyond the map boundaries
     
-    // Camera Y: top edge should not go beyond 0, bottom edge should not show past map
-    const minCameraY = Math.min(0, screenHeight - mapPixelHeight);
-    const maxCameraY = 0;
+    // X bounds: camera can't go left of 0, and right edge can't go beyond map width
+    const minCameraX = 0;
+    // Allow camera to scroll so the rightmost tile (mapWidth-1) is visible
+    let maxCameraX = Math.max(0, mapWidth - screenWidthInTiles);
+    
+    // Y bounds: camera can't go above 0, and bottom edge can't go beyond map height  
+    const minCameraY = 0;
+    // Allow camera to scroll so the bottommost tile (mapHeight-1) is visible
+    let maxCameraY = Math.max(0, mapHeight - screenHeightInTiles);
+    
+    // If screen is wider than map, ensure we can see the full map
+    if (screenWidthInTiles > mapWidth) {
+      maxCameraX = 0;
+    }
+    
+    // If screen is taller than map, ensure we can see the full map
+    if (screenHeightInTiles > mapHeight) {
+      maxCameraY = 0;
+    }
     
     // Constrain camera position
     const constrainedX = Math.max(minCameraX, Math.min(maxCameraX, cameraX));
     const constrainedY = Math.max(minCameraY, Math.min(maxCameraY, cameraY));
+    
+    // Debug logging - always log to see what's happening
+    console.log(`📷 Camera: (${cameraX.toFixed(1)}, ${cameraY.toFixed(1)}) → (${constrainedX.toFixed(1)}, ${constrainedY.toFixed(1)})`);
+    console.log(`📷 Map: ${mapWidth}x${mapHeight}, Screen: ${screenWidthInTiles.toFixed(1)}x${screenHeightInTiles.toFixed(1)}`);
+    console.log(`📷 Bounds: X[${minCameraX}, ${maxCameraX}], Y[${minCameraY}, ${maxCameraY}]`);
+    console.log(`📷 Can scroll to bottom-right: X=${maxCameraX.toFixed(1)}, Y=${maxCameraY.toFixed(1)}`);
     
     return { x: constrainedX, y: constrainedY };
   }
@@ -1273,18 +1537,9 @@ class GameStateManager {
     this.state.cameraPosition.x += deltaX;
     this.state.cameraPosition.y += deltaY;
     
-    // Apply map boundaries to camera
-    const mapWidth = this.state.mapWidth;
-    const mapHeight = this.state.mapHeight;
-    const screenWidth = this.state.screenWidth;
-    const screenHeight = this.state.screenHeight;
-    const tileSize = this.state.tileSize;
-    
-    const maxCameraX = Math.max(0, mapWidth - (screenWidth / tileSize));
-    const maxCameraY = Math.max(0, mapHeight - (screenHeight / tileSize));
-    
-    this.state.cameraPosition.x = Math.max(0, Math.min(maxCameraX, this.state.cameraPosition.x));
-    this.state.cameraPosition.y = Math.max(0, Math.min(maxCameraY, this.state.cameraPosition.y));
+    // Apply map boundaries to camera using the constraint function
+    const constrainedCamera = this.constrainCameraToMapBounds(this.state.cameraPosition.x, this.state.cameraPosition.y);
+    this.state.cameraPosition = constrainedCamera;
     
     console.log(`📷 Camera moved from (${oldX.toFixed(1)}, ${oldY.toFixed(1)}) to (${this.state.cameraPosition.x.toFixed(1)}, ${this.state.cameraPosition.y.toFixed(1)}) - delta: (${deltaX.toFixed(2)}, ${deltaY.toFixed(2)})`);
     this.notifyListeners();
@@ -1293,7 +1548,7 @@ class GameStateManager {
   resetCameraToPlayer() {
     // Only reset manual control if player is not following a path
     if (!this.state.isPlayerFollowingPath) {
-      this.state.isManualCameraControl = false; // Disable manual control, return to auto-follow
+    this.state.isManualCameraControl = false; // Disable manual control, return to auto-follow
     }
     
     if (typeof window === 'undefined') {
@@ -1342,10 +1597,13 @@ class GameStateManager {
     const cameraX = playerTileX - (screenCenterX / this.state.tileSize);
     const cameraY = playerTileY - (screenCenterY / this.state.tileSize);
     
-    this.state.cameraPosition.x = cameraX;
-    this.state.cameraPosition.y = cameraY;
+    // Constrain camera to map boundaries
+    const constrainedCamera = this.constrainCameraToMapBounds(cameraX, cameraY);
+    
+    this.state.cameraPosition = constrainedCamera;
     
     console.log(`📷 Camera initialized to center player on screen: player(${playerTileX.toFixed(1)}, ${playerTileY.toFixed(1)}) camera(${cameraX.toFixed(1)}, ${cameraY.toFixed(1)})`);
+    console.log(`📷 Final constrained camera: (${constrainedCamera.x.toFixed(1)}, ${constrainedCamera.y.toFixed(1)})`);
     this.notifyListeners();
   }
 
@@ -1369,6 +1627,467 @@ class GameStateManager {
 
   private notifyListeners() {
     this.listeners.forEach(listener => listener(this.getState()));
+  }
+
+  public getEffectiveTileSize(): number {
+    return this.state.tileSize;
+  }
+
+  // Conversation system for natural agent interactions
+  private conversationTemplates = {
+    greetings: [
+      "Hi there! How's your day going?",
+      "Hello! Nice to see you around here.",
+      "Hey! Working on anything interesting?",
+      "Good to see you! How are things?",
+      "Hi! Hope you're having a productive day.",
+      "Hello! What brings you this way?",
+      "Hey there! Everything going well?",
+      "Hi! Great to run into you here."
+    ],
+    workTalk: [
+      "I'm working on some research projects today.",
+      "Just finished up a maintenance task.",
+      "Working on coordinating with the team.",
+      "Busy with some engineering work.",
+      "Handling some administrative tasks.",
+      "Working on improving our systems.",
+      "Just completed a collaborative project.",
+      "Working on some new developments."
+    ],
+    thanks: [
+      "Thanks for the help earlier!",
+      "Appreciate your assistance with that task.",
+      "Thanks for working together on that project.",
+      "Really appreciate the collaboration!",
+      "Thanks for your support today.",
+      "Grateful for your help with that issue.",
+      "Thanks for being such a great team member!",
+      "Appreciate all the hard work you've been doing."
+    ],
+    responses: [
+      "You're welcome! Happy to help.",
+      "No problem at all!",
+      "My pleasure!",
+      "Glad I could assist!",
+      "Anytime! That's what we're here for.",
+      "You're very welcome!",
+      "Happy to be of service!",
+      "That's what teamwork is all about!"
+    ],
+    casual: [
+      "The weather's been nice lately.",
+      "How's the coffee in the break room?",
+      "Did you hear about the new project?",
+      "This place is really coming together.",
+      "I love working in this environment.",
+      "The team has been really supportive.",
+      "Things are running smoothly today.",
+      "It's great to be part of this team.",
+      "How's your day been so far?",
+      "The new equipment is working great!",
+      "Hope you're having a good day!",
+      "This is such a nice place to work.",
+      "The team collaboration has been amazing.",
+      "Everything seems to be running well today.",
+      "I really enjoy working with everyone here.",
+      "The atmosphere here is so positive!"
+    ],
+    workUpdates: [
+      "Just finished a big project!",
+      "Working on something exciting today.",
+      "Made some good progress on my tasks.",
+      "The new system is working perfectly.",
+      "Just completed a challenging assignment.",
+      "Working on improving our processes.",
+      "Had a productive morning so far.",
+      "Just wrapped up some important work.",
+      "Making good headway on the project.",
+      "The team coordination is going well."
+    ],
+    encouragement: [
+      "You're doing great work!",
+      "Keep up the excellent job!",
+      "Your contributions are really valuable.",
+      "I appreciate your dedication.",
+      "You're an important part of the team.",
+      "Your work makes a real difference.",
+      "Thanks for always being reliable.",
+      "You bring so much to the team.",
+      "Your positive attitude is contagious!",
+      "Keep being awesome!"
+    ]
+  };
+
+  private decideNextAgentAction(agent: AIAgent, now: number): void {
+    // Agent guidelines for intelligent behavior
+    const timeSinceLastAction = now - (agent.lastActionTime || 0);
+    const isAtHome = Math.round(agent.x) === Math.round(agent.homeX) && Math.round(agent.y) === Math.round(agent.homeY);
+    const isAtWork = Math.round(agent.x) === Math.round(agent.workX) && Math.round(agent.y) === Math.round(agent.workY);
+    
+    // Guideline 1: If at home and rested enough, go to work (prevent staying at home for dummy moves)
+    if (isAtHome && timeSinceLastAction > 20000 && Math.random() > 0.2) { // 80% chance after 20s to leave home
+      this.sendAgentToWork(agent, now);
+      return;
+    }
+    
+    // Guideline 2: If at work and worked enough, return home (but not for dummy moves)
+    if (isAtWork && timeSinceLastAction > 30000 && Math.random() > 0.4) { // 60% chance after 30s
+      this.returnAgentToHome(agent, now);
+      return;
+    }
+    
+    // Guideline 3: If neither at home nor work, prefer going to work over returning home
+    if (!isAtHome && !isAtWork) {
+      // Only return home if agent was actually working (not a dummy move)
+      const wasWorking = agent.activity === CrewmateActivity.WORKING || 
+                        agent.activity === CrewmateActivity.RESEARCHING || 
+                        agent.activity === CrewmateActivity.MAINTAINING;
+      
+      if (wasWorking && Math.random() > 0.7) { // 30% chance to return home if was working
+        this.returnAgentToHome(agent, now);
+      } else {
+        this.sendAgentToWork(agent, now); // Otherwise go to work
+      }
+      return;
+    }
+    
+    // Guideline 4: Occasional exploration (roaming to nearby interesting locations)
+    // Only explore if not at home to avoid starting dummy moves from home
+    if (!isAtHome && timeSinceLastAction > 45000 && Math.random() > 0.8) { // 20% chance after 45s
+      this.exploreNearbyLocation(agent, now);
+      return;
+    }
+    
+    // Guideline 5: Rest and think when no other action is needed
+    agent.activity = CrewmateActivity.RESTING;
+    agent.currentThought = 'Planning next actions and resting';
+    agent.lastActionTime = now;
+  }
+
+  private sendAgentToWork(agent: AIAgent, now: number): void {
+    const path = this.pathfinder.findPath(
+      Math.round(agent.x), 
+      Math.round(agent.y), 
+      Math.round(agent.workX), 
+      Math.round(agent.workY)
+    );
+    
+    if (path && path.nodes && path.nodes.length > 0) {
+      agent.currentPath = path.nodes;
+      agent.pathIndex = 0;
+      agent.isFollowingPath = true;
+      agent.targetBuilding = this.getBuildingAtLocation(agent.workX, agent.workY);
+      agent.activity = CrewmateActivity.WALKING;
+      agent.currentThought = 'Going to work at assigned building';
+      agent.lastActionTime = now;
+      
+      this.addChatMessage({
+        id: `agent_to_work_${agent.id}_${now}_${Math.random().toString(36).substr(2, 9)}`,
+        agentId: agent.id,
+        message: `🚶 ${agent.name} is heading to work`,
+        timestamp: now,
+        type: 'action'
+      });
+    }
+  }
+
+  private exploreNearbyLocation(agent: AIAgent, now: number): void {
+    // Find interesting nearby locations (buildings, recreation areas)
+    const currentX = Math.round(agent.x);
+    const currentY = Math.round(agent.y);
+    const explorationRadius = 5;
+    
+    const interestingLocations: {x: number, y: number, type: string}[] = [];
+    
+    // Look for nearby buildings within exploration radius
+    for (let dx = -explorationRadius; dx <= explorationRadius; dx++) {
+      for (let dy = -explorationRadius; dy <= explorationRadius; dy++) {
+        const checkX = currentX + dx;
+        const checkY = currentY + dy;
+        
+        if (checkX >= 0 && checkX < this.state.mapWidth && checkY >= 0 && checkY < this.state.mapHeight) {
+          const tile = this.state.mapData.get(`${checkX},${checkY}`);
+          // Exclude home location from exploration targets
+          const isHomeLocation = checkX === Math.round(agent.homeX) && checkY === Math.round(agent.homeY);
+          if (tile && !isHomeLocation && (tile.type === TileType.RECREATION || tile.type === TileType.RESEARCH_LAB || tile.type === TileType.ENGINEERING_BAY)) {
+            interestingLocations.push({x: checkX, y: checkY, type: tile.type});
+          }
+        }
+      }
+    }
+    
+    if (interestingLocations.length > 0) {
+      const target = interestingLocations[Math.floor(Math.random() * interestingLocations.length)];
+      const path = this.pathfinder.findPath(currentX, currentY, target.x, target.y);
+      
+      if (path && path.nodes && path.nodes.length > 0) {
+        agent.currentPath = path.nodes;
+        agent.pathIndex = 0;
+        agent.isFollowingPath = true;
+        agent.targetBuilding = this.getBuildingAtLocation(target.x, target.y);
+        agent.activity = CrewmateActivity.WALKING;
+        agent.currentThought = 'Exploring nearby locations';
+        agent.lastActionTime = now;
+        
+        this.addChatMessage({
+          id: `agent_explore_${agent.id}_${now}_${Math.random().toString(36).substr(2, 9)}`,
+          agentId: agent.id,
+          message: `🔍 ${agent.name} is exploring nearby areas`,
+          timestamp: now,
+          type: 'action'
+        });
+      }
+    }
+  }
+
+  private getBuildingAtLocation(x: number, y: number): any {
+    const tile = this.state.mapData.get(`${x},${y}`);
+    return tile ? {x, y, type: tile.type} : null;
+  }
+
+  private generateThinkingTopic(): string {
+    const topics = [
+      'the next task to complete',
+      'how to improve efficiency',
+      'what the other agents are working on',
+      'the weather conditions',
+      'new strategies for collaboration',
+      'upcoming projects',
+      'ways to help the team',
+      'optimizing workflow',
+      'learning new skills',
+      'the current mission objectives',
+      'how to better communicate',
+      'future plans and goals',
+      'the importance of teamwork',
+      'innovative solutions',
+      'the progress made today'
+    ];
+    return topics[Math.floor(Math.random() * topics.length)];
+  }
+
+  private checkForWalkingConversations(agent: AIAgent, now: number): void {
+    // Check for conversations when agents are walking and meet each other
+    if (Math.random() > 0.05) return; // Only 5% chance when walking
+    
+    const nearbyAgents = this.findNearbyAgents(agent, 1); // Within 1 tile when walking
+    if (nearbyAgents.length === 0) return;
+    
+    const otherAgent = nearbyAgents[0];
+    const conversationType = this.selectConversationType(agent, otherAgent, now);
+    
+    if (conversationType) {
+      this.startConversation(agent, otherAgent, conversationType, now);
+    }
+  }
+
+  private triggerAgentConversation(agent: AIAgent, now: number): void {
+    // Trigger conversations more frequently and in more situations
+    const canTalk = agent.activity === CrewmateActivity.RESTING || 
+                   agent.activity === CrewmateActivity.WORKING || 
+                   agent.activity === CrewmateActivity.RESEARCHING;
+    
+    if (!canTalk || Math.random() > 0.08) { // Increased from 0.02 to 0.08 (8% chance)
+      return;
+    }
+
+    // Add thinking message to chat feed (much less frequent)
+    if (Math.random() > 0.7) { // Only 30% chance of showing thinking
+      this.addChatMessage({
+        id: `agent_thinking_${agent.id}_${now}_${Math.random().toString(36).substr(2, 9)}`,
+        agentId: agent.id,
+        message: `💭 ${agent.name} is thinking about ${this.generateThinkingTopic()}`,
+        timestamp: now,
+        type: 'thinking'
+      });
+    }
+
+    // Find nearby agents for conversation
+    const nearbyAgents = this.findNearbyAgents(agent, 2); // Within 2 tiles
+    if (nearbyAgents.length === 0) {
+      return;
+    }
+
+    const otherAgent = nearbyAgents[0];
+    const conversationType = this.selectConversationType(agent, otherAgent, now);
+    
+    if (conversationType) {
+      this.startConversation(agent, otherAgent, conversationType, now);
+    }
+  }
+
+  private findNearbyAgents(agent: AIAgent, maxDistance: number): AIAgent[] {
+    const nearbyAgents: AIAgent[] = [];
+    
+    for (const [_, otherAgent] of Array.from(this.state.aiAgents.entries())) {
+      if (otherAgent.id === agent.id) continue;
+      
+      const distance = Math.abs(otherAgent.x - agent.x) + Math.abs(otherAgent.y - agent.y);
+      const canTalk = otherAgent.activity === CrewmateActivity.RESTING || 
+                     otherAgent.activity === CrewmateActivity.WORKING || 
+                     otherAgent.activity === CrewmateActivity.RESEARCHING;
+      
+      if (distance <= maxDistance && canTalk) {
+        nearbyAgents.push(otherAgent);
+      }
+    }
+    
+    return nearbyAgents;
+  }
+
+  private selectConversationType(agent: AIAgent, otherAgent: AIAgent, now: number): string | null {
+    // Check if agents have interacted recently
+    const lastInteractionKey = `${agent.id}-${otherAgent.id}`;
+    const lastInteraction = agent.lastInteractionTime || 0;
+    
+    // Don't interact too frequently (at least 30 seconds between conversations)
+    if (now - lastInteraction < 30000) {
+      return null;
+    }
+
+    // Context-aware conversation selection
+    const types = ['greetings', 'workTalk', 'thanks', 'casual', 'workUpdates', 'encouragement'];
+    let weights = [0.25, 0.2, 0.15, 0.2, 0.1, 0.1]; // Default probability weights
+    
+    // Adjust weights based on context
+    if (agent.currentThought && agent.currentThought.includes('returned home')) {
+      weights = [0.3, 0.2, 0.15, 0.15, 0.1, 0.1]; // More greetings when returning home
+    } else if (agent.currentThought && agent.currentThought.includes('arrives at')) {
+      weights = [0.15, 0.3, 0.1, 0.15, 0.2, 0.1]; // More work talk and updates when arriving at buildings
+    } else if (agent.currentThought && agent.currentThought.includes('task')) {
+      weights = [0.15, 0.2, 0.25, 0.15, 0.15, 0.1]; // More thanks and work talk when working on tasks
+    } else if (agent.currentThought && agent.currentThought.includes('completed')) {
+      weights = [0.1, 0.15, 0.2, 0.15, 0.25, 0.15]; // More work updates and encouragement when completing tasks
+    }
+    
+    const random = Math.random();
+    let cumulative = 0;
+    
+    for (let i = 0; i < types.length; i++) {
+      cumulative += weights[i];
+      if (random <= cumulative) {
+        return types[i];
+      }
+    }
+    
+    return 'greetings'; // Default fallback
+  }
+
+  private startConversation(agent: AIAgent, otherAgent: AIAgent, type: string, now: number): void {
+    const templates = this.conversationTemplates[type as keyof typeof this.conversationTemplates];
+    const message = templates[Math.floor(Math.random() * templates.length)];
+    
+    // Give XP to both agents for interacting
+    const xpGain = 5 + Math.floor(Math.random() * 10); // 5-15 XP per interaction
+    agent.experiencePoints += xpGain;
+    agent.totalInteractions += 1;
+    otherAgent.experiencePoints += xpGain;
+    otherAgent.totalInteractions += 1;
+    
+    // Check for level ups
+    const agentNewLevel = Math.floor(agent.experiencePoints / 100) + 1;
+    if (agentNewLevel > agent.level) {
+      agent.level = agentNewLevel;
+      this.addChatMessage({
+        id: `agent_levelup_${agent.id}_${now}_${Math.random().toString(36).substr(2, 9)}`,
+        agentId: agent.id,
+        message: `🎉 ${agent.name} leveled up to level ${agentNewLevel}!`,
+        timestamp: now,
+        type: 'action'
+      });
+    }
+    
+    const otherAgentNewLevel = Math.floor(otherAgent.experiencePoints / 100) + 1;
+    if (otherAgentNewLevel > otherAgent.level) {
+      otherAgent.level = otherAgentNewLevel;
+      this.addChatMessage({
+        id: `agent_levelup_${otherAgent.id}_${now}_${Math.random().toString(36).substr(2, 9)}`,
+        agentId: otherAgent.id,
+        message: `🎉 ${otherAgent.name} leveled up to level ${otherAgentNewLevel}!`,
+        timestamp: now,
+        type: 'action'
+      });
+    }
+    
+    // Set conversation for the initiating agent
+    agent.chatBubble = {
+      message: message,
+      timestamp: now,
+      duration: 4000
+    };
+    agent.currentThought = message;
+    agent.lastInteractionTime = now;
+
+    // Add conversation message to chat feed (only sometimes)
+    if (Math.random() > 0.5) { // Only 50% chance of showing conversations
+      this.addChatMessage({
+        id: `conversation_${agent.id}_${now}_${Math.random().toString(36).substr(2, 9)}`,
+        agentId: agent.id,
+        message: `💬 ${agent.name}: "${message}"`,
+        timestamp: now,
+        type: 'interaction'
+      });
+    }
+    
+    // Set response for the other agent after a short delay
+    setTimeout(() => {
+      if (type === 'greetings' || type === 'workTalk' || type === 'casual' || type === 'workUpdates' || type === 'encouragement' || type === 'thanks') {
+        let responseTemplates;
+        
+        // Choose appropriate response based on conversation type
+        if (type === 'thanks') {
+          responseTemplates = this.conversationTemplates.responses;
+        } else if (type === 'encouragement') {
+          responseTemplates = [
+            "Thank you so much!",
+            "That means a lot to me!",
+            "I really appreciate that!",
+            "You're too kind!",
+            "Thanks for the encouragement!",
+            "That's so nice of you to say!",
+            "I really needed to hear that!",
+            "You're amazing too!"
+          ];
+        } else {
+          // Mix of responses and follow-up questions
+          responseTemplates = [
+            ...this.conversationTemplates.responses,
+            "That sounds interesting!",
+            "Tell me more about that!",
+            "How's that going for you?",
+            "That's great to hear!",
+            "I'd love to hear more!",
+            "Sounds like you're doing well!",
+            "That's fantastic!",
+            "Keep up the great work!"
+          ];
+        }
+        
+        const response = responseTemplates[Math.floor(Math.random() * responseTemplates.length)];
+        
+        otherAgent.chatBubble = {
+          message: response,
+          timestamp: Date.now(),
+          duration: 4000
+        };
+        otherAgent.currentThought = response;
+        otherAgent.lastInteractionTime = Date.now();
+
+        // Add response message to chat feed (only sometimes)
+        if (Math.random() > 0.3) { // Only 70% chance of showing responses
+          this.addChatMessage({
+            id: `conversation_response_${otherAgent.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            agentId: otherAgent.id,
+            message: `💬 ${otherAgent.name}: "${response}"`,
+            timestamp: Date.now(),
+            type: 'interaction'
+          });
+        }
+      }
+    }, 4000); // 4 second delay for response
+    
+    console.log(`💬 ${agent.name} to ${otherAgent.name}: "${message}"`);
   }
 }
 

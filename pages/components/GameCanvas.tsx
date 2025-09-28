@@ -45,7 +45,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     collaborativeTaskService.setNotificationCallback(addNotification);
   }, [addNotification]);
 
-  // Function to generate collaborative tasks
+  // Automatic collaborative task generation
   const generateCollaborativeTask = async () => {
     try {
       const result = await collaborativeTaskService.generateCollaborativeTask({
@@ -54,7 +54,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       
       if (result.success) {
         // Task generation handles agent movement internally, no need to reload agents
-        console.log('Task generated successfully, agents will move sequentially');
+        console.log('🤖 Automatic task generated successfully, agents will move sequentially');
         
         // Set path to the specific agent that was assigned the task
         // The server calculates the path but we need to set it on the client side
@@ -64,10 +64,37 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
         } catch (error) {
           console.log('🎮 Could not set avatar path:', error);
         }
+      } else if (result.error && result.error.includes('Rate limited')) {
+        // Handle rate limiting gracefully - just log and continue
+        console.log('⏳ Task generation rate limited:', result.error);
+      } else {
+        console.error('❌ Task generation failed:', result.error);
       }
     } catch (error) {
       console.error('Error generating collaborative task:', error);
     }
+  };
+
+  // Automatic task generation system
+  const startAutomaticTaskGeneration = () => {
+    console.log('🤖 Starting automatic task generation system...');
+    
+    // Generate first task after 5 seconds (to ensure everything is loaded)
+    setTimeout(() => {
+      console.log('🤖 Generating initial automatic task...');
+      generateCollaborativeTask();
+    }, 5000);
+    
+    // Then generate tasks every 2 minutes (120,000ms)
+    const taskInterval = setInterval(() => {
+      console.log('🤖 Generating automatic task (every 2 minutes)...');
+      generateCollaborativeTask();
+    }, 120000); // 2 minutes
+    
+    // Store interval ID for cleanup
+    (window as any).automaticTaskInterval = taskInterval;
+    
+    console.log('🤖 Automatic task generation system started - tasks will generate every 2 minutes');
   };
 
   // Load real agents from backend
@@ -188,7 +215,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       workX: x, // Set work to current position (their assigned building)
       workY: y,
       personality: backendAgent.personality?.traits?.join(', ') || 'Friendly and helpful',
-      currentThought: 'Exploring the space station',
+      currentThought: 'Initializing and exploring the space station',
       lastInteractionTime: 0,
       autonomyLevel: 0.7,
       goals: backendAgent.personality?.goals || ['Explore', 'Help others'],
@@ -196,7 +223,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       isFollowingPath: false,
       lastBuildingVisitTime: 0,
       visitCooldown: 5000,
-      moveInterval: 200 + Math.random() * 200
+      moveInterval: 200 + Math.random() * 200,
+      // XP and interaction system
+      experiencePoints: 0,
+      level: 1,
+      totalInteractions: 0,
+      playerInteractions: 0
     };
   };
   const lastGameUpdateTime = useRef<number>(0);
@@ -235,11 +267,25 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     // Setup click handler for tile placement
     canvasRef.current.addEventListener('click', handleCanvasClick);
 
+    // Setup mouse drag controls for camera movement
+    canvasRef.current.addEventListener('mousedown', handleMouseDown);
+    canvasRef.current.addEventListener('mousemove', handleMouseMove);
+    canvasRef.current.addEventListener('mouseup', handleMouseUp);
+    canvasRef.current.addEventListener('mouseleave', handleMouseUp);
+
+    window.addEventListener('keydown', handleKeyDown);
+
     // Initialize camera to center on player
     gameState.initializeCamera();
 
     // Initialize tileset background
     initializeTilesetBackground();
+
+    // Start player activity system
+    startPlayerActivitySystem();
+
+    // Start wallet simulation system
+    startWalletSimulation();
 
     // Auto-load default map if no map is loaded
     const state = gameState.getState();
@@ -270,6 +316,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       } else {
         console.log('✅ Agents already loaded, skipping');
       }
+      
+      // Start automatic task generation system
+      startAutomaticTaskGeneration();
     }, 100);
 
     // Expose loadRealAgents function globally for manual refresh
@@ -309,12 +358,492 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       unsubscribe();
       if (canvasRef.current) {
         canvasRef.current.removeEventListener('click', handleCanvasClick);
+        canvasRef.current.removeEventListener('mousedown', handleMouseDown);
+        canvasRef.current.removeEventListener('mousemove', handleMouseMove);
+        canvasRef.current.removeEventListener('mouseup', handleMouseUp);
+        canvasRef.current.removeEventListener('mouseleave', handleMouseUp);
       }
+      window.removeEventListener('keydown', handleKeyDown);
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
+      // Clean up automatic task generation interval
+      if ((window as any).automaticTaskInterval) {
+        clearInterval((window as any).automaticTaskInterval);
+        console.log('🤖 Automatic task generation system stopped');
+      }
     };
   }, []);
+
+  const handlePlayerInteraction = (gridX: number, gridY: number, screenX: number, screenY: number) => {
+    const state = gameState.getState();
+    const effectiveTileSize = gameState.getEffectiveTileSize();
+    
+    // Check if clicking on an agent
+    const clickedAgent = findAgentAtPosition(gridX, gridY, state);
+    if (clickedAgent) {
+      // Interact with agent
+      interactWithAgent(clickedAgent);
+      return;
+    }
+    
+    // Check if clicking on a building
+    const clickedBuilding = findBuildingAtPosition(gridX, gridY, state);
+    if (clickedBuilding) {
+      // Move to building and interact
+      movePlayerToBuilding(gridX, gridY, clickedBuilding);
+      return;
+    }
+    
+    // Default: move player to clicked location
+    movePlayerToLocation(gridX, gridY);
+  };
+
+  const findAgentAtPosition = (gridX: number, gridY: number, state: any) => {
+    for (const [_, agent] of state.aiAgents.entries()) {
+      const agentGridX = Math.round(agent.x);
+      const agentGridY = Math.round(agent.y);
+      if (agentGridX === gridX && agentGridY === gridY) {
+        return agent;
+      }
+    }
+    return null;
+  };
+
+  const findBuildingAtPosition = (gridX: number, gridY: number, state: any) => {
+    const tile = state.mapData.get(`${gridX},${gridY}`);
+    if (tile && (tile.type === TileType.LIVING_QUARTERS || 
+                 tile.type === TileType.RESEARCH_LAB || 
+                 tile.type === TileType.ENGINEERING_BAY || 
+                 tile.type === TileType.RECREATION)) {
+      return tile;
+    }
+    return null;
+  };
+
+  const interactWithAgent = (agent: any) => {
+    // Give XP to the agent for player interaction
+    const xpGain = 10 + Math.floor(Math.random() * 20); // 10-30 XP per interaction
+    agent.experiencePoints += xpGain;
+    agent.totalInteractions += 1;
+    agent.playerInteractions += 1;
+    
+    // Check for level up
+    const newLevel = Math.floor(agent.experiencePoints / 100) + 1;
+    if (newLevel > agent.level) {
+      agent.level = newLevel;
+      gameState.addChatMessage({
+        id: `agent_levelup_${agent.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        agentId: agent.id,
+        message: `🎉 ${agent.name} leveled up to level ${newLevel}!`,
+        timestamp: Date.now(),
+        type: 'action'
+      });
+    }
+    
+    // Give player XP for interacting
+    const state = gameState.getState();
+    const playerXpGain = 5 + Math.floor(Math.random() * 10); // 5-15 XP for player
+    state.playerWallet.experiencePoints += playerXpGain;
+    
+    // Show floating XP gain notification
+    showFloatingNotification(`+${playerXpGain} XP`, '#2196F3');
+    
+    // Check for player level up
+    const playerNewLevel = Math.floor(state.playerWallet.experiencePoints / 200) + 1;
+    if (playerNewLevel > state.playerWallet.level) {
+      state.playerWallet.level = playerNewLevel;
+      
+      // Show prominent level up notification
+      showFloatingNotification(`LEVEL UP! ${playerNewLevel}`, '#FFD700');
+      
+      gameState.addChatMessage({
+        id: `player_levelup_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        agentId: 'player',
+        message: `🎉 Player leveled up to level ${playerNewLevel}!`,
+        timestamp: Date.now(),
+        type: 'action'
+      });
+    }
+    
+    // Save wallet to Redis
+    savePlayerWalletToRedis();
+    
+    // Add player interaction message
+    gameState.addChatMessage({
+      id: `player_interact_${agent.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      agentId: 'player',
+      message: `👋 Player approaches ${agent.name} (+${xpGain} XP to ${agent.name}, +${playerXpGain} XP to player)`,
+      timestamp: Date.now(),
+      type: 'interaction'
+    });
+
+    // Trigger agent response
+    setTimeout(() => {
+      const responses = [
+        `Hello! Nice to meet you!`,
+        `Hi there! How can I help you?`,
+        `Good to see you! What brings you here?`,
+        `Hello! I'm ${agent.name}, nice to meet you!`,
+        `Hi! I'm working on some interesting projects.`,
+        `Hello! Welcome to our space station!`
+      ];
+      
+      const response = responses[Math.floor(Math.random() * responses.length)];
+      
+      // Add agent response
+      gameState.addChatMessage({
+        id: `agent_response_${agent.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        agentId: agent.id,
+        message: `💬 ${agent.name}: "${response}"`,
+        timestamp: Date.now(),
+        type: 'interaction'
+      });
+
+      // Set agent chat bubble
+      agent.chatBubble = {
+        message: response,
+        timestamp: Date.now(),
+        duration: 5000
+      };
+    }, 1000);
+  };
+
+  const movePlayerToBuilding = (gridX: number, gridY: number, building: any) => {
+    const buildingNames: Record<string, string> = {
+      [TileType.LIVING_QUARTERS]: 'Living Quarters',
+      [TileType.RESEARCH_LAB]: 'Research Lab',
+      [TileType.ENGINEERING_BAY]: 'Engineering Bay',
+      [TileType.RECREATION]: 'Recreation Area'
+    };
+
+    const buildingName = buildingNames[building.type] || 'Building';
+    
+    // Move player to building
+    gameState.setPlayerPath([{x: gridX, y: gridY}], {
+      type: 'building',
+      name: buildingName
+    });
+
+    // Add interaction message
+    gameState.addChatMessage({
+      id: `player_building_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      agentId: 'player',
+      message: `🏢 Player is going to ${buildingName}`,
+      timestamp: Date.now(),
+      type: 'action'
+    });
+  };
+
+  const startPlayerActivitySystem = () => {
+    // Give player random activities every 30-60 seconds
+    const scheduleNextActivity = () => {
+      const delay = 30000 + Math.random() * 30000; // 30-60 seconds
+      setTimeout(() => {
+        triggerRandomPlayerActivity();
+        scheduleNextActivity();
+      }, delay);
+    };
+    
+    scheduleNextActivity();
+  };
+
+  const triggerRandomPlayerActivity = () => {
+    const state = gameState.getState();
+    
+    // Don't trigger if player is already moving
+    if (state.isPlayerFollowingPath) return;
+    
+    const activities = [
+      () => exploreNearbyArea(),
+      () => visitRandomBuilding(),
+      () => checkOnAgents(),
+      () => patrolStation(),
+      () => takeBreak()
+    ];
+    
+    const randomActivity = activities[Math.floor(Math.random() * activities.length)];
+    randomActivity();
+  };
+
+  const exploreNearbyArea = () => {
+    const state = gameState.getState();
+    const playerX = Math.round(state.playerPosition.pixelX / state.tileSize);
+    const playerY = Math.round(state.playerPosition.pixelY / state.tileSize);
+    
+    // Find a random nearby location
+    const offsetX = (Math.random() - 0.5) * 10; // Within 5 tiles
+    const offsetY = (Math.random() - 0.5) * 10;
+    const targetX = Math.max(0, Math.min(state.mapWidth - 1, playerX + offsetX));
+    const targetY = Math.max(0, Math.min(state.mapHeight - 1, playerY + offsetY));
+    
+    gameState.setPlayerPath([{x: targetX, y: targetY}], {
+      type: 'building',
+      name: 'nearby area'
+    });
+
+    gameState.addChatMessage({
+      id: `player_explore_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      agentId: 'player',
+      message: `🔍 Player decides to explore the nearby area`,
+      timestamp: Date.now(),
+      type: 'action'
+    });
+  };
+
+  const visitRandomBuilding = () => {
+    const state = gameState.getState();
+    const buildings = [];
+    
+    // Find all buildings
+    for (let x = 0; x < state.mapWidth; x++) {
+      for (let y = 0; y < state.mapHeight; y++) {
+        const tile = state.mapData.get(`${x},${y}`);
+        if (tile && (tile.type === TileType.LIVING_QUARTERS || 
+                     tile.type === TileType.RESEARCH_LAB || 
+                     tile.type === TileType.ENGINEERING_BAY || 
+                     tile.type === TileType.RECREATION)) {
+          buildings.push({x, y, type: tile.type});
+        }
+      }
+    }
+    
+    if (buildings.length > 0) {
+      const randomBuilding = buildings[Math.floor(Math.random() * buildings.length)];
+      const buildingNames = {
+        [TileType.LIVING_QUARTERS]: 'Living Quarters',
+        [TileType.RESEARCH_LAB]: 'Research Lab',
+        [TileType.ENGINEERING_BAY]: 'Engineering Bay',
+        [TileType.RECREATION]: 'Recreation Area'
+      };
+      
+      gameState.setPlayerPath([{x: randomBuilding.x, y: randomBuilding.y}], {
+        type: 'building',
+        name: buildingNames[randomBuilding.type]
+      });
+
+      gameState.addChatMessage({
+        id: `player_visit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        agentId: 'player',
+        message: `🏢 Player decides to visit the ${buildingNames[randomBuilding.type]}`,
+        timestamp: Date.now(),
+        type: 'action'
+      });
+    }
+  };
+
+  const checkOnAgents = () => {
+    const state = gameState.getState();
+    const agents = Array.from(state.aiAgents.values());
+    
+    if (agents.length > 0) {
+      const randomAgent = agents[Math.floor(Math.random() * agents.length)];
+      const agentX = Math.round(randomAgent.x);
+      const agentY = Math.round(randomAgent.y);
+      
+      gameState.setPlayerPath([{x: agentX, y: agentY}], {
+        type: 'agent',
+        name: randomAgent.name
+      });
+
+      gameState.addChatMessage({
+        id: `player_check_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        agentId: 'player',
+        message: `👥 Player goes to check on ${randomAgent.name}`,
+        timestamp: Date.now(),
+        type: 'action'
+      });
+    }
+  };
+
+  const patrolStation = () => {
+    const state = gameState.getState();
+    const patrolPoints = [
+      {x: 5, y: 5}, {x: 20, y: 5}, {x: 20, y: 20}, {x: 5, y: 20}
+    ];
+    
+    const randomPoint = patrolPoints[Math.floor(Math.random() * patrolPoints.length)];
+    
+    gameState.setPlayerPath([{x: randomPoint.x, y: randomPoint.y}], {
+      type: 'building',
+      name: 'station perimeter'
+    });
+
+    gameState.addChatMessage({
+      id: `player_patrol_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      agentId: 'player',
+      message: `🚶‍♂️ Player starts a patrol of the station`,
+      timestamp: Date.now(),
+      type: 'action'
+    });
+  };
+
+  const takeBreak = () => {
+    gameState.addChatMessage({
+      id: `player_break_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      agentId: 'player',
+      message: `☕ Player takes a moment to rest and observe the station`,
+      timestamp: Date.now(),
+      type: 'action'
+    });
+  };
+
+  const startWalletSimulation = () => {
+    // Simulate wallet updates every 10-30 seconds
+    const scheduleNextUpdate = () => {
+      const delay = 10000 + Math.random() * 20000; // 10-30 seconds
+      setTimeout(() => {
+        updateWallet();
+        scheduleNextUpdate();
+      }, delay);
+    };
+    
+    scheduleNextUpdate();
+  };
+
+  const updateWallet = () => {
+    const state = gameState.getState();
+    const wallet = state.playerWallet;
+    
+    // Simulate money earning from activities
+    const moneyEarned = 10 + Math.floor(Math.random() * 50); // 10-60 money
+    wallet.totalMoney += moneyEarned;
+    wallet.lastUpdated = Date.now();
+    
+    // Show floating money gain notification
+    showFloatingNotification(`+$${moneyEarned}`, '#4CAF50');
+    
+    // Add money earning message
+    gameState.addChatMessage({
+      id: `wallet_update_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      agentId: 'player',
+      message: `💰 Player earned $${moneyEarned} from station activities (Total: $${wallet.totalMoney})`,
+      timestamp: Date.now(),
+      type: 'action'
+    });
+    
+    // Save wallet to Redis
+    savePlayerWalletToRedis();
+  };
+
+  const savePlayerWalletToRedis = async () => {
+    try {
+      const state = gameState.getState();
+      const response = await fetch('/api/player/wallet', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          playerId: 'default_player',
+          action: 'update',
+          totalMoney: state.playerWallet.totalMoney,
+          experiencePoints: state.playerWallet.experiencePoints,
+          level: state.playerWallet.level
+        })
+      });
+      
+      if (response.ok) {
+        console.log('💰 Saved player wallet to Redis');
+      } else {
+        console.error('Failed to save player wallet to Redis');
+      }
+    } catch (error) {
+      console.error('Failed to save player wallet to Redis:', error);
+    }
+  };
+
+  const showFloatingNotification = (text: string, color: string) => {
+    // Create a temporary floating notification
+    const notification = {
+      text,
+      color,
+      x: Math.random() * 400 + 200, // Random position in center area
+      y: Math.random() * 200 + 200,
+      startTime: Date.now(),
+      duration: 2000 // 2 seconds
+    };
+    
+    // Store notification for rendering
+    if (!(window as any).floatingNotifications) {
+      (window as any).floatingNotifications = [];
+    }
+    (window as any).floatingNotifications.push(notification);
+    
+    // Remove notification after duration
+    setTimeout(() => {
+      if ((window as any).floatingNotifications) {
+        (window as any).floatingNotifications = (window as any).floatingNotifications.filter((n: any) => n !== notification);
+      }
+    }, notification.duration);
+  };
+
+  const drawFloatingNotifications = (ctx: CanvasRenderingContext2D) => {
+    const notifications = (window as any).floatingNotifications || [];
+    const now = Date.now();
+    
+    ctx.save();
+    
+    notifications.forEach((notification: any) => {
+      const elapsed = now - notification.startTime;
+      const progress = elapsed / notification.duration;
+      
+      if (progress >= 1) return; // Skip expired notifications
+      
+      // Fade out effect
+      const alpha = 1 - progress;
+      const yOffset = progress * 50; // Move up over time
+      
+      // Draw notification with glow effect
+      ctx.fillStyle = notification.color;
+      ctx.font = 'bold 20px Arial';
+      ctx.textAlign = 'center';
+      
+      // Add shadow/glow
+      ctx.shadowColor = notification.color;
+      ctx.shadowBlur = 10;
+      ctx.globalAlpha = alpha;
+      
+      ctx.fillText(
+        notification.text,
+        notification.x,
+        notification.y - yOffset
+      );
+      
+      // Reset shadow
+      ctx.shadowBlur = 0;
+    });
+    
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  };
+
+  const movePlayerToLocation = (gridX: number, gridY: number) => {
+    // Move player to clicked location
+    gameState.setPlayerPath([{x: gridX, y: gridY}], {
+      type: 'building',
+      name: `location (${gridX}, ${gridY})`
+    });
+
+    // Add movement message with more variety
+    const movementMessages = [
+      `🚶 Player is moving to (${gridX}, ${gridY})`,
+      `👣 Player walks to (${gridX}, ${gridY})`,
+      `🏃 Player heads to (${gridX}, ${gridY})`,
+      `🚶‍♂️ Player explores towards (${gridX}, ${gridY})`,
+      `👤 Player navigates to (${gridX}, ${gridY})`
+    ];
+    
+    const message = movementMessages[Math.floor(Math.random() * movementMessages.length)];
+
+    gameState.addChatMessage({
+      id: `player_move_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      agentId: 'player',
+      message: message,
+      timestamp: Date.now(),
+      type: 'action'
+    });
+  };
 
   const handleCanvasClick = (event: MouseEvent) => {
     if (!canvasRef.current) return;
@@ -324,15 +853,20 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
 
-    // Convert screen coordinates to grid coordinates
-    const gridX = Math.floor((x + state.cameraPosition.x * state.tileSize) / state.tileSize);
-    const gridY = Math.floor((y + state.cameraPosition.y * state.tileSize) / state.tileSize);
+    // Convert screen coordinates to grid coordinates using effective tile size
+    const effectiveTileSize = gameState.getEffectiveTileSize();
+    const gridX = Math.floor((x + state.cameraPosition.x * effectiveTileSize) / effectiveTileSize);
+    const gridY = Math.floor((y + state.cameraPosition.y * effectiveTileSize) / effectiveTileSize);
 
     // Get the current selected tool from game state instead of closure
     const currentTool = state.selectedTool;
 
     // Handle different tools
     switch (currentTool) {
+      case Tool.SELECT:
+        // Player interaction mode - move to location or interact with agents
+        handlePlayerInteraction(gridX, gridY, x, y);
+        break;
       case Tool.BULLDOZER:
         gameState.placeTile(gridX, gridY, TileType.SPACE);
         break;
@@ -353,6 +887,108 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
         break;
       case Tool.POWER:
         gameState.placeTile(gridX, gridY, TileType.POWER_LINE);
+        break;
+    }
+  };
+
+
+  // Mouse drag state
+  const [isDragging, setIsDragging] = useState(false);
+  const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
+
+  const handleMouseDown = (event: MouseEvent) => {
+    if (event.button === 0) { // Left mouse button
+      setIsDragging(true);
+      setLastMousePos({ x: event.clientX, y: event.clientY });
+    }
+  };
+
+  const handleMouseMove = (event: MouseEvent) => {
+    if (isDragging) {
+      const deltaX = event.clientX - lastMousePos.x;
+      const deltaY = event.clientY - lastMousePos.y;
+      
+      // Convert pixel movement to tile movement (invert Y for natural scrolling)
+      const tileDeltaX = deltaX / gameState.getEffectiveTileSize();
+      const tileDeltaY = -deltaY / gameState.getEffectiveTileSize(); // Invert Y
+      
+      gameState.moveCamera(tileDeltaX, tileDeltaY);
+      
+      setLastMousePos({ x: event.clientX, y: event.clientY });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleKeyDown = (event: KeyboardEvent) => {
+    // Only handle zoom keys if not typing in an input field
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+      return;
+    }
+
+    switch (event.key) {
+      case 'ArrowUp':
+        event.preventDefault();
+        gameState.moveCamera(0, -0.5); // Move camera up (negative Y)
+        break;
+      case 'ArrowDown':
+        event.preventDefault();
+        gameState.moveCamera(0, 0.5); // Move camera down (positive Y)
+        break;
+      case 'ArrowLeft':
+        event.preventDefault();
+        gameState.moveCamera(-0.5, 0); // Move camera left (negative X)
+        break;
+      case 'ArrowRight':
+        event.preventDefault();
+        gameState.moveCamera(0.5, 0); // Move camera right (positive X)
+        break;
+      case 'w':
+      case 'W':
+        event.preventDefault();
+        gameState.moveCamera(0, -0.5); // Move camera up
+        break;
+      case 's':
+      case 'S':
+        event.preventDefault();
+        gameState.moveCamera(0, 0.5); // Move camera down
+        break;
+      case 'a':
+      case 'A':
+        event.preventDefault();
+        gameState.moveCamera(-0.5, 0); // Move camera left
+        break;
+      case 'd':
+      case 'D':
+        event.preventDefault();
+        gameState.moveCamera(0.5, 0); // Move camera right
+        break;
+      case 'e':
+      case 'E':
+        event.preventDefault();
+        exploreNearbyArea();
+        break;
+      case 'v':
+      case 'V':
+        event.preventDefault();
+        visitRandomBuilding();
+        break;
+      case 'c':
+      case 'C':
+        event.preventDefault();
+        checkOnAgents();
+        break;
+      case 'p':
+      case 'P':
+        event.preventDefault();
+        patrolStation();
+        break;
+      case 'r':
+      case 'R':
+        event.preventDefault();
+        takeBreak();
         break;
     }
   };
@@ -482,6 +1118,99 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
         return '#ff8800';
       default:
         return '#ffffff';
+    }
+  };
+
+  const drawActivityStatus = (ctx: CanvasRenderingContext2D, agent: AIAgent, x: number, y: number, tileSize: number) => {
+    // Only show activity status if agent is not in a chat bubble
+    if (agent.chatBubble) return;
+    
+    const statusText = agent.currentThought || getActivityText(agent.activity);
+    if (!statusText) return;
+    
+    const fontSize = 10;
+    const padding = 4;
+    
+    ctx.font = `${fontSize}px Arial`;
+    ctx.textAlign = 'center';
+    
+    // Measure text width
+    const textWidth = ctx.measureText(statusText).width;
+    const textHeight = fontSize + 2;
+    
+    // Position above agent
+    const statusX = x + tileSize / 2;
+    const statusY = y - 15;
+    
+    // Draw background
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(
+      statusX - textWidth / 2 - padding,
+      statusY - textHeight - padding,
+      textWidth + padding * 2,
+      textHeight + padding * 2
+    );
+    
+    // Draw text
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(statusText, statusX, statusY);
+  };
+
+  const drawAgentXP = (ctx: CanvasRenderingContext2D, agent: AIAgent, x: number, y: number, tileSize: number) => {
+    const fontSize = 9;
+    const padding = 3;
+    
+    // XP and level info
+    const xpText = `Lv.${agent.level} (${agent.experiencePoints} XP)`;
+    const interactionText = `${agent.totalInteractions} interactions`;
+    
+    ctx.font = `${fontSize}px Arial`;
+    ctx.textAlign = 'center';
+    
+    // Measure text widths
+    const xpWidth = ctx.measureText(xpText).width;
+    const interactionWidth = ctx.measureText(interactionText).width;
+    const maxWidth = Math.max(xpWidth, interactionWidth);
+    const textHeight = fontSize + 2;
+    
+    // Position above agent (below activity status if present)
+    const xpX = x + tileSize / 2;
+    const xpY = y - 35; // Higher up to avoid overlap with activity status
+    
+    // Draw background
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    ctx.fillRect(
+      xpX - maxWidth / 2 - padding,
+      xpY - (textHeight * 2) - padding * 2,
+      maxWidth + padding * 2,
+      (textHeight * 2) + padding * 2
+    );
+    
+    // Draw XP text
+    ctx.fillStyle = '#4CAF50'; // Green for XP
+    ctx.fillText(xpText, xpX, xpY - textHeight);
+    
+    // Draw interaction text
+    ctx.fillStyle = '#2196F3'; // Blue for interactions
+    ctx.fillText(interactionText, xpX, xpY);
+  };
+
+  const getActivityText = (activity: CrewmateActivity): string => {
+    switch (activity) {
+      case CrewmateActivity.WORKING:
+        return 'Working';
+      case CrewmateActivity.RESTING:
+        return 'Resting';
+      case CrewmateActivity.EATING:
+        return 'Taking break';
+      case CrewmateActivity.RESEARCHING:
+        return 'Researching';
+      case CrewmateActivity.MAINTAINING:
+        return 'Maintaining';
+      case CrewmateActivity.WALKING:
+        return 'Walking';
+      default:
+        return 'Active';
     }
   };
 
@@ -822,28 +1551,65 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
   const drawAgentPath = (ctx: CanvasRenderingContext2D, agent: AIAgent, state: GameState) => {
     if (!agent.currentPath || agent.currentPath.length < 2) return;
     
+    // Determine path style based on agent activity and destination
+    let pathStyle = {
+      color: `${agent.color}80`, // Default semi-transparent agent color
+      width: 3,
+      dash: [5, 5],
+      shadow: 'transparent',
+      shadowBlur: 0
+    };
+    
     // Check if this is a master agent (has a task-related thought)
     const isMasterAgent = agent.currentThought && agent.currentThought.includes('Walking to');
     
-    // Draw path as connected line segments with enhanced highlighting for master agents
     if (isMasterAgent) {
       // Master agent path - bright highlighted path
-      ctx.strokeStyle = '#FFD700'; // Gold color for master agent path
-      ctx.lineWidth = 5;
-      ctx.setLineDash([]); // Solid line for master agents
-      ctx.lineCap = 'round';
-      ctx.shadowColor = '#FFD700';
-      ctx.shadowBlur = 10;
-      ctx.shadowOffsetX = 0;
-      ctx.shadowOffsetY = 0;
-    } else {
-      // Regular agent path
-      ctx.strokeStyle = `${agent.color}80`; // Semi-transparent agent color
-      ctx.lineWidth = 3;
-      ctx.setLineDash([5, 5]); // Dashed line
-      ctx.lineCap = 'round';
-      ctx.shadowBlur = 0; // No shadow for regular agents
+      pathStyle = {
+        color: '#FFD700',
+        width: 5,
+        dash: [],
+        shadow: '#FFD700',
+        shadowBlur: 10
+      };
+    } else if (agent.activity === 'walking' && agent.currentThought) {
+      // Regular agent with specific destination - colored based on activity
+      if (agent.currentThought.includes('work') || agent.currentThought.includes('Heading to work')) {
+        pathStyle = {
+          color: '#4CAF50', // Green for work
+          width: 3,
+          dash: [8, 4],
+          shadow: '#4CAF50',
+          shadowBlur: 8
+        };
+      } else if (agent.currentThought.includes('home') || agent.currentThought.includes('returning')) {
+        pathStyle = {
+          color: '#2196F3', // Blue for home
+          width: 3,
+          dash: [8, 4],
+          shadow: '#2196F3',
+          shadowBlur: 8
+        };
+      } else if (agent.currentThought.includes('explore') || agent.currentThought.includes('Exploring')) {
+        pathStyle = {
+          color: '#FF9800', // Orange for exploration
+          width: 3,
+          dash: [8, 4],
+          shadow: '#FF9800',
+          shadowBlur: 8
+        };
+      }
     }
+    
+    // Apply path style
+    ctx.strokeStyle = pathStyle.color;
+    ctx.lineWidth = pathStyle.width;
+    ctx.setLineDash(pathStyle.dash);
+    ctx.lineCap = 'round';
+    ctx.shadowColor = pathStyle.shadow;
+    ctx.shadowBlur = pathStyle.shadowBlur;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
     
     ctx.beginPath();
     
@@ -1037,8 +1803,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Fill with dark background (outside map area)
-    ctx.fillStyle = '#1a1a1a'; // Dark gray background
+    // Fill with grass background (matches map empty areas)
+    ctx.fillStyle = '#32CD32'; // Grass green background to match map
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // Render tileset background if available
@@ -1050,33 +1816,34 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     ctx.save();
 
     // Apply camera transformation (convert tile coordinates to pixel coordinates)
-    const cameraPixelX = -state.cameraPosition.x * state.tileSize;
-    const cameraPixelY = -state.cameraPosition.y * state.tileSize;
+    const effectiveTileSize = gameState.getEffectiveTileSize();
+    const cameraPixelX = -state.cameraPosition.x * effectiveTileSize;
+    const cameraPixelY = -state.cameraPosition.y * effectiveTileSize;
     ctx.translate(cameraPixelX, cameraPixelY);
 
     // Calculate visible area to optimize rendering
     const viewportLeft = Math.floor(state.cameraPosition.x) - 2;
-    const viewportRight = Math.floor(state.cameraPosition.x + canvas.width / state.tileSize) + 2;
+    const viewportRight = Math.floor(state.cameraPosition.x + canvas.width / effectiveTileSize) + 2;
     const viewportTop = Math.floor(state.cameraPosition.y) - 2;
-    const viewportBottom = Math.floor(state.cameraPosition.y + canvas.height / state.tileSize) + 2;
+    const viewportBottom = Math.floor(state.cameraPosition.y + canvas.height / effectiveTileSize) + 2;
 
-    // Define map boundaries (25x25 grid from defaultMap)
-    const mapWidth = 25;
-    const mapHeight = 25;
+    // Use actual map dimensions from game state
+    const mapWidth = state.mapWidth;
+    const mapHeight = state.mapHeight;
     
     // Draw map background within boundaries
     ctx.fillStyle = '#228B22'; // Grass green background for map area
-    ctx.fillRect(0, 0, mapWidth * state.tileSize, mapHeight * state.tileSize);
+    ctx.fillRect(0, 0, mapWidth * effectiveTileSize, mapHeight * effectiveTileSize);
     
     // Render background grass for empty areas within map boundaries only
     for (let tileX = Math.max(0, viewportLeft); tileX <= Math.min(mapWidth - 1, viewportRight); tileX++) {
       for (let tileY = Math.max(0, viewportTop); tileY <= Math.min(mapHeight - 1, viewportBottom); tileY++) {
-        const x = tileX * state.tileSize;
-        const y = tileY * state.tileSize;
+        const x = tileX * effectiveTileSize;
+        const y = tileY * effectiveTileSize;
         
         // If no tile exists at this position within map boundaries, render grass
         if (!state.mapData.has(`${tileX},${tileY}`)) {
-          drawGrassTexture(ctx, x, y, state.tileSize);
+          drawGrassTexture(ctx, x, y, effectiveTileSize);
         }
       }
     }
@@ -1084,7 +1851,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     // Draw map boundary
     ctx.strokeStyle = '#333333';
     ctx.lineWidth = 3;
-    ctx.strokeRect(0, 0, mapWidth * state.tileSize, mapHeight * state.tileSize);
+    ctx.strokeRect(0, 0, mapWidth * effectiveTileSize, mapHeight * effectiveTileSize);
 
     // Render existing tiles
     state.mapData.forEach((tile) => {
@@ -1094,32 +1861,32 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
         return;
       }
 
-      const x = tile.x * state.tileSize;
-      const y = tile.y * state.tileSize;
+      const x = tile.x * effectiveTileSize;
+      const y = tile.y * effectiveTileSize;
 
       // Special rendering for different tile types
       if (tile.type === TileType.SPACE) {
-        drawGrassTexture(ctx, x, y, state.tileSize);
+        drawGrassTexture(ctx, x, y, effectiveTileSize);
       } else if (isCorridorType(tile.type)) {
-        drawRoadTile(ctx, x, y, state.tileSize, state, tile.x, tile.y, tile.type);
+        drawRoadTile(ctx, x, y, effectiveTileSize, state, tile.x, tile.y, tile.type);
       } else {
         // Fill zoning background color for districts
         ctx.fillStyle = getTileColor(tile.type);
-        ctx.fillRect(x, y, state.tileSize, state.tileSize);
+        ctx.fillRect(x, y, effectiveTileSize, effectiveTileSize);
         
         // Add subtle zoning pattern
         if (tile.type === TileType.LIVING_QUARTERS) {
           ctx.fillStyle = 'rgba(100, 150, 200, 0.3)'; // Semi-transparent blue overlay
-          ctx.fillRect(x, y, state.tileSize, state.tileSize);
+          ctx.fillRect(x, y, effectiveTileSize, effectiveTileSize);
         } else if (tile.type === TileType.RESEARCH_LAB) {
           ctx.fillStyle = 'rgba(150, 100, 200, 0.3)'; // Semi-transparent purple overlay
-          ctx.fillRect(x, y, state.tileSize, state.tileSize);
+          ctx.fillRect(x, y, effectiveTileSize, effectiveTileSize);
         } else if (tile.type === TileType.ENGINEERING_BAY) {
           ctx.fillStyle = 'rgba(200, 150, 100, 0.3)'; // Semi-transparent orange overlay
-          ctx.fillRect(x, y, state.tileSize, state.tileSize);
+          ctx.fillRect(x, y, effectiveTileSize, effectiveTileSize);
         } else if (tile.type === TileType.RECREATION) {
           ctx.fillStyle = 'rgba(100, 200, 150, 0.3)'; // Semi-transparent green overlay
-          ctx.fillRect(x, y, state.tileSize, state.tileSize);
+          ctx.fillRect(x, y, effectiveTileSize, effectiveTileSize);
         }
 
         // Add SimCity-style building sprites
@@ -1672,9 +2439,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
 
     // Render player with Minecraft-style sprite and walking animation
     // Use world coordinates - camera transformation is already applied
-    const playerX = state.playerPosition.pixelX + 8;
-    const playerY = state.playerPosition.pixelY + 8;
-    const playerSize = 48;
+    const playerX = state.playerPosition.pixelX * (effectiveTileSize / state.tileSize) + 8;
+    const playerY = state.playerPosition.pixelY * (effectiveTileSize / state.tileSize) + 8;
+    const playerSize = 48 * (effectiveTileSize / state.tileSize);
 
     // Calculate walking animation offsets
     const walkCycle = Math.sin(state.playerPosition.animationFrame * 0.5) * 3;
@@ -1743,7 +2510,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     // Draw agent paths (so they appear behind agents)
     // Note: Paths are drawn in world coordinates, so they will be transformed with the camera
     state.aiAgents.forEach((agent) => {
-      if (agent.isFollowingPath && agent.currentPath && agent.currentPath.length > 1) {
+      // Show paths for all agents that have a current path, regardless of isFollowingPath
+      if (agent.currentPath && agent.currentPath.length > 1) {
         drawAgentPath(ctx, agent, state);
       }
     });
@@ -1751,11 +2519,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
     // Draw AI agents
     state.aiAgents.forEach((agent) => {
       // Use world coordinates - camera transformation is already applied
-      const worldX = agent.x * state.tileSize;
-      const worldY = agent.y * state.tileSize;
+      const worldX = agent.x * effectiveTileSize;
+      const worldY = agent.y * effectiveTileSize;
       
       ctx.save();
-      drawAIAgent(ctx, agent, worldX, worldY, state.tileSize);
+      drawAIAgent(ctx, agent, worldX, worldY, effectiveTileSize);
       ctx.restore();
       
       // Draw target building indicator if exists
@@ -1767,7 +2535,17 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
       
       // Draw chat bubble if exists
       ctx.save();
-      drawChatBubble(ctx, agent, worldX, worldY, state.tileSize);
+      drawChatBubble(ctx, agent, worldX, worldY, effectiveTileSize);
+      ctx.restore();
+      
+      // Draw activity status text
+      ctx.save();
+      drawActivityStatus(ctx, agent, worldX, worldY, effectiveTileSize);
+      ctx.restore();
+      
+      // Draw agent XP and level info
+      ctx.save();
+      drawAgentXP(ctx, agent, worldX, worldY, effectiveTileSize);
       ctx.restore();
     });
 
@@ -1776,6 +2554,117 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
 
     // Restore context
     ctx.restore();
+
+    // Draw zoom indicator
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(10, 10, 120, 30);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '14px Arial';
+    ctx.textAlign = 'left';
+    ctx.restore();
+
+    // Draw rate limit indicator
+    const rateLimitStatus = collaborativeTaskService.getRateLimitStatus();
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(10, 50, 150, 30);
+    ctx.fillStyle = rateLimitStatus.isLimited ? '#ff6b6b' : '#ffffff';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'left';
+    const rateLimitText = `Tasks: ${rateLimitStatus.requestsUsed}/${rateLimitStatus.maxRequests}/min`;
+    ctx.fillText(rateLimitText, 15, 68);
+    if (rateLimitStatus.isLimited) {
+      const timeUntilNext = Math.ceil(rateLimitStatus.timeUntilNext / 1000);
+      ctx.fillStyle = '#ff6b6b';
+      ctx.font = '10px Arial';
+      ctx.fillText(`Wait ${timeUntilNext}s`, 15, 80);
+    }
+    ctx.restore();
+
+    // Draw prominent player wallet info in top-right corner
+    const wallet = state.playerWallet;
+    const canvasWidth = canvasRef.current?.width || 1024;
+    const walletWidth = 280;
+    const walletHeight = 100;
+    const walletX = canvasWidth - walletWidth - 20;
+    const walletY = 20;
+    
+    ctx.save();
+    
+    // Draw main wallet background with gradient effect
+    const gradient = ctx.createLinearGradient(walletX, walletY, walletX + walletWidth, walletY + walletHeight);
+    gradient.addColorStop(0, 'rgba(30, 30, 30, 0.95)');
+    gradient.addColorStop(1, 'rgba(50, 50, 50, 0.95)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(walletX, walletY, walletWidth, walletHeight);
+    
+    // Draw border with glow effect
+    ctx.strokeStyle = '#4CAF50';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(walletX, walletY, walletWidth, walletHeight);
+    
+    // Add inner border
+    ctx.strokeStyle = '#66BB6A';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(walletX + 2, walletY + 2, walletWidth - 4, walletHeight - 4);
+    
+    // Draw title with larger, more prominent text
+    ctx.fillStyle = '#4CAF50';
+    ctx.font = 'bold 18px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('💰 PLAYER WALLET', walletX + walletWidth / 2, walletY + 25);
+    
+    // Draw level with prominent styling
+    ctx.fillStyle = '#FFD700';
+    ctx.font = 'bold 16px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText(`LEVEL ${wallet.level}`, walletX + 15, walletY + 50);
+    
+    // Draw XP with progress bar
+    ctx.fillStyle = '#2196F3';
+    ctx.font = 'bold 14px Arial';
+    ctx.fillText(`XP: ${wallet.experiencePoints}`, walletX + 15, walletY + 70);
+    
+    // Draw XP progress bar
+    const xpForCurrentLevel = (wallet.level - 1) * 200;
+    const xpForNextLevel = wallet.level * 200;
+    const xpProgress = (wallet.experiencePoints - xpForCurrentLevel) / (xpForNextLevel - xpForCurrentLevel);
+    const progressBarWidth = 120;
+    const progressBarHeight = 8;
+    const progressBarX = walletX + 15;
+    const progressBarY = walletY + 75;
+    
+    // Progress bar background
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.fillRect(progressBarX, progressBarY, progressBarWidth, progressBarHeight);
+    
+    // Progress bar fill
+    ctx.fillStyle = '#2196F3';
+    ctx.fillRect(progressBarX, progressBarY, progressBarWidth * xpProgress, progressBarHeight);
+    
+    // Draw money with prominent styling
+    ctx.fillStyle = '#4CAF50';
+    ctx.font = 'bold 16px Arial';
+    ctx.textAlign = 'right';
+    ctx.fillText(`$${wallet.totalMoney.toLocaleString()}`, walletX + walletWidth - 15, walletY + 50);
+    
+    // Draw money icon
+    ctx.fillStyle = '#FFD700';
+    ctx.font = 'bold 14px Arial';
+    ctx.textAlign = 'right';
+    ctx.fillText('💰', walletX + walletWidth - 35, walletY + 50);
+    
+    // Draw next level XP requirement
+    ctx.fillStyle = '#888888';
+    ctx.font = '10px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText(`Next: ${xpForNextLevel - wallet.experiencePoints} XP`, walletX + 15, walletY + 90);
+    
+    ctx.restore();
+
+    // Draw floating notifications
+    drawFloatingNotifications(ctx);
 
     forceUpdate({});
   };
@@ -1803,43 +2692,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ selectedTool }) => {
         style={{ imageRendering: 'pixelated' }}
       />
       
-      {/* Game UI Overlay */}
-      <div className="absolute top-4 right-4 flex flex-col space-y-3 z-10">
-        {/* Generate Collaborative Task Button */}
-        <button
-          onClick={generateCollaborativeTask}
-          className="amongus-button flex items-center space-x-2 text-sm font-bold tracking-wider bg-purple-600 hover:bg-purple-500"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-          </svg>
-          <span>ASK CHATGPT</span>
-        </button>
-        
-        {/* Agents List Button */}
-        <div className="flex space-x-3">
-        <button
-          onClick={() => setShowAgentsList(true)}
-          className="amongus-button flex items-center space-x-2 text-sm font-bold tracking-wider"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-          </svg>
-          <span>CREW</span>
-        </button>
-
-        <button
-          onClick={() => router.push('/create-agent')}
-          className="amongus-button flex items-center space-x-2 text-sm font-bold tracking-wider"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          <span>AI Agent</span>
-        </button>
-        </div>
-        
-      </div>
 
       <LiveFeed />
       

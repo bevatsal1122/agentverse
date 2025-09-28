@@ -94,38 +94,53 @@ const LiveFeed: React.FC<LiveFeedProps> = ({ className = '' }) => {
   };
 
   return (
-    <div className={`fixed top-16 right-4 bg-gray-800 border-2 border-gray-600 ${className}`} style={{ imageRendering: 'pixelated' }}>
+    <div className={`fixed top-20 right-4 pixel-ai-feed ${className}`} style={{ imageRendering: 'pixelated' }}>
       {/* Header */}
       <div 
-        className="flex items-center justify-between p-2 border-b border-gray-400 cursor-pointer hover:bg-gray-700"
+        className="pixel-ai-feed-header flex items-center justify-between p-3 cursor-pointer hover:bg-opacity-80 transition-all duration-200"
         onClick={() => setIsCollapsed(!isCollapsed)}
-        style={{ borderBottom: '1px solid #666', imageRendering: 'pixelated' }}
+        style={{ imageRendering: 'pixelated' }}
       >
-        <div className="flex items-center space-x-1">
-          <div className="w-2 h-2 bg-green-400" style={{ imageRendering: 'pixelated' }}></div>
-          <span className="text-xs font-bold text-white" style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>AI FEED</span>
-          <span className="text-xs text-green-300" style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>({aiAgents.size})</span>
+        <div className="flex items-center space-x-2">
+          {/* Animated status indicator */}
+          <div className="relative">
+            <div className="w-3 h-3 bg-gradient-to-br from-green-400 to-emerald-500 border border-green-300 shadow-lg" style={{ imageRendering: 'pixelated' }}></div>
+            <div className="absolute inset-0 w-3 h-3 bg-green-400 opacity-30 animate-pulse" style={{ imageRendering: 'pixelated' }}></div>
+          </div>
+          <span className="text-sm font-bold text-white pixel-text-shadow tracking-wide" style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>
+            AI FEED
+          </span>
+          <span className="text-xs text-yellow-300 font-bold pixel-text-shadow" style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>
+            ({aiAgents.size})
+          </span>
         </div>
-        <span className="text-gray-300 text-xs font-bold" style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>
+        <span className="text-white text-sm font-bold pixel-text-shadow hover:scale-110 transition-transform" style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>
           {isCollapsed ? '▼' : '▲'}
         </span>
       </div>
 
       {/* Content */}
       {!isCollapsed && (
-        <div className="w-72 max-h-80 overflow-hidden flex flex-col">
+        <div className="w-80 max-h-96 overflow-hidden flex flex-col">
           {/* Agent Status Panel */}
-          <div className="p-2 border-b border-gray-600" style={{ borderBottom: '1px solid #666', imageRendering: 'pixelated' }}>
-            <div className="text-xs font-bold text-white mb-1" style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>AGENTS</div>
-            <div className="grid grid-cols-1 gap-1 max-h-16 overflow-y-auto">
+          <div className="pixel-ai-feed-section p-3" style={{ imageRendering: 'pixelated' }}>
+            <div className="flex items-center space-x-2 mb-2">
+              <div className="w-2 h-2 bg-gradient-to-br from-blue-400 to-cyan-500 border border-blue-300" style={{ imageRendering: 'pixelated' }}></div>
+              <span className="text-sm font-bold text-white pixel-text-shadow tracking-wide" style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>
+                AGENTS
+              </span>
+            </div>
+            <div className="grid grid-cols-1 gap-2 max-h-20 overflow-y-auto">
               {Array.from(aiAgents.values()).map((agent) => (
-                <div key={agent.id} className="flex items-center space-x-1 text-xs" style={{ imageRendering: 'pixelated' }}>
+                <div key={agent.id} className="pixel-agent-item flex items-center space-x-2 p-2" style={{ imageRendering: 'pixelated' }}>
                   <div 
-                    className="w-2 h-2" 
+                    className="w-3 h-3 border border-white shadow-sm" 
                     style={{ backgroundColor: agent.color, imageRendering: 'pixelated' }}
                   ></div>
-                  <span className="text-white truncate font-bold" style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>{agent.name}</span>
-                  <span className="text-gray-400 text-xs uppercase" style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>
+                  <span className="text-white truncate font-bold text-sm pixel-text-shadow" style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>
+                    {agent.name}
+                  </span>
+                  <span className="text-yellow-300 text-xs uppercase font-bold pixel-text-shadow" style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>
                     {agent.activity.replace('_', ' ')}
                   </span>
                 </div>
@@ -136,26 +151,32 @@ const LiveFeed: React.FC<LiveFeedProps> = ({ className = '' }) => {
           </div>
 
           {/* Chat Messages */}
-          <div className="flex-1 overflow-y-auto p-2 space-y-1 max-h-48" style={{ imageRendering: 'pixelated' }}>
+          <div className="pixel-ai-feed-section flex-1 overflow-y-auto p-3 space-y-2 max-h-56" style={{ imageRendering: 'pixelated' }}>
+            <div className="flex items-center space-x-2 mb-2">
+              <div className="w-2 h-2 bg-gradient-to-br from-yellow-400 to-orange-500 border border-yellow-300" style={{ imageRendering: 'pixelated' }}></div>
+              <span className="text-sm font-bold text-white pixel-text-shadow tracking-wide" style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>
+                LIVE FEED
+              </span>
+            </div>
             {chatMessages.length === 0 ? (
-              <div className="text-center text-gray-400 text-xs py-2" style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>
+              <div className="text-center text-gray-400 text-sm py-4 pixel-text-shadow" style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>
                 NO ACTIVITY
               </div>
             ) : (
               chatMessages.slice(-15).map((message) => (
-                <div key={message.id} className="flex items-start space-x-1 text-xs" style={{ imageRendering: 'pixelated' }}>
-                  <span className="text-sm" style={{ imageRendering: 'pixelated' }}>{getMessageTypeIcon(message.type)}</span>
+                <div key={message.id} className="pixel-message-item flex items-start space-x-2 p-2" style={{ imageRendering: 'pixelated' }}>
+                  <span className="text-lg flex-shrink-0" style={{ imageRendering: 'pixelated' }}>{getMessageTypeIcon(message.type)}</span>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center space-x-1 mb-0">
+                    <div className="flex items-center space-x-2 mb-1">
                       <div 
-                        className="w-1 h-1" 
+                        className="w-2 h-2 border border-white shadow-sm" 
                         style={{ backgroundColor: getAgentColor(message.agentId), imageRendering: 'pixelated' }}
                       ></div>
-                      <span className="text-gray-400 text-xs font-bold" style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>
+                      <span className="text-yellow-300 text-xs font-bold pixel-text-shadow" style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>
                         {formatTimestamp(message.timestamp)}
                       </span>
                     </div>
-                    <p className={`${getMessageTypeColor(message.type)} break-words text-xs font-bold`} style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>
+                    <p className={`${getMessageTypeColor(message.type)} break-words text-sm font-bold pixel-text-shadow`} style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>
                       {message.message}
                     </p>
                   </div>
@@ -167,10 +188,14 @@ const LiveFeed: React.FC<LiveFeedProps> = ({ className = '' }) => {
           </div>
 
           {/* Footer */}
-          <div className="p-1 border-t border-gray-600 text-center" style={{ borderTop: '1px solid #666', imageRendering: 'pixelated' }}>
-            <span className="text-xs text-gray-400 font-bold" style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>
-              LIVE FEED
-            </span>
+          <div className="pixel-ai-feed-footer p-2 text-center" style={{ imageRendering: 'pixelated' }}>
+            <div className="flex items-center justify-center space-x-2">
+              <div className="w-1 h-1 bg-gradient-to-br from-green-400 to-emerald-500 animate-pulse" style={{ imageRendering: 'pixelated' }}></div>
+              <span className="text-xs text-green-300 font-bold pixel-text-shadow" style={{ fontFamily: 'monospace', imageRendering: 'pixelated' }}>
+                SYSTEM ONLINE
+              </span>
+              <div className="w-1 h-1 bg-gradient-to-br from-green-400 to-emerald-500 animate-pulse" style={{ imageRendering: 'pixelated' }}></div>
+            </div>
           </div>
         </div>
       )}

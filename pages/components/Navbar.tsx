@@ -16,42 +16,49 @@ export default function Navbar({ currentPage }: NavbarProps) {
   };
 
   return (
-    <nav className="sticky top-0 z-50 amongus-panel p-4 mb-4">
+    <nav className="sticky top-0 z-50 pixel-header p-4 mb-4">
       <div className="flex items-center justify-between">
         {/* Logo and Brand */}
         <div className="flex items-center space-x-4">
-          <Link href="/" className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-              <div className="w-6 h-6 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
-                <div className="w-4 h-4 bg-white rounded-full"></div>
+          <Link href="/" className="flex items-center space-x-3 hover:scale-105 transition-transform duration-200">
+            {/* Pixel-style logo with concentric rings */}
+            <div className="relative pixel-logo-glow">
+              <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-red-600 rounded-full flex items-center justify-center border-2 border-orange-300 shadow-lg">
+                <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-blue-600 rounded-full flex items-center justify-center border border-purple-300">
+                  <div className="w-6 h-6 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-full flex items-center justify-center border border-blue-200">
+                    <div className="w-4 h-4 bg-white rounded-full shadow-inner"></div>
+                  </div>
+                </div>
               </div>
+              {/* Pixel-style glow effect */}
+              <div className="absolute inset-0 w-10 h-10 bg-orange-400 rounded-full opacity-20 blur-sm animate-pulse"></div>
             </div>
-            <span className="text-xl font-bold text-white">AGENTVERSE</span>
+            <span className="text-2xl font-bold text-white tracking-wider pixel-text-shadow">AGENTVERSE</span>
           </Link>
         </div>
 
         {/* Navigation Links */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2">
           <Link
             href="/dashboard"
-            className={`amongus-button px-4 py-2 text-sm ${
-              currentPage === "dashboard" ? "selected" : ""
+            className={`pixel-button px-4 py-2 text-sm font-bold tracking-wide ${
+              currentPage === "dashboard" ? "pixel-button-selected" : "pixel-button-default"
             }`}
           >
             All Agents
           </Link>
           <Link
             href="/create-agent"
-            className={`amongus-button px-4 py-2 text-sm ${
-              currentPage === "create-agent" ? "selected" : ""
+            className={`pixel-button px-4 py-2 text-sm font-bold tracking-wide ${
+              currentPage === "create-agent" ? "pixel-button-selected" : "pixel-button-default"
             }`}
           >
             Create Agent
           </Link>
           <Link
             href="/game"
-            className={`amongus-button px-4 py-2 text-sm ${
-              currentPage === "game" ? "selected" : ""
+            className={`pixel-button px-4 py-2 text-sm font-bold tracking-wide ${
+              currentPage === "game" ? "pixel-button-selected" : "pixel-button-default"
             }`}
           >
             Game
@@ -64,7 +71,7 @@ export default function Navbar({ currentPage }: NavbarProps) {
             <div className="flex items-center space-x-3">
               {/* User Info */}
               <div className="text-right">
-                <div className="text-sm text-white font-bold">
+                <div className="text-sm text-white font-bold pixel-text-shadow">
                   {user.wallet?.address
                     ? `${user.wallet.address.slice(
                         0,
@@ -74,17 +81,21 @@ export default function Navbar({ currentPage }: NavbarProps) {
                 </div>
               </div>
 
-              {/* User Avatar */}
-              <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-blue-600 rounded-full flex items-center justify-center">
-                <div className="w-6 h-6 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
-                  <div className="w-4 h-4 bg-white rounded-full"></div>
+              {/* User Avatar - Pixel Style */}
+              <div className="relative">
+                <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center border-2 border-green-300 shadow-lg">
+                  <div className="w-6 h-6 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center border border-yellow-200">
+                    <div className="w-4 h-4 bg-white rounded-full shadow-inner"></div>
+                  </div>
                 </div>
+                {/* Pixel-style glow effect */}
+                <div className="absolute inset-0 w-8 h-8 bg-green-400 rounded-full opacity-20 blur-sm animate-pulse"></div>
               </div>
 
               {/* Logout Button */}
               <button
                 onClick={handleLogout}
-                className="amongus-button px-3 py-1 text-xs bg-red-600 hover:bg-red-500"
+                className="pixel-button pixel-button-danger px-3 py-1 text-xs font-bold tracking-wide"
               >
                 Logout
               </button>
@@ -92,7 +103,7 @@ export default function Navbar({ currentPage }: NavbarProps) {
           ) : (
             <Link
               href="/auth"
-              className="amongus-button px-4 py-2 text-sm bg-green-600 hover:bg-green-500"
+              className="pixel-button pixel-button-success px-4 py-2 text-sm font-bold tracking-wide"
             >
               Connect Wallet
             </Link>

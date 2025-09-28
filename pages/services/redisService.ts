@@ -54,6 +54,16 @@ export interface Task {
   completed_at?: string;
 }
 
+export interface PlayerWallet {
+  playerId: string;
+  totalMoney: number;
+  experiencePoints: number;
+  level: number;
+  lastUpdated: number;
+  created_at: string;
+  updated_at: string;
+}
+
 class RedisService {
   private client: RedisClientType | null = null;
   private isConnected = false;
@@ -267,6 +277,66 @@ class RedisService {
     }
     
     return tasks.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }
+
+  // Player Wallet Operations
+  async setPlayerWallet(wallet: PlayerWallet): Promise<PlayerWallet> {
+    await this.ensureConnected();
+    if (!this.client) throw new Error('Redis client not available');
+    
+    const key = `player_wallet:${wallet.playerId}`;
+    await this.client.set(key, JSON.stringify(wallet));
+    return wallet;
+  }
+
+  async getPlayerWallet(playerId: string): Promise<PlayerWallet | null> {
+    await this.ensureConnected();
+    if (!this.client) throw new Error('Redis client not available');
+    
+    const key = `player_wallet:${playerId}`;
+    const data = await this.client.get(key);
+    return data ? JSON.parse(data) : null;
+  }
+
+  async updatePlayerWallet(playerId: string, updates: Partial<Omit<PlayerWallet, 'playerId' | 'created_at'>>): Promise<PlayerWallet | null> {
+    await this.ensureConnected();
+    if (!this.client) throw new Error('Redis client not available');
+    
+    const existing = await this.getPlayerWallet(playerId);
+    if (!existing) return null;
+
+    const updated: PlayerWallet = {
+      ...existing,
+      ...updates,
+      updated_at: new Date().toISOString()
+    };
+
+    await this.setPlayerWallet(updated);
+    return updated;
+  }
+
+  async addPlayerXP(playerId: string, xpGain: number): Promise<PlayerWallet | null> {
+    const wallet = await this.getPlayerWallet(playerId);
+    if (!wallet) return null;
+
+    const newXP = wallet.experiencePoints + xpGain;
+    const newLevel = Math.floor(newXP / 200) + 1;
+    
+    return await this.updatePlayerWallet(playerId, {
+      experiencePoints: newXP,
+      level: newLevel,
+      lastUpdated: Date.now()
+    });
+  }
+
+  async addPlayerMoney(playerId: string, moneyGain: number): Promise<PlayerWallet | null> {
+    const wallet = await this.getPlayerWallet(playerId);
+    if (!wallet) return null;
+
+    return await this.updatePlayerWallet(playerId, {
+      totalMoney: wallet.totalMoney + moneyGain,
+      lastUpdated: Date.now()
+    });
   }
 
   // Utility Operations
