@@ -254,6 +254,7 @@ async function saveAgentToDatabase(
   embeddedWalletAddress?: string,
   userId?: string
 ): Promise<string> {
+  const ensPreFix = agentData.name.toLowerCase().replace(/ /g, "-");
   const agentInsert: TablesInsert<"agents"> = {
     id: agentData.address, // Use the agent address as the ID
     name: agentData.name,
@@ -268,6 +269,7 @@ async function saveAgentToDatabase(
     level: 1,
     experience_points: 0,
     reputation_score: 0,
+    ens: `${ensPreFix}.agenticverse.eth`,
     privy_wallet_address: embeddedWalletAddress || null, // Save the embedded wallet address
     // Store the Python code in personality field as JSON
     personality: {

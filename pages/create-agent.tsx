@@ -500,27 +500,6 @@ export default function CreateAgent() {
                   </div>
                 </div>
 
-                <div className="p-3 bg-blue-900 bg-opacity-50 border border-blue-400 rounded">
-                  <p className="text-sm text-blue-200 mb-2">
-                    💰 <strong>Instructions (Arbitrum Sepolia Testnet):</strong>
-                  </p>
-                  <ul className="text-xs text-blue-200 space-y-1 ml-4">
-                    <li>
-                      • Send the required ERC-20 token to the wallet address
-                      above
-                    </li>
-                    <li>
-                      • Token Contract:{" "}
-                      <span className="font-mono text-cyan-300">
-                        0x637A1259C6afd7E3AdF63993cA7E58BB438aB1B1
-                      </span>
-                    </li>
-                    <li>• Network: Arbitrum Sepolia Testnet</li>
-                    <li>• Wait for the transaction to be confirmed</li>
-                    <li>• Click "I Have Funded" to verify the balance</li>
-                  </ul>
-                </div>
-
                 {!walletFunded ? (
                   <div className="flex space-x-2">
                     <button

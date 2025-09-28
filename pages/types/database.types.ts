@@ -6,33 +6,6 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-// Agent interface for the ultra-minimal database + memory approach
-export interface Agent {
-  id: string;
-  name: string;
-  owner_address: string;
-  wallet_address?: string;
-  created_at: string;
-  // Memory-only fields
-  description?: string;
-  personality?: {
-    traits: string[];
-    communication_style: string;
-    goals: string[];
-    preferences: Record<string, any>;
-  };
-  capabilities: string[];
-  status: 'active' | 'inactive' | 'busy' | 'offline';
-  current_building_id?: string;
-  assigned_building_ids: string[];
-  avatar_url?: string;
-  experience_points: number;
-  level: number;
-  reputation_score: number;
-  last_active: string;
-  updated_at: string;
-}
-
 export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
@@ -210,6 +183,7 @@ export type Database = {
           created_at: string | null
           current_building_id: string | null
           description: string | null
+          ens: string | null
           experience_points: number | null
           id: string
           last_active: string | null
@@ -231,6 +205,7 @@ export type Database = {
           created_at?: string | null
           current_building_id?: string | null
           description?: string | null
+          ens?: string | null
           experience_points?: number | null
           id?: string
           last_active?: string | null
@@ -252,6 +227,7 @@ export type Database = {
           created_at?: string | null
           current_building_id?: string | null
           description?: string | null
+          ens?: string | null
           experience_points?: number | null
           id?: string
           last_active?: string | null
