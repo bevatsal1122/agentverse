@@ -13,3 +13,5 @@ export function deriveIndexFromString(input: string): number {
   // Return positive number and use modulo to keep it reasonable
   return Math.abs(hash) % 1000000;
 }
+
+

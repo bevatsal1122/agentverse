@@ -46,3 +46,5 @@ export function loadSessionKeyHex(): string | null {
   
   return localStorage.getItem(SESSION_KEY_STORAGE_KEY);
 }
+
+
